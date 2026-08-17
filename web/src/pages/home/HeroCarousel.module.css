@@ -1,0 +1,227 @@
+.hero {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 3.2 / 1;
+  min-height: 280px;
+  border-radius: 16px;
+  overflow: hidden;
+  background: var(--color-bg);
+}
+
+.bg {
+  position: absolute;
+  inset: 0;
+}
+
+.bgImg {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+/* Soft beige wash over the left/text side only — deliberately not a dark
+   scrim, since the brief calls for an airy, premium feel and the source
+   photos already carry a light beige backdrop on their left side. This
+   keeps text legible even if a future upload doesn't have that same
+   light-left composition. */
+.scrim {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    90deg,
+    rgba(251, 248, 244, 0.65) 0%,
+    rgba(251, 248, 244, 0.5) 32%,
+    rgba(251, 248, 244, 0) 62%
+  );
+}
+
+.copy {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  padding: 38px var(--space-6) 38px 8.5%;
+}
+
+.copyInner {
+  max-width: 520px;
+}
+
+.eyebrow {
+  font-size: 12px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 3px;
+  color: var(--color-burgundy);
+  margin: 0 0 17px;
+}
+
+.heading {
+  font-family: var(--font-heading);
+  font-size: 64px;
+  font-weight: 400;
+  line-height: 1.06;
+  color: var(--color-burgundy-dark);
+  max-width: 520px;
+  margin: 0 0 20px;
+}
+
+.subheading {
+  font-size: 16px;
+  line-height: 24px;
+  color: var(--color-text-muted);
+  margin: 0 0 24px;
+  max-width: 500px;
+}
+
+.ctaRow {
+  display: flex;
+  align-items: center;
+  gap: 36px;
+}
+
+.cta {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
+  height: 50px;
+  padding: 0 26px;
+  background: var(--color-burgundy);
+  color: var(--color-white);
+  font-size: var(--text-sm);
+  font-weight: 600;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  white-space: nowrap;
+  border-radius: 5px;
+  transition: background 0.15s ease;
+}
+
+.cta:hover {
+  background: var(--color-burgundy-dark);
+}
+
+.secondaryCta {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: var(--text-sm);
+  font-weight: 600;
+  color: var(--color-burgundy-dark);
+  transition: opacity 0.15s ease;
+}
+
+.secondaryCta:hover {
+  opacity: 0.7;
+}
+
+.trustRow {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 14px;
+  margin-top: 42px;
+}
+
+.trustItem {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--color-text);
+  white-space: nowrap;
+}
+
+.trustIcon {
+  width: 22px;
+  height: 22px;
+  flex: none;
+  border: 1.5px solid var(--color-burgundy);
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--color-burgundy);
+}
+
+.trustSep {
+  width: 1px;
+  height: 16px;
+  background: rgba(31, 26, 23, 0.15);
+}
+
+.dots {
+  position: absolute;
+  z-index: 2;
+  bottom: 34px;
+  right: 34px;
+  display: flex;
+  gap: var(--space-2);
+}
+
+.dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--color-white);
+  box-shadow: 0 0 0 1px rgba(31, 26, 23, 0.15);
+  border: none;
+  padding: 0;
+  cursor: pointer;
+}
+
+.dotActive {
+  background: var(--color-burgundy);
+  box-shadow: 0 0 0 2px rgba(109, 27, 47, 0.25);
+}
+
+@media (max-width: 767px) {
+  .hero {
+    aspect-ratio: 4 / 4.2;
+    min-height: 380px;
+  }
+
+  /* On mobile the image fills the whole card behind the text (no side-by-
+     side room like desktop), so the left-to-right scrim isn't enough —
+     text would sit directly over the model's face/jewellery. A full-width
+     wash keeps it legible without losing the photo entirely. */
+  .scrim {
+    background: rgba(251, 248, 244, 0.68);
+  }
+
+  .copy {
+    padding: var(--space-5) var(--space-4);
+  }
+
+  .copyInner {
+    max-width: 100%;
+  }
+
+  .heading {
+    font-size: 36px;
+    max-width: 100%;
+  }
+
+  .subheading {
+    max-width: 32ch;
+  }
+
+  .ctaRow {
+    flex-wrap: wrap;
+    gap: var(--space-4);
+  }
+
+  .trustRow {
+    margin-top: var(--space-5);
+    gap: var(--space-3);
+  }
+
+  .trustSep {
+    display: none;
+  }
+}

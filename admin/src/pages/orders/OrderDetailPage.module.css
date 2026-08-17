@@ -1,0 +1,127 @@
+.back {
+  display: inline-block;
+  color: var(--color-text-muted);
+  font-size: var(--text-sm);
+  text-decoration: none;
+  margin-bottom: var(--space-4);
+}
+
+.subtext {
+  color: var(--color-text-muted);
+  font-size: var(--text-sm);
+  margin: var(--space-1) 0 0;
+}
+
+.layout {
+  display: grid;
+  grid-template-columns: 1fr 300px;
+  gap: var(--space-5);
+  align-items: start;
+}
+
+.main {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-5);
+}
+
+.sectionHeading {
+  font-size: var(--text-base);
+  margin: 0 0 var(--space-4);
+}
+
+.itemRow {
+  display: flex;
+  justify-content: space-between;
+  padding: var(--space-2) 0;
+  border-bottom: 1px solid var(--color-border);
+}
+
+.itemName {
+  margin: 0;
+  font-size: var(--text-sm);
+}
+
+.itemMeta {
+  margin: var(--space-1) 0 0;
+  font-size: var(--text-xs);
+  color: var(--color-text-muted);
+}
+
+.itemPrice {
+  margin: 0;
+  font-size: var(--text-sm);
+}
+
+.totalsBlock {
+  margin-top: var(--space-3);
+  padding-top: var(--space-3);
+}
+
+.totalRow {
+  display: flex;
+  justify-content: space-between;
+  font-size: var(--text-sm);
+  color: var(--color-text-muted);
+  margin-bottom: var(--space-2);
+}
+
+.grandTotal {
+  font-weight: 600;
+  color: var(--color-text);
+  font-size: var(--text-base);
+}
+
+.address {
+  font-size: var(--text-sm);
+  color: var(--color-text-muted);
+  line-height: 1.6;
+  margin: 0;
+}
+
+.timelineRow {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-3);
+  padding: var(--space-2) 0;
+  font-size: var(--text-sm);
+  flex-wrap: wrap;
+}
+
+.timelineStatus {
+  font-weight: 600;
+  min-width: 130px;
+}
+
+.timelineDate {
+  color: var(--color-text-muted);
+}
+
+.timelineNote {
+  color: var(--color-text-muted);
+  font-size: var(--text-xs);
+}
+
+.shipmentLine {
+  font-size: var(--text-sm);
+  margin: 0 0 var(--space-2);
+}
+
+.shipmentActions {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  margin-top: var(--space-4);
+}
+
+.hint {
+  font-size: var(--text-xs);
+  color: var(--color-text-muted);
+  margin-top: var(--space-3);
+}
+
+@media (max-width: 900px) {
+  .layout {
+    grid-template-columns: 1fr;
+  }
+}

@@ -1,0 +1,52 @@
+@import './styles/tokens.css';
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html {
+  color-scheme: light;
+}
+
+body {
+  margin: 0;
+  /* Defense-in-depth against horizontal overflow (mobile-first requirement)
+     — the actual bug class this guards against is fixed at the source
+     (see SearchBar.module.css min-width: 0), this is just a safety net. */
+  overflow-x: hidden;
+  background: var(--color-bg);
+  color: var(--color-text);
+  font-family: var(--font-body);
+  font-size: var(--text-base);
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+}
+
+h1,
+h2,
+h3,
+h4 {
+  font-family: var(--font-heading);
+  /* 600 is the heaviest weight actually loaded for Inter (400/500/600 only)
+     — true 700 "bold" isn't fetched, so requesting it here would just get
+     browser-synthesized faux-bold instead of the real font. */
+  font-weight: 600;
+  color: var(--color-text);
+  margin: 0;
+}
+
+a {
+  color: inherit;
+  text-decoration: none;
+}
+
+button {
+  font-family: inherit;
+}
+
+img {
+  max-width: 100%;
+  display: block;
+}

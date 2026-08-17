@@ -1,0 +1,35 @@
+.wrap {
+  min-width: 0;
+}
+
+.label {
+  display: block;
+  font-size: calc(var(--text-sm) + 4px);
+  font-weight: 600;
+  color: var(--color-text);
+  margin-bottom: var(--space-2);
+}
+
+.row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+.pill,
+.pillActive {
+  padding: var(--space-2) var(--space-4);
+  border-radius: 999px;
+  border: 1px solid var(--color-border);
+  background: var(--color-surface);
+  color: var(--color-text);
+  font-size: var(--text-sm);
+  cursor: pointer;
+}
+
+.pillActive {
+  border-color: var(--color-burgundy);
+  background: var(--color-burgundy);
+  color: var(--color-white);
+  font-weight: 600;
+}

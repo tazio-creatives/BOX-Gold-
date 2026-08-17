@@ -1,0 +1,106 @@
+.section {
+  max-width: var(--container-max);
+  margin: 0 auto;
+  padding: var(--space-10) var(--space-4);
+}
+
+.alt {
+  max-width: none;
+  background: var(--color-bg-alt);
+}
+
+.alt > * {
+  max-width: var(--container-max);
+  margin-left: auto;
+  margin-right: auto;
+}
+
+.heading {
+  font-size: var(--text-2xl);
+  text-align: center;
+  margin-bottom: var(--space-6);
+}
+
+.hero {
+  max-width: none;
+  padding: var(--space-3);
+}
+
+.trustSection {
+  padding: var(--space-5) var(--space-4);
+}
+
+.newsletter {
+  background: var(--color-bg-alt);
+  text-align: center;
+  padding: var(--space-10) var(--space-4);
+}
+
+.newsletter .heading {
+  color: var(--color-burgundy);
+}
+
+/*
+  A fixed max (not 1fr) plus justify-content: center means a sparse section
+  (e.g. one product) gets one sensibly-sized card instead of stretching to
+  fill the whole row — auto-fit/1fr does the latter and looked broken with
+  real (currently minimal) seed data.
+*/
+.grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 280px));
+  justify-content: center;
+  gap: var(--space-4);
+}
+
+.gridSm {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(140px, 180px));
+  justify-content: center;
+  gap: var(--space-3);
+}
+
+/* Horizontal scroll rows — New Arrivals / Best Sellers / Instagram */
+.scrollRow {
+  display: flex;
+  gap: var(--space-4);
+  overflow-x: auto;
+  scroll-snap-type: x proximity;
+  padding-bottom: var(--space-2);
+  scrollbar-width: thin;
+}
+
+.scrollItem {
+  flex: 0 0 220px;
+  scroll-snap-align: start;
+}
+
+.scrollItemSm {
+  flex: 0 0 160px;
+  scroll-snap-align: start;
+}
+
+.instagramLink {
+  text-align: center;
+  margin: var(--space-4) 0 0;
+  font-size: var(--text-sm);
+  color: var(--color-burgundy);
+  font-weight: 600;
+}
+
+/* Shop by Price — row of small icon tiles */
+.priceRow {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(110px, 1fr));
+  gap: var(--space-3);
+}
+
+@media (max-width: 640px) {
+  .grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+
+  .gridSm {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}

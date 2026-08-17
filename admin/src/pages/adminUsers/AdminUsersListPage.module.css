@@ -1,0 +1,12 @@
+.formWrapper {
+  margin-bottom: var(--space-5);
+}
+
+.youBadge {
+  margin-left: var(--space-2);
+  font-size: var(--text-xs);
+  color: var(--color-text-muted);
+  background: var(--color-bg);
+  padding: 2px var(--space-2);
+  border-radius: 999px;
+}

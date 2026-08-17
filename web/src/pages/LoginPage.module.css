@@ -1,0 +1,202 @@
+.page {
+  min-height: calc(100vh - 400px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--space-10) var(--space-4) var(--space-12);
+  background: var(--color-bg);
+}
+
+.card {
+  width: 100%;
+  max-width: 420px;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: 20px;
+  box-shadow: var(--shadow-md);
+  padding: var(--space-8) var(--space-6);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.iconBadge {
+  width: 56px;
+  height: 56px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #fbe4e8;
+  color: var(--color-burgundy);
+  margin-bottom: var(--space-4);
+}
+
+.heading {
+  font-family: var(--font-heading);
+  font-size: var(--text-2xl);
+  font-weight: 600;
+  text-align: center;
+  margin: 0 0 var(--space-2);
+}
+
+.tagline {
+  font-size: var(--text-sm);
+  color: var(--color-text-muted);
+  text-align: center;
+  margin: 0 0 var(--space-6);
+}
+
+.form {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-5);
+}
+
+.label {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  font-size: var(--text-sm);
+  font-weight: 600;
+  color: var(--color-text);
+}
+
+.mobileRow {
+  display: flex;
+  align-items: stretch;
+  border: 1px solid var(--color-border);
+  border-radius: 12px;
+  overflow: hidden;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.mobileRow:focus-within {
+  border-color: var(--color-burgundy);
+  box-shadow: 0 0 0 3px rgba(114, 28, 45, 0.1);
+}
+
+.prefix {
+  display: flex;
+  align-items: center;
+  padding: 0 var(--space-4);
+  background: var(--color-bg-alt);
+  color: var(--color-text-muted);
+  font-size: var(--text-base);
+  font-weight: 500;
+  border-right: 1px solid var(--color-border);
+}
+
+.input {
+  flex: 1;
+  min-width: 0;
+  padding: var(--space-4);
+  border: none;
+  background: var(--color-surface);
+  font-size: var(--text-base);
+  color: var(--color-text);
+}
+
+.input:focus {
+  outline: none;
+}
+
+.otpInput {
+  width: 100%;
+  padding: var(--space-4);
+  border: 1px solid var(--color-border);
+  border-radius: 12px;
+  background: var(--color-surface);
+  font-size: var(--text-xl);
+  letter-spacing: 0.5em;
+  text-align: center;
+  color: var(--color-text);
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.otpInput::placeholder {
+  letter-spacing: 0.5em;
+  color: var(--color-text-muted);
+  opacity: 0.5;
+}
+
+.otpInput:focus {
+  outline: none;
+  border-color: var(--color-burgundy);
+  box-shadow: 0 0 0 3px rgba(114, 28, 45, 0.1);
+}
+
+.subtext {
+  font-size: var(--text-sm);
+  color: var(--color-text-muted);
+  text-align: center;
+  margin: calc(var(--space-4) * -1) 0 0;
+}
+
+.subtext strong {
+  color: var(--color-text);
+}
+
+.error {
+  color: var(--color-burgundy);
+  font-size: var(--text-sm);
+  margin: 0;
+  text-align: center;
+}
+
+.submit {
+  padding: var(--space-4);
+  background: var(--color-burgundy);
+  color: var(--color-white);
+  border: 1px solid var(--color-burgundy);
+  border-radius: 14px;
+  font-size: var(--text-sm);
+  font-weight: 600;
+  cursor: pointer;
+  transition: transform 0.15s ease, box-shadow 0.15s ease, background 0.15s ease;
+}
+
+.submit:hover:not(:disabled) {
+  transform: translateY(-1px);
+  box-shadow: var(--shadow-md);
+}
+
+.submit:disabled {
+  background: var(--color-border);
+  border-color: var(--color-border);
+  color: var(--color-text-muted);
+  cursor: not-allowed;
+  transform: none;
+  box-shadow: none;
+}
+
+.footerRow {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-3);
+}
+
+.footerDivider {
+  width: 1px;
+  height: 12px;
+  background: var(--color-border);
+}
+
+.linkButton {
+  background: none;
+  border: none;
+  padding: 0;
+  color: var(--color-burgundy);
+  font-size: var(--text-sm);
+  font-weight: 600;
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+.linkButton:disabled {
+  color: var(--color-text-muted);
+  cursor: not-allowed;
+  text-decoration: none;
+}

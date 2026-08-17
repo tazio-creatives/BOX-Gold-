@@ -1,0 +1,140 @@
+.card {
+  display: block;
+  border-radius: var(--radius-md);
+  overflow: hidden;
+  background: var(--color-surface);
+  box-shadow: var(--shadow-sm);
+  color: inherit;
+  text-decoration: none;
+}
+
+.image {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 4 / 5;
+}
+
+.imageTag {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.badges {
+  position: absolute;
+  top: var(--space-2);
+  left: var(--space-2);
+  z-index: 2;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--space-1);
+}
+
+.badgeNew,
+.badgeOut,
+.badgeLow {
+  padding: var(--space-1) var(--space-2);
+  border-radius: var(--radius-sm);
+  font-size: var(--text-xs);
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.badgeNew {
+  background: #fbe4e8;
+  color: var(--color-burgundy);
+  font-weight: 600;
+}
+
+.badgeOut {
+  background: var(--color-text);
+  color: var(--color-white);
+}
+
+.badgeLow {
+  background: var(--color-burgundy);
+  color: var(--color-white);
+}
+
+.wishlistButton {
+  position: absolute;
+  top: var(--space-2);
+  right: var(--space-2);
+  z-index: 2;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.85);
+  color: var(--color-burgundy);
+}
+
+.body {
+  padding: var(--space-3) var(--space-4) var(--space-4);
+}
+
+.meta {
+  margin: 0;
+  font-size: var(--text-xs);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--color-text-muted);
+}
+
+.name {
+  font-family: var(--font-heading);
+  font-weight: 600;
+  font-size: var(--text-lg);
+  margin: var(--space-1) 0;
+}
+
+.rating {
+  margin: 0 0 var(--space-1);
+  font-size: var(--text-sm);
+  color: var(--color-gold);
+}
+
+.ratingCount {
+  color: var(--color-text-muted);
+}
+
+.price {
+  margin: 0;
+  font-size: var(--text-base);
+  font-weight: 600;
+}
+
+.mrp {
+  margin-left: var(--space-2);
+  font-weight: 400;
+  font-size: var(--text-sm);
+  color: var(--color-text-muted);
+  text-decoration: line-through;
+}
+
+.discountPill {
+  margin-left: var(--space-2);
+  padding: 2px var(--space-2);
+  border-radius: var(--radius-sm);
+  background: #fbe4e8;
+  font-weight: 600;
+  font-size: var(--text-xs);
+  color: var(--color-burgundy);
+}
+
+.cardList {
+  display: flex;
+  align-items: stretch;
+}
+
+.imageList {
+  flex: 0 0 220px;
+  aspect-ratio: auto;
+}
+
+.cardList .body {
+  flex: 1;
+  padding: var(--space-4);
+}
+

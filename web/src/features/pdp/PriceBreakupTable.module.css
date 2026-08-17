@@ -1,0 +1,32 @@
+.table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: calc(var(--text-sm) + 4px);
+}
+
+.table td {
+  padding: var(--space-2) 0;
+  border-bottom: 1px solid var(--color-border);
+}
+
+.table td:last-child {
+  text-align: right;
+}
+
+.totalRow td {
+  border-bottom: none;
+  font-weight: 800;
+  font-size: var(--text-xl);
+  padding-top: var(--space-3);
+}
+
+.totalRow td:last-child {
+  font-size: var(--text-xl);
+  color: var(--color-burgundy);
+}
+
+.totalNote {
+  font-weight: 700;
+  font-size: var(--text-sm);
+  color: var(--color-text-muted);
+}

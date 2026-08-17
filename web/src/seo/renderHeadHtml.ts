@@ -1,0 +1,35 @@
+import type { HeadData } from './head';
+import { SITE_URL } from '../config';
+
+// Server-side counterpart to head.tsx's applyHeadToDom — builds the same
+// information as a raw HTML string for injection into the SSR shell's
+// <head>, so it's present in the initial response bots see (plan §1a).
+export function renderHeadHtml(head: HeadData): string {
+  const canonicalUrl = `${SITE_URL}${head.canonicalPath}`;
+
+  const jsonLdScripts = head.jsonLd
+    .map(
+      (entry) =>
+        `<script type="application/ld+json">${JSON.stringify(entry).replace(/</g, '\\u003c')}</script>`,
+    )
+    .join('\n    ');
+
+  return [
+    `<title>${escapeHtml(head.title)}</title>`,
+    `<meta name="description" content="${escapeHtml(head.description)}" />`,
+    `<link rel="canonical" href="${escapeHtml(canonicalUrl)}" />`,
+    `<meta property="og:title" content="${escapeHtml(head.title)}" />`,
+    `<meta property="og:description" content="${escapeHtml(head.description)}" />`,
+    `<meta property="og:url" content="${escapeHtml(canonicalUrl)}" />`,
+    `<meta property="og:type" content="website" />`,
+    jsonLdScripts,
+  ].join('\n    ');
+}
+
+function escapeHtml(value: string): string {
+  return value
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
+}

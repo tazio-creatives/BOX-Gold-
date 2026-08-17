@@ -1,0 +1,216 @@
+import { useState } from 'react';
+import { Link } from 'react-router-dom';
+import { useQuery, useQueryClient, useMutation } from '@tanstack/react-query';
+import { fetchAdminProducts, deleteProduct, setFeatured } from '../../api/products';
+import { fetchAdminCategories } from '../../api/categories';
+import type { ProductStatus } from '../../api/types';
+import { formatPrice } from '../../utils/formatPrice';
+import { buildCategoryTree, flattenTree } from '../../utils/categoryTree';
+import sharedStyles from '../../styles/shared.module.css';
+import styles from './ProductsListPage.module.css';
+
+function TrashIcon() {
+  return (
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M4 7h16" />
+      <path d="M9 7V5a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2" />
+      <path d="M6 7l1 13a1 1 0 0 0 1 1h8a1 1 0 0 0 1-1l1-13" />
+      <path d="M10 11v6M14 11v6" />
+    </svg>
+  );
+}
+
+function StarIcon({ filled }: { filled: boolean }) {
+  return (
+    <svg
+      width="18"
+      height="18"
+      viewBox="0 0 24 24"
+      fill={filled ? 'currentColor' : 'none'}
+      stroke="currentColor"
+      strokeWidth="1.75"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      <path d="M12 3.3l2.5 5.3 5.8.6-4.3 3.9 1.2 5.7-5.2-3-5.2 3 1.2-5.7-4.3-3.9 5.8-.6L12 3.3z" />
+    </svg>
+  );
+}
+
+const STATUSES: ProductStatus[] = ['DRAFT', 'AI_PROCESSING', 'AI_READY', 'PUBLISHED', 'FAILED'];
+
+const STATUS_CLASS: Record<string, string> = {
+  PUBLISHED: 'badgeSuccess',
+  DRAFT: 'badgeNeutral',
+  AI_PROCESSING: 'badgeWarning',
+  AI_READY: 'badgeWarning',
+  FAILED: 'badgeDanger',
+};
+
+export function ProductsListPage() {
+  const queryClient = useQueryClient();
+  const [status, setStatus] = useState<ProductStatus | ''>('');
+  const [category, setCategory] = useState('');
+  const [page, setPage] = useState(1);
+
+  const { data, isLoading } = useQuery({
+    queryKey: ['admin-products', { status, category, page }],
+    queryFn: () => fetchAdminProducts({ status: status || undefined, category: category || undefined, page, limit: 20 }),
+  });
+
+  const { data: categoriesData } = useQuery({ queryKey: ['admin-categories'], queryFn: fetchAdminCategories });
+  const categoryOptions = flattenTree(buildCategoryTree(categoriesData?.categories ?? []));
+
+  const deleteMutation = useMutation({
+    mutationFn: (id: string) => deleteProduct(id),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['admin-products'] }),
+    onError: (err) => window.alert(err instanceof Error ? err.message : 'Could not delete product.'),
+  });
+
+  const featuredMutation = useMutation({
+    mutationFn: ({ id, featured }: { id: string; featured: boolean }) => setFeatured(id, featured),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['admin-products'] }),
+    onError: (err) => window.alert(err instanceof Error ? err.message : 'Could not update featured status.'),
+  });
+
+  return (
+    <div>
+      <div className={sharedStyles.pageHeader}>
+        <h1 className={sharedStyles.pageTitle}>Products</h1>
+        <Link to="/products/new" className={sharedStyles.buttonPrimary}>
+          Add Product
+        </Link>
+      </div>
+
+      <div className={styles.filters}>
+        <select
+          value={status}
+          onChange={(e) => {
+            setStatus(e.target.value as ProductStatus | '');
+            setPage(1);
+          }}
+        >
+          <option value="">All statuses</option>
+          {STATUSES.map((s) => (
+            <option key={s} value={s}>
+              {s.replace(/_/g, ' ')}
+            </option>
+          ))}
+        </select>
+        <select
+          value={category}
+          onChange={(e) => {
+            setCategory(e.target.value);
+            setPage(1);
+          }}
+        >
+          <option value="">All categories</option>
+          {categoryOptions.map((c) => (
+            <option key={c.id} value={c.slug}>
+              {'—'.repeat(c.depth)} {c.name}
+            </option>
+          ))}
+        </select>
+      </div>
+
+      <div className={sharedStyles.card}>
+        {isLoading && <p className={sharedStyles.empty}>Loading…</p>}
+        {!isLoading && data && data.products.length === 0 && (
+          <p className={sharedStyles.empty}>No products match this filter.</p>
+        )}
+        {!isLoading && data && data.products.length > 0 && (
+          <table className={`${sharedStyles.table} ${styles.table}`}>
+            <thead>
+              <tr>
+                <th colSpan={2}>Name</th>
+                <th>Metal</th>
+                <th>Price</th>
+                <th>Stock</th>
+                <th>Status</th>
+                <th>Featured</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody>
+              {data.products.map((product) => (
+                <tr key={product.id}>
+                  <td className={styles.thumbCell}>
+                    {product.primaryImageUrl ? (
+                      <img src={product.primaryImageUrl} alt="" className={styles.thumb} />
+                    ) : (
+                      <div className={styles.thumbPlaceholder} />
+                    )}
+                  </td>
+                  <td>
+                    <Link to={`/products/${product.id}/edit`} className={styles.nameLink}>
+                      {product.name}
+                    </Link>
+                  </td>
+                  <td>
+                    {product.purity ? `${product.purity} ` : ''}
+                    {product.metalType === 'GOLD' ? 'Gold' : 'Platinum'}
+                  </td>
+                  <td>{formatPrice(product.sellingPrice)}</td>
+                  <td>{product.availableStock}</td>
+                  <td>
+                    <span className={sharedStyles[STATUS_CLASS[product.status ?? 'DRAFT'] ?? 'badgeNeutral']}>
+                      {(product.status ?? 'DRAFT').replace(/_/g, ' ')}
+                    </span>
+                  </td>
+                  <td>
+                    <button
+                      type="button"
+                      className={`${styles.featuredButton} ${product.isFeatured ? styles.featuredActive : ''}`}
+                      aria-label={product.isFeatured ? `Remove ${product.name} from Featured Product` : `Show ${product.name} in Featured Product`}
+                      aria-pressed={product.isFeatured}
+                      disabled={featuredMutation.isPending}
+                      onClick={() => featuredMutation.mutate({ id: product.id, featured: !product.isFeatured })}
+                    >
+                      <StarIcon filled={product.isFeatured} />
+                    </button>
+                  </td>
+                  <td>
+                    <button
+                      type="button"
+                      className={styles.deleteButton}
+                      aria-label={`Delete ${product.name}`}
+                      onClick={() => {
+                        if (window.confirm(`Delete "${product.name}"?`)) deleteMutation.mutate(product.id);
+                      }}
+                    >
+                      <TrashIcon />
+                    </button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
+      </div>
+
+      {data && data.totalPages > 1 && (
+        <div className={sharedStyles.pagination}>
+          <button
+            type="button"
+            className={sharedStyles.button}
+            disabled={page <= 1}
+            onClick={() => setPage((p) => p - 1)}
+          >
+            Previous
+          </button>
+          <span>
+            Page {data.page} of {data.totalPages}
+          </span>
+          <button
+            type="button"
+            className={sharedStyles.button}
+            disabled={page >= data.totalPages}
+            onClick={() => setPage((p) => p + 1)}
+          >
+            Next
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}

@@ -1,0 +1,35 @@
+.back {
+  display: inline-block;
+  color: var(--color-text-muted);
+  font-size: var(--text-sm);
+  text-decoration: none;
+  margin-bottom: var(--space-4);
+}
+
+.header {
+  margin-bottom: var(--space-5);
+}
+
+.subheading {
+  font-size: var(--text-xl);
+  margin: 0;
+}
+
+.date {
+  margin: var(--space-1) 0 0;
+  font-size: var(--text-sm);
+  color: var(--color-text-muted);
+}
+
+.skeletonLine {
+  composes: shimmer from '../../styles/skeleton.module.css';
+  height: 16px;
+  border-radius: var(--radius-sm);
+}
+
+.skeletonContent {
+  composes: shimmer from '../../styles/skeleton.module.css';
+  height: 320px;
+  border-radius: var(--radius-md);
+  margin-top: var(--space-5);
+}

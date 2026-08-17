@@ -1,0 +1,143 @@
+.categorySection {
+  max-width: 1440px;
+  margin: 0 auto;
+  padding: 40px 24px;
+  background: #ffffff;
+  border-radius: 22px;
+  overflow: hidden;
+}
+
+.categoryGrid {
+  display: grid;
+  grid-template-columns: 1.12fr 0.82fr 1.02fr 1.08fr 0.96fr;
+  gap: 16px;
+  height: 315px;
+}
+
+.categoryCard {
+  position: relative;
+  overflow: hidden;
+  border-radius: 14px;
+  background: #f5eee8;
+  text-decoration: none;
+  min-width: 0;
+  display: block;
+}
+
+.categoryCard::before,
+.categoryCard::after {
+  display: none;
+  content: none;
+}
+
+.categoryCard img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: center;
+  filter: none;
+  opacity: 1;
+  transition: transform 0.5s ease;
+}
+
+.categoryCard:hover img {
+  transform: scale(1.03);
+}
+
+.categoryStack {
+  display: grid;
+  grid-template-rows: 1fr 1fr;
+  gap: 16px;
+  min-width: 0;
+  min-height: 0;
+}
+
+.categoryStack .categoryCard img {
+  object-position: right center;
+}
+
+.categoryContent {
+  position: absolute;
+  left: 28px;
+  bottom: 25px;
+  z-index: 2;
+}
+
+.categoryContent h3 {
+  margin: 0 0 12px;
+  font-family: 'Cormorant Garamond', 'Times New Roman', serif;
+  font-size: 22px;
+  font-weight: 600;
+  line-height: 1.1;
+  letter-spacing: 0;
+  color: #271914;
+  text-transform: none;
+}
+
+.categoryContent span {
+  font-family: Inter, Arial, sans-serif;
+  font-size: 13px;
+  font-weight: 500;
+  line-height: 1;
+  color: #3e322c;
+  text-transform: none;
+}
+
+.categoryStack .categoryContent {
+  left: 22px;
+  bottom: 20px;
+}
+
+.categoryStack .categoryContent h3 {
+  margin-bottom: 10px;
+}
+
+/* Position-based, not name-based — this is whichever category the API put
+   last in the array, not a specific category identified by name. Text
+   stays the same dark color as every other card (not white) — a full-bleed
+   real photo always hides this background color, so white text over an
+   arbitrary photo would be a legibility gamble; dark text reads reliably
+   regardless of what image ends up here. */
+.categoryGrid > .categoryCard:last-child {
+  background: #4a0614;
+}
+
+@media (max-width: 1100px) and (min-width: 641px) {
+  .categoryGrid {
+    grid-template-columns: repeat(2, 1fr);
+    height: auto;
+  }
+
+  /* display: contents unwraps the stack wrapper for layout purposes only —
+     the DOM tree (and therefore :last-child matching above) is unaffected,
+     so the two stacked categories become independent grid cells here. */
+  .categoryStack {
+    display: contents;
+  }
+
+  .categoryCard {
+    height: 280px;
+  }
+}
+
+@media (max-width: 640px) {
+  .categoryGrid {
+    display: flex;
+    overflow-x: auto;
+    gap: 12px;
+    height: auto;
+    scroll-snap-type: x mandatory;
+  }
+
+  .categoryStack {
+    display: contents;
+  }
+
+  .categoryCard {
+    flex: 0 0 76vw;
+    min-width: 260px;
+    height: 360px;
+    scroll-snap-align: start;
+  }
+}

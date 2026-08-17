@@ -1,0 +1,101 @@
+.writeButton {
+  background: none;
+  border: 1px solid var(--color-gold);
+  color: var(--color-burgundy);
+  font-size: var(--text-xs);
+  padding: var(--space-1) var(--space-3);
+  border-radius: 4px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.writeButton:hover {
+  background: var(--color-bg-alt);
+}
+
+.submittedNote {
+  margin: 0;
+  font-size: var(--text-xs);
+  color: var(--color-text-muted);
+}
+
+.form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  min-width: 220px;
+  padding: var(--space-3);
+  background: var(--color-bg-alt);
+  border-radius: 4px;
+}
+
+.starsInput {
+  display: flex;
+  gap: var(--space-1);
+}
+
+.star,
+.starActive {
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-size: var(--text-lg);
+  line-height: 1;
+  padding: 0;
+}
+
+.star {
+  color: var(--color-border);
+}
+
+.starActive {
+  color: var(--color-gold);
+}
+
+.input,
+.textarea {
+  font-size: var(--text-sm);
+  font-family: inherit;
+  padding: var(--space-2);
+  border: 1px solid var(--color-border);
+  border-radius: 4px;
+  background: var(--color-surface);
+  color: var(--color-text);
+  resize: vertical;
+}
+
+.error {
+  color: var(--color-burgundy);
+  font-size: var(--text-xs);
+  margin: 0;
+}
+
+.actions {
+  display: flex;
+  gap: var(--space-2);
+}
+
+.submitButton {
+  background: var(--color-burgundy);
+  color: var(--color-white);
+  border: none;
+  font-size: var(--text-xs);
+  padding: var(--space-1) var(--space-3);
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.submitButton:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
+.cancelButton {
+  background: none;
+  border: 1px solid var(--color-border);
+  color: var(--color-text-muted);
+  font-size: var(--text-xs);
+  padding: var(--space-1) var(--space-3);
+  border-radius: 4px;
+  cursor: pointer;
+}

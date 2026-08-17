@@ -1,0 +1,245 @@
+.page {
+  max-width: 1400px;
+  margin: 0 auto;
+  padding: 0 var(--space-4) var(--space-12);
+}
+
+.hero {
+  background: var(--color-surface);
+  border-radius: 10px;
+  padding: var(--space-6);
+  margin-top: var(--space-6);
+}
+
+.heading {
+  font-family: var(--font-heading);
+  font-size: var(--text-3xl);
+  margin: 0;
+}
+
+.itemCountLabel {
+  color: var(--color-text-muted);
+  font-size: var(--text-sm);
+  margin: var(--space-1) 0 var(--space-6);
+}
+
+.layout {
+  display: grid;
+  grid-template-columns: 1fr 360px;
+  gap: var(--space-8);
+  align-items: start;
+}
+
+.list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-5);
+}
+
+.row {
+  display: grid;
+  grid-template-columns: 120px 1fr;
+  gap: var(--space-5);
+  padding-bottom: var(--space-5);
+  border-bottom: 1px solid var(--color-border);
+}
+
+.image {
+  width: 120px;
+  height: 120px;
+  border-radius: 12px;
+  overflow: hidden;
+}
+
+.imageTag {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.details {
+  min-width: 0;
+}
+
+.nameRow {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-4);
+}
+
+.name {
+  font-family: var(--font-heading);
+  font-weight: 600;
+  font-size: var(--text-lg);
+  color: var(--color-text);
+  text-decoration: none;
+}
+
+.lineTotalWrap {
+  text-align: right;
+  flex-shrink: 0;
+}
+
+.lineTotalLabel {
+  display: block;
+  font-size: var(--text-xs);
+  color: var(--color-text-muted);
+}
+
+.lineTotal {
+  display: block;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.meta {
+  margin: var(--space-2) 0 0;
+  font-size: var(--text-sm);
+  color: var(--color-text-muted);
+}
+
+.price {
+  margin: var(--space-1) 0 var(--space-3);
+  font-weight: 600;
+}
+
+.warning {
+  color: var(--color-burgundy);
+  font-size: var(--text-sm);
+  margin: 0 0 var(--space-2);
+}
+
+.stepper {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-3);
+  border: 1px solid var(--color-border);
+  border-radius: 999px;
+  padding: var(--space-1) var(--space-2);
+  margin-bottom: var(--space-3);
+}
+
+.stepper button {
+  width: 24px;
+  height: 24px;
+  display: grid;
+  place-items: center;
+  background: none;
+  border: none;
+  font-size: var(--text-lg);
+  cursor: pointer;
+  color: var(--color-text);
+  line-height: 1;
+}
+
+.stepper button:disabled {
+  color: var(--color-border);
+  cursor: not-allowed;
+}
+
+.actions {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.actionButton {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  background: none;
+  border: none;
+  padding: 0;
+  color: var(--color-text-muted);
+  font-size: var(--text-sm);
+  cursor: pointer;
+}
+
+.actionButton:hover {
+  color: var(--color-burgundy);
+}
+
+.actionButton:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.actionDivider {
+  width: 1px;
+  height: 14px;
+  background: var(--color-border);
+}
+
+.continueLink {
+  color: var(--color-burgundy);
+  text-decoration: underline;
+}
+
+.trustCard {
+  background: var(--color-surface);
+  border-radius: 10px;
+  margin-top: var(--space-10);
+}
+
+.trustStripFlat {
+  margin-top: 0;
+  border-top: none;
+}
+
+@media (max-width: 900px) {
+  .layout {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 500px) {
+  .row {
+    grid-template-columns: 88px 1fr;
+    gap: var(--space-3);
+  }
+
+  .image {
+    width: 88px;
+    height: 88px;
+  }
+
+  .nameRow {
+    flex-direction: column;
+    gap: var(--space-1);
+  }
+
+  .lineTotalWrap {
+    text-align: left;
+  }
+}
+
+/* Loading skeleton */
+.skeletonImage {
+  composes: shimmer from '../styles/skeleton.module.css';
+  width: 120px;
+  height: 120px;
+  border-radius: 12px;
+}
+
+.skeletonDetails {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.skeletonLine {
+  composes: shimmer from '../styles/skeleton.module.css';
+  height: 14px;
+  border-radius: var(--radius-sm);
+}
+
+.skeletonSummary {
+  composes: shimmer from '../styles/skeleton.module.css';
+  height: 420px;
+  border-radius: 12px;
+}

@@ -1,0 +1,72 @@
+.page {
+  max-width: var(--container-max);
+  margin: 0 auto;
+  padding: var(--space-6) var(--space-4) var(--space-12);
+}
+
+.crumb {
+  composes: shimmer from '../../styles/skeleton.module.css';
+  width: 160px;
+  height: 14px;
+  border-radius: var(--radius-sm);
+  margin-bottom: var(--space-4);
+}
+
+.heading {
+  composes: shimmer from '../../styles/skeleton.module.css';
+  width: 280px;
+  height: 32px;
+  border-radius: var(--radius-sm);
+  margin-bottom: var(--space-6);
+}
+
+.layout {
+  display: grid;
+  grid-template-columns: 220px 1fr;
+  gap: var(--space-8);
+  align-items: start;
+}
+
+.sidebar {
+  composes: shimmer from '../../styles/skeleton.module.css';
+  height: 420px;
+  border-radius: var(--radius-md);
+}
+
+.results {
+  min-width: 0;
+}
+
+.toolbar {
+  composes: shimmer from '../../styles/skeleton.module.css';
+  width: 100%;
+  height: 20px;
+  border-radius: var(--radius-sm);
+  margin-bottom: var(--space-5);
+}
+
+.grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: var(--space-5);
+}
+
+.card {
+  composes: shimmer from '../../styles/skeleton.module.css';
+  aspect-ratio: 4 / 5.6;
+  border-radius: var(--radius-md);
+}
+
+@media (max-width: 900px) {
+  .layout {
+    grid-template-columns: 1fr;
+  }
+
+  .sidebar {
+    display: none;
+  }
+
+  .grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
