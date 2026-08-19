@@ -13,11 +13,15 @@ export function ProductCard({
   index = 0,
   layout = 'grid',
   imageFit = 'cover',
+  imageHeight,
 }: {
   product: ProductCardType;
   index?: number;
   layout?: 'grid' | 'list';
   imageFit?: 'cover' | 'contain';
+  // Opt-in fixed-height image area (PLP grid spec) — omitted, every other
+  // caller keeps the default aspect-ratio-based sizing untouched.
+  imageHeight?: string;
 }) {
   const isOutOfStock = product.availableStock <= 0;
   const isLowStock = !isOutOfStock && product.availableStock <= LOW_STOCK_THRESHOLD;
@@ -26,7 +30,10 @@ export function ProductCard({
     <Link to={productUrl(product)} className={`${styles.card} ${layout === 'list' ? styles.cardList : ''}`}>
       <div
         className={`${styles.image} ${layout === 'list' ? styles.imageList : ''}`}
-        style={product.primaryImageUrl ? undefined : { background: placeholderGradient(index) }}
+        style={{
+          ...(product.primaryImageUrl ? undefined : { background: placeholderGradient(index) }),
+          ...(imageHeight && layout === 'grid' ? { height: imageHeight, aspectRatio: 'auto' } : undefined),
+        }}
       >
         {product.primaryImageUrl && (
           <img

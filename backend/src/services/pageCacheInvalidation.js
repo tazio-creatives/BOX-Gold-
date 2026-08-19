@@ -1,5 +1,5 @@
 import { invalidatePageCache } from '../repositories/pageCache.repository.js';
-import { findCategoryById } from '../repositories/categories.repository.js';
+import { findCategoryById, getCategoryAndAncestorSlugs } from '../repositories/categories.repository.js';
 
 // Every mutation that can change what a public SSR page (plan §1a: Home,
 // PLP/category, Collections, PDP) would render calls one of these so the
@@ -13,13 +13,13 @@ export async function invalidateProductPages(product, previousCategoryId) {
   const urls = ['/'];
   if (product.category_id) {
     const category = await findCategoryById(product.category_id);
-    if (category) {
-      urls.push(`/${category.slug}`, `/${category.slug}/${product.slug}`);
-    }
+    if (category) urls.push(`/${category.slug}/${product.slug}`);
+    const slugs = await getCategoryAndAncestorSlugs(product.category_id);
+    urls.push(...slugs.map((slug) => `/${slug}`));
   }
   if (previousCategoryId && previousCategoryId !== product.category_id) {
-    const oldCategory = await findCategoryById(previousCategoryId);
-    if (oldCategory) urls.push(`/${oldCategory.slug}`);
+    const oldSlugs = await getCategoryAndAncestorSlugs(previousCategoryId);
+    urls.push(...oldSlugs.map((slug) => `/${slug}`));
   }
   await invalidatePageCache(urls);
 }
@@ -30,6 +30,7 @@ export async function invalidateProductPages(product, previousCategoryId) {
 export async function invalidateProductsPagesBatch(products) {
   const urls = new Set(['/']);
   const categoryCache = new Map();
+  const ancestorSlugsCache = new Map();
 
   for (const product of products) {
     if (!product.category_id) continue;
@@ -38,8 +39,14 @@ export async function invalidateProductsPagesBatch(products) {
     }
     const category = categoryCache.get(product.category_id);
     if (!category) continue;
-    urls.add(`/${category.slug}`);
     urls.add(`/${category.slug}/${product.slug}`);
+
+    if (!ancestorSlugsCache.has(product.category_id)) {
+      ancestorSlugsCache.set(product.category_id, await getCategoryAndAncestorSlugs(product.category_id));
+    }
+    for (const slug of ancestorSlugsCache.get(product.category_id)) {
+      urls.add(`/${slug}`);
+    }
   }
 
   await invalidatePageCache([...urls]);
@@ -49,8 +56,8 @@ export async function invalidateCategoryPages(category, previousSlug) {
   const urls = ['/', `/${category.slug}`];
   if (previousSlug && previousSlug !== category.slug) urls.push(`/${previousSlug}`);
   if (category.parent_id) {
-    const parent = await findCategoryById(category.parent_id);
-    if (parent) urls.push(`/${parent.slug}`);
+    const ancestorSlugs = await getCategoryAndAncestorSlugs(category.parent_id);
+    urls.push(...ancestorSlugs.map((slug) => `/${slug}`));
   }
   await invalidatePageCache(urls);
 }

@@ -1,4 +1,4 @@
-import { useState, type ReactNode } from 'react';
+import { useEffect, useState, type ReactNode } from 'react';
 import { Link } from 'react-router-dom';
 import type { GoldColor, MetalType, Purity } from '../../api/types';
 import { PriceRangeSlider } from './PriceRangeSlider';
@@ -29,9 +29,23 @@ export interface CategoryFilterGroup {
 
 interface FilterSidebarProps {
   values: FilterValues;
-  onChange: (patch: FilterValues) => void;
+  onChange: (_patch: FilterValues) => void;
   onClear: () => void;
   categoryFilter?: CategoryFilterGroup;
+  // Drive the mobile slide-in drawer (item 6 of the redesign spec) — the
+  // permanent sidebar itself becomes the drawer's content under 900px, so
+  // this component owns its own open/close chrome rather than the caller
+  // needing a second, separate drawer implementation.
+  isOpen?: boolean;
+  onClose?: () => void;
+}
+
+function CloseIcon() {
+  return (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" aria-hidden="true">
+      <path d="M6 6l12 12M18 6L6 18" strokeLinecap="round" />
+    </svg>
+  );
 }
 
 function ChevronIcon({ open }: { open: boolean }) {
@@ -64,7 +78,7 @@ function FilterGroup({ title, children }: { title: string; children: ReactNode }
   );
 }
 
-export function FilterSidebar({ values, onChange, onClear, categoryFilter }: FilterSidebarProps) {
+export function FilterSidebar({ values, onChange, onClear, categoryFilter, isOpen = false, onClose }: FilterSidebarProps) {
   const hasActiveFilters =
     values.metal != null || values.purity != null || values.goldColor != null ||
     values.priceMin != null || values.priceMax != null;
@@ -73,9 +87,26 @@ export function FilterSidebar({ values, onChange, onClear, categoryFilter }: Fil
     (m) => m.metal === values.metal && m.goldColor === (values.goldColor ?? null),
   );
 
+  useEffect(() => {
+    if (!isOpen) return;
+    function onKeyDown(e: KeyboardEvent) {
+      if (e.key === 'Escape') onClose?.();
+    }
+    document.addEventListener('keydown', onKeyDown);
+    return () => document.removeEventListener('keydown', onKeyDown);
+  }, [isOpen, onClose]);
+
   return (
-    <aside className={styles.sidebar}>
-      {categoryFilter && (
+    <>
+      {isOpen && <div className={styles.backdrop} onClick={onClose} />}
+      <aside className={`${styles.sidebar} ${isOpen ? styles.sidebarOpen : ''}`}>
+        <div className={styles.drawerHeader}>
+          <span className={styles.drawerTitle}>Filters</span>
+          <button type="button" className={styles.closeButton} aria-label="Close filters" onClick={onClose}>
+            <CloseIcon />
+          </button>
+        </div>
+        {categoryFilter && (
         <FilterGroup title="Category">
           <ul className={styles.checkList}>
             <li className={styles.checkItem}>
@@ -150,11 +181,12 @@ export function FilterSidebar({ values, onChange, onClear, categoryFilter }: Fil
         </ul>
       </FilterGroup>
 
-      {hasActiveFilters && (
-        <button type="button" className={styles.clearButton} onClick={onClear}>
-          Clear all filters
-        </button>
-      )}
-    </aside>
+        {hasActiveFilters && (
+          <button type="button" className={styles.clearButton} onClick={onClear}>
+            Clear all filters
+          </button>
+        )}
+      </aside>
+    </>
   );
 }

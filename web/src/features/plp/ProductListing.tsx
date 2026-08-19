@@ -4,7 +4,6 @@ import { fetchProducts } from '../../api/products';
 import { fetchCategoryFilterCounts } from '../../api/categories';
 import { ProductCard } from '../../components/ProductCard';
 import { Pagination } from '../../components/Pagination';
-import { TrustStripBar } from '../../components/TrustStripBar';
 import { Breadcrumbs, type Crumb } from '../../components/Breadcrumbs';
 import { FilterSidebar, type CategoryFilterGroup } from './FilterSidebar';
 import { SortSelect } from './SortSelect';
@@ -36,6 +35,9 @@ export function ProductListing({
   const { metal, purity, goldColor, priceMin, priceMax, sort, page, updateFilters, updateSort, updatePage, clearFilters } =
     usePlpFilters();
   const [viewMode, setViewMode] = useState<ViewMode>('grid');
+  const [isFilterDrawerOpen, setIsFilterDrawerOpen] = useState(false);
+
+  const activeFilterCount = [metal, purity, goldColor, priceMin, priceMax].filter((v) => v != null).length;
 
   useHead({
     title: `${heading} | BOX DIAMONDS`,
@@ -103,13 +105,25 @@ export function ProductListing({
           onChange={updateFilters}
           onClear={clearFilters}
           categoryFilter={categoryFilter}
+          isOpen={isFilterDrawerOpen}
+          onClose={() => setIsFilterDrawerOpen(false)}
         />
 
         <div className={styles.results}>
           <div className={styles.toolbar}>
-            <p className={styles.count} aria-live="polite">
-              {data ? `${data.total} ${data.total === 1 ? 'piece' : 'pieces'}` : ' '}
-            </p>
+            <div className={styles.toolbarLeft}>
+              <button
+                type="button"
+                className={styles.filtersButton}
+                onClick={() => setIsFilterDrawerOpen(true)}
+              >
+                Filters
+                {activeFilterCount > 0 && <span className={styles.filtersButtonCount}>{activeFilterCount}</span>}
+              </button>
+              <p className={styles.count} aria-live="polite">
+                {data ? `${data.total} ${data.total === 1 ? 'Product' : 'Products'}` : ' '}
+              </p>
+            </div>
             <div className={styles.toolbarActions}>
               <SortSelect value={sort} onChange={updateSort} />
               <ViewToggle value={viewMode} onChange={setViewMode} />
@@ -133,7 +147,14 @@ export function ProductListing({
           {data && data.products.length > 0 && (
             <div className={viewMode === 'grid' ? styles.grid : styles.list}>
               {data.products.map((product, i) => (
-                <ProductCard key={product.id} product={product} index={i} layout={viewMode} />
+                <ProductCard
+                  key={product.id}
+                  product={product}
+                  index={i}
+                  layout={viewMode}
+                  imageFit="contain"
+                  imageHeight="260px"
+                />
               ))}
             </div>
           )}
@@ -141,8 +162,6 @@ export function ProductListing({
           {data && <Pagination page={data.page} totalPages={data.totalPages} onChange={updatePage} />}
         </div>
       </div>
-
-      <TrustStripBar />
     </div>
   );
 }

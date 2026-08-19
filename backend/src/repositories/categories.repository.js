@@ -48,6 +48,27 @@ export async function getCategoryAndDescendantIds(categoryId) {
   return rows.map((r) => r.id);
 }
 
+// This category's own slug plus every ancestor's slug, via a recursive CTE
+// walking up parent_id — the inverse of getCategoryAndDescendantIds. Needed
+// because a product page-cache invalidation (pageCacheInvalidation.js) has
+// to bust every ancestor's PLP page too, not just the product's own direct
+// category: /rings lists Diamond Rings products via descendant inclusion,
+// so adding/editing a product under Diamond Rings must also invalidate
+// /rings or its cached page silently keeps serving a stale product count.
+export async function getCategoryAndAncestorSlugs(categoryId) {
+  const { rows } = await query(
+    `WITH RECURSIVE ancestors AS (
+       SELECT id, slug, parent_id FROM categories WHERE id = $1
+       UNION ALL
+       SELECT c.id, c.slug, c.parent_id FROM categories c
+       JOIN ancestors a ON c.id = a.parent_id
+     )
+     SELECT slug FROM ancestors`,
+    [categoryId],
+  );
+  return rows.map((r) => r.slug);
+}
+
 // True if `candidateAncestorId` is categoryId itself or one of its
 // descendants — used to reject a parent_id update that would create a cycle.
 export async function isSelfOrDescendant(categoryId, candidateAncestorId) {
