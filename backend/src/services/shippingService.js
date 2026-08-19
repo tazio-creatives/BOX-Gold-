@@ -7,6 +7,8 @@ import {
   findShipmentByProviderShipmentIdTx,
   updateShipmentStatusTx,
   updateShipmentStatusSimpleTx,
+  insertShipmentTrackingEvent,
+  insertShipmentTrackingEventTx,
 } from '../repositories/shipments.repository.js';
 import {
   findOrderById,
@@ -46,6 +48,12 @@ export async function createShipmentForOrder(orderId) {
   await withTransaction(async (client) => {
     await updateOrderStatusTx(client, orderId, 'SHIPPED');
     await insertOrderStatusHistoryTx(client, orderId, 'SHIPPED', `Shipped via ${shipment.courier_name ?? shipment.provider}`);
+    await insertShipmentTrackingEventTx(client, {
+      shipmentId: shipment.id,
+      status: 'SHIPPED',
+      note: `Shipment created via ${shipment.courier_name ?? shipment.provider}${shipment.tracking_number ? ` — tracking ${shipment.tracking_number}` : ''}`,
+      source: 'SYSTEM',
+    });
   });
 
   await enqueueEmail(order.contact_email, 'ORDER_SHIPPED', {
@@ -71,6 +79,11 @@ export async function cancelShipmentForOrder(orderId) {
     await updateShipmentStatusSimpleTx(client, shipment.id, 'CANCELLED');
     await updateOrderStatusTx(client, orderId, 'CANCELLED');
     await insertOrderStatusHistoryTx(client, orderId, 'CANCELLED', 'Shipment cancelled');
+    await insertShipmentTrackingEventTx(client, {
+      shipmentId: shipment.id,
+      status: 'CANCELLED',
+      source: 'SYSTEM',
+    });
   });
 
   const order = await findOrderById(orderId);
@@ -119,6 +132,11 @@ export async function confirmTrackingUpdate(rawBody, signature) {
       TRACKING_TO_ORDER_STATUS[status],
       `Courier update: ${status}`,
     );
+    await insertShipmentTrackingEventTx(client, {
+      shipmentId: shipment.id,
+      status,
+      source: 'WEBHOOK',
+    });
 
     return { alreadyProcessed: false, shipment: updated };
   });
@@ -133,6 +151,26 @@ export async function confirmTrackingUpdate(rawBody, signature) {
   }
 
   return result;
+}
+
+// Admin manually logging a tracking update while there's no real courier
+// integration yet — a free-text history entry, independent of the
+// shipment's own `status` field (which stays driven by ship/cancel/the
+// simulate-tracking dev shortcut). Once a real provider is wired up, its
+// webhook lands in confirmTrackingUpdate() above and appears in the same
+// history list with source WEBHOOK instead of MANUAL — no schema change
+// needed then.
+export async function addManualTrackingEvent(orderId, { status, location, note }) {
+  const shipment = await findShipmentByOrderId(orderId);
+  if (!shipment) throw new NotFoundError('No shipment exists for this order');
+
+  return insertShipmentTrackingEvent({
+    shipmentId: shipment.id,
+    status,
+    location,
+    note,
+    source: 'MANUAL',
+  });
 }
 
 // Dev-only stand-in for a real courier calling in (plan §11b stub scope) —

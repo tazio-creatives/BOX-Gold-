@@ -28,3 +28,14 @@ export const otpSendRateLimiter = rateLimit({
   legacyHeaders: false,
   message: { error: { message: 'Too many OTP requests from this network, try again later' } },
 });
+
+// AI Image Studio's upload/analyse, confirm-and-generate and per-asset retry
+// endpoints each trigger a real, billed OpenAI call — stricter than general
+// admin traffic so a stuck frontend retry loop can't run up API spend.
+export const aiStudioRateLimiter = rateLimit({
+  windowMs: env.rateLimitWindowMinutes * 60 * 1000,
+  max: 20,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: { message: 'Too many AI Image Studio requests, try again later' } },
+});

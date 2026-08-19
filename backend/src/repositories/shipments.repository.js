@@ -42,3 +42,29 @@ export async function updateShipmentStatusSimpleTx(client, id, status) {
   );
   return rows[0];
 }
+
+export async function insertShipmentTrackingEvent({ shipmentId, status, location, note, source = 'MANUAL' }) {
+  const { rows } = await query(
+    `INSERT INTO shipment_tracking_events (shipment_id, status, location, note, source)
+     VALUES ($1, $2, $3, $4, $5) RETURNING *`,
+    [shipmentId, status, location ?? null, note ?? null, source],
+  );
+  return rows[0];
+}
+
+export async function insertShipmentTrackingEventTx(client, { shipmentId, status, location, note, source = 'MANUAL' }) {
+  const { rows } = await client.query(
+    `INSERT INTO shipment_tracking_events (shipment_id, status, location, note, source)
+     VALUES ($1, $2, $3, $4, $5) RETURNING *`,
+    [shipmentId, status, location ?? null, note ?? null, source],
+  );
+  return rows[0];
+}
+
+export async function findTrackingEventsByShipmentId(shipmentId) {
+  const { rows } = await query(
+    'SELECT * FROM shipment_tracking_events WHERE shipment_id = $1 ORDER BY created_at DESC',
+    [shipmentId],
+  );
+  return rows;
+}

@@ -4,6 +4,7 @@ import { boss, startJobQueue, stopJobQueue } from './jobs/queue.js';
 import { registerPricingWorkers, JOB_GOLD_RATE_SYNC } from './jobs/pricingJobs.js';
 import { registerReservationSweepWorker, JOB_RESERVATION_SWEEP } from './jobs/reservationSweepJob.js';
 import { registerAiImageWorker } from './jobs/aiImageJob.js';
+import { registerAiStudioWorker } from './jobs/aiStudioJob.js';
 import { registerEmailWorker } from './jobs/emailJob.js';
 
 const app = createApp();
@@ -13,6 +14,7 @@ async function main() {
   await registerPricingWorkers();
   await registerReservationSweepWorker();
   await registerAiImageWorker();
+  await registerAiStudioWorker();
   await registerEmailWorker();
   // schedule() is idempotent by job name — safe to call on every boot.
   await boss.schedule(JOB_GOLD_RATE_SYNC, env.goldRateSyncCron);

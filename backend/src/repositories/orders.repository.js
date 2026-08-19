@@ -150,8 +150,17 @@ export async function findAllOrders({ status, page = 1, limit = 20 } = {}) {
   const listParams = [...params, limit, offset];
 
   const { rows } = await query(
-    `SELECT * FROM orders ${where}
-     ORDER BY created_at DESC
+    `SELECT o.*, items.first_product_name, items.item_count
+     FROM orders o
+     LEFT JOIN LATERAL (
+       SELECT
+         (array_agg(product_name ORDER BY created_at))[1] AS first_product_name,
+         COUNT(*)::int AS item_count
+       FROM order_items
+       WHERE order_id = o.id
+     ) items ON true
+     ${where}
+     ORDER BY o.created_at DESC
      LIMIT $${listParams.length - 1} OFFSET $${listParams.length}`,
     listParams,
   );
@@ -160,6 +169,26 @@ export async function findAllOrders({ status, page = 1, limit = 20 } = {}) {
   } = await query(`SELECT COUNT(*)::int AS count FROM orders ${where}`, params);
 
   return { items: rows, total: count };
+}
+
+// "Active" = still moving toward delivery, not a terminal state. Spend
+// excludes orders that never actually resulted in a charge (unpaid/failed/
+// expired/cancelled before confirmation) — a single aggregate query rather
+// than summing a paginated page, since "Total Spent" must reflect every
+// order the customer has ever placed, not just the current page of 10.
+const ACTIVE_STATUSES = ['PENDING_PAYMENT', 'CONFIRMED', 'PROCESSING', 'SHIPPED', 'OUT_FOR_DELIVERY', 'RETURN_REQUESTED'];
+const UNSPENT_STATUSES = ['PENDING_PAYMENT', 'PAYMENT_FAILED', 'EXPIRED', 'CANCELLED'];
+
+export async function getOrderStatsForUser(userId) {
+  const { rows } = await query(
+    `SELECT
+       COUNT(*)::int AS total_orders,
+       COUNT(*) FILTER (WHERE status = ANY($2))::int AS active_orders,
+       COALESCE(SUM(total_amount) FILTER (WHERE status != ALL($3)), 0) AS total_spent
+     FROM orders WHERE user_id = $1`,
+    [userId, ACTIVE_STATUSES, UNSPENT_STATUSES],
+  );
+  return rows[0];
 }
 
 export async function findOrdersByUser(userId, { status, page = 1, limit = 10 } = {}) {
@@ -184,6 +213,55 @@ export async function findOrdersByUser(userId, { status, page = 1, limit = 10 } 
   } = await query(`SELECT COUNT(*)::int AS count FROM orders ${where}`, params);
 
   return { items: rows, total: count };
+}
+
+// Batched (not N+1) preview data for the account "My Orders" list card —
+// item count, a representative product name/thumbnail, and the timestamps
+// the order-progress stepper needs. Three queries total regardless of how
+// many orders are on the page, since the page itself is already limited to
+// a handful of rows.
+export async function findOrderListExtras(orderIds) {
+  if (orderIds.length === 0) {
+    return { itemCounts: new Map(), previews: new Map(), milestones: new Map() };
+  }
+
+  const [{ rows: countRows }, { rows: previewRows }, { rows: milestoneRows }] = await Promise.all([
+    query('SELECT order_id, COUNT(*)::int AS item_count FROM order_items WHERE order_id = ANY($1) GROUP BY order_id', [
+      orderIds,
+    ]),
+    query(
+      `SELECT DISTINCT ON (oi.order_id) oi.order_id, oi.product_name, pi.url AS preview_image_url
+       FROM order_items oi
+       LEFT JOIN LATERAL (
+         SELECT url FROM product_images
+         WHERE product_id = oi.product_id AND is_primary = true AND variant = 'small'
+         LIMIT 1
+       ) pi ON true
+       WHERE oi.order_id = ANY($1)
+       ORDER BY oi.order_id, oi.created_at ASC`,
+      [orderIds],
+    ),
+    query(
+      `SELECT order_id, status, MIN(created_at) AS at
+       FROM order_status_history
+       WHERE order_id = ANY($1) AND status IN ('CONFIRMED', 'SHIPPED', 'OUT_FOR_DELIVERY', 'DELIVERED')
+       GROUP BY order_id, status`,
+      [orderIds],
+    ),
+  ]);
+
+  const itemCounts = new Map(countRows.map((r) => [r.order_id, r.item_count]));
+  const previews = new Map(
+    previewRows.map((r) => [r.order_id, { productName: r.product_name, imageUrl: r.preview_image_url }]),
+  );
+  const milestones = new Map();
+  for (const row of milestoneRows) {
+    const entry = milestones.get(row.order_id) ?? {};
+    entry[row.status] = row.at;
+    milestones.set(row.order_id, entry);
+  }
+
+  return { itemCounts, previews, milestones };
 }
 
 export async function findOrderItems(orderId) {

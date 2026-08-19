@@ -2,23 +2,34 @@ import { listOrdersQuerySchema } from '../validators/orders.validators.js';
 import {
   findOrderById,
   findOrdersByUser,
+  findOrderListExtras,
   findOrderItems,
   findOrderStatusHistory,
+  getOrderStatsForUser,
 } from '../repositories/orders.repository.js';
 import { findShipmentByOrderId } from '../repositories/shipments.repository.js';
 import { findReviewedOrderItemIds } from '../repositories/reviews.repository.js';
 import { toOrderDto, toShipmentDto } from '../utils/orderDto.js';
 import { NotFoundError } from '../utils/AppError.js';
 
-// Card-shaped list DTO — no items/history/shipment, matches the "server
-// sends only fields each screen needs" pattern used elsewhere (plan §13).
-function toOrderListDto(order) {
+// Card-shaped list DTO, plus the account "My Orders" card's preview
+// (item count/thumbnail) and progress-stepper timestamps — still no full
+// items/history/shipment payload, just what that one screen needs (plan §13).
+function toOrderListDto(order, extras) {
+  const milestones = extras.milestones.get(order.id) ?? {};
+  const preview = extras.previews.get(order.id) ?? null;
   return {
     id: order.id,
     orderNumber: order.order_number,
     status: order.status,
     totalAmount: Number(order.total_amount),
     createdAt: order.created_at,
+    itemCount: extras.itemCounts.get(order.id) ?? 0,
+    previewProductName: preview?.productName ?? null,
+    previewImageUrl: preview?.imageUrl ?? null,
+    confirmedAt: milestones.CONFIRMED ?? null,
+    shippedAt: milestones.SHIPPED ?? milestones.OUT_FOR_DELIVERY ?? null,
+    deliveredAt: milestones.DELIVERED ?? null,
   };
 }
 
@@ -30,12 +41,26 @@ export async function list(req, res, next) {
       page: q.page ?? 1,
       limit: q.limit ?? 10,
     });
+    const extras = await findOrderListExtras(items.map((o) => o.id));
     res.json({
-      orders: items.map(toOrderListDto),
+      orders: items.map((o) => toOrderListDto(o, extras)),
       page: q.page ?? 1,
       limit: q.limit ?? 10,
       total,
       totalPages: Math.ceil(total / (q.limit ?? 10)),
+    });
+  } catch (err) {
+    next(err);
+  }
+}
+
+export async function stats(req, res, next) {
+  try {
+    const row = await getOrderStatsForUser(req.customer.id);
+    res.json({
+      totalOrders: row.total_orders,
+      activeOrders: row.active_orders,
+      totalSpent: Number(row.total_spent),
     });
   } catch (err) {
     next(err);

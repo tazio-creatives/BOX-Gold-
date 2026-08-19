@@ -1,6 +1,6 @@
 import { z } from 'zod';
 
-const STATUSES = [
+export const STATUSES = [
   'PENDING_PAYMENT',
   'CONFIRMED',
   'PROCESSING',
@@ -18,4 +18,9 @@ export const listOrdersQuerySchema = z.object({
   status: z.enum(STATUSES).optional(),
   page: z.coerce.number().int().positive().optional(),
   limit: z.coerce.number().int().positive().max(50).optional(),
+});
+
+export const updateOrderStatusSchema = z.object({
+  status: z.enum(STATUSES),
+  note: z.string().trim().max(500).optional(),
 });

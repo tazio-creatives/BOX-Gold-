@@ -42,6 +42,7 @@ export const env = {
   // Live Pricing Engine (plan §9a)
   metalRateProvider: process.env.METAL_RATE_PROVIDER ?? 'stub',
   goldRateSyncCron: process.env.GOLD_RATE_SYNC_CRON ?? '0 */6 * * *', // every 6 hours
+  goldapiAccessToken: process.env.GOLDAPI_ACCESS_TOKEN,
 
   // Checkout / inventory reservation (plan §11)
   reservationTtlMinutes: Number(process.env.RESERVATION_TTL_MINUTES ?? 15),
@@ -63,6 +64,23 @@ export const env = {
   uploadsPublicBaseUrl: process.env.UPLOADS_PUBLIC_BASE_URL ?? 'http://localhost:4000/uploads',
   maxUploadSizeMb: Number(process.env.MAX_UPLOAD_SIZE_MB ?? 10),
   aiImageProvider: process.env.AI_IMAGE_PROVIDER ?? 'stub',
+
+  // Jewellery photo quality enhancement — OpenAI Images Edit API, called
+  // directly (not through the aiImage provider registry above, which is a
+  // different feature: candidate redesign variants vs. this single
+  // preserve-the-design enhancement pass).
+  openaiApiKey: process.env.OPENAI_API_KEY,
+  openaiImageModel: process.env.OPENAI_IMAGE_MODEL ?? 'gpt-image-2',
+  // No default — AI Image Studio's analysis step must be deliberately
+  // configured, not silently pinned to whatever model happened to be
+  // hardcoded here (plan §9 correction).
+  openaiVisionModel: process.env.OPENAI_VISION_MODEL,
+
+  // AI Image Studio (jewellery reference upload -> 4-image generation).
+  aiStudioCategoryConfidenceThreshold: Number(
+    process.env.AI_STUDIO_CATEGORY_CONFIDENCE_THRESHOLD ?? 0.7,
+  ),
+  aiStudioGenerationConcurrency: Number(process.env.AI_STUDIO_GENERATION_CONCURRENCY ?? 4),
 
   // Email (plan §12)
   emailProvider: process.env.EMAIL_PROVIDER ?? 'stub',

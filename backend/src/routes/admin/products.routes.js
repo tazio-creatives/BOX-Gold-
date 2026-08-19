@@ -16,7 +16,16 @@ import {
   remove as removeImage,
 } from '../../controllers/productImages.controller.js';
 import { getStatus, approve, reject, regenerate } from '../../controllers/aiImages.controller.js';
-import { upload } from '../../middleware/upload.js';
+import {
+  createJob as createStudioJob,
+  getJob as getStudioJob,
+  confirmJob as confirmStudioJob,
+  retryAsset as retryStudioAsset,
+  importJob as importStudioJob,
+  cancelJob as cancelStudioJob,
+} from '../../controllers/aiStudio.controller.js';
+import { upload, uploadEnhanceImage } from '../../middleware/upload.js';
+import { aiStudioRateLimiter } from '../../middleware/rateLimit.js';
 
 // Mounted at /api/v1/admin/products.
 export const adminProductsRouter = Router();
@@ -41,3 +50,21 @@ adminProductsRouter.get('/:id/ai-images', getStatus);
 adminProductsRouter.post('/:id/ai-images/regenerate', regenerate);
 adminProductsRouter.post('/:id/ai-images/:imageId/approve', approve);
 adminProductsRouter.post('/:id/ai-images/:imageId/reject', reject);
+
+// AI Image Studio — separate, deliberately opt-in pipeline (upload -> analyse
+// & confirm -> choose presenter -> generate 4 images -> review & import).
+adminProductsRouter.post(
+  '/:id/ai-studio',
+  aiStudioRateLimiter,
+  uploadEnhanceImage.array('images', 4),
+  createStudioJob,
+);
+adminProductsRouter.get('/:id/ai-studio/:jobId', getStudioJob);
+adminProductsRouter.post('/:id/ai-studio/:jobId/confirm', aiStudioRateLimiter, confirmStudioJob);
+adminProductsRouter.post(
+  '/:id/ai-studio/:jobId/assets/:assetId/retry',
+  aiStudioRateLimiter,
+  retryStudioAsset,
+);
+adminProductsRouter.post('/:id/ai-studio/:jobId/import', importStudioJob);
+adminProductsRouter.post('/:id/ai-studio/:jobId/cancel', cancelStudioJob);

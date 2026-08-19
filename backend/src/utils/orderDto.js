@@ -1,4 +1,15 @@
-export function toShipmentDto(shipment) {
+export function toTrackingEventDto(event) {
+  return {
+    id: event.id,
+    status: event.status,
+    location: event.location,
+    note: event.note,
+    source: event.source,
+    createdAt: event.created_at,
+  };
+}
+
+export function toShipmentDto(shipment, trackingEvents = []) {
   if (!shipment) return null;
   return {
     id: shipment.id,
@@ -6,6 +17,7 @@ export function toShipmentDto(shipment) {
     trackingNumber: shipment.tracking_number,
     courierName: shipment.courier_name,
     status: shipment.status,
+    trackingEvents: trackingEvents.map(toTrackingEventDto),
   };
 }
 
