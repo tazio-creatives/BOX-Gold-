@@ -38,6 +38,12 @@ export async function prefetchForRoute(
     return { notFound };
   }
 
+  if (pathname === '/new-arrivals') {
+    const filters = parsePlpFilters(searchParams);
+    await safePrefetch(queryClient, ['products', { ...filters }], () => fetchProducts({ ...filters, limit: 24 }));
+    return { notFound: false };
+  }
+
   const pdpMatch = matchPath('/:categorySlug/:productSlug', pathname);
   if (pdpMatch) {
     const productSlug = pdpMatch.params.productSlug as string;

@@ -6,6 +6,7 @@ import { AccountLayout } from './layouts/AccountLayout';
 import { HomePage } from './pages/HomePage';
 import { PlaceholderPage } from './pages/PlaceholderPage';
 import { PLPPage } from './pages/PLPPage';
+import { NewArrivalsPage } from './pages/NewArrivalsPage';
 import { CollectionPage } from './pages/CollectionPage';
 import { PDPPage } from './pages/PDPPage';
 
@@ -30,6 +31,9 @@ const OrderDetailPage = lazy(() =>
 const AccountAddressesPage = lazy(() =>
   import('./pages/account/AccountAddressesPage').then((m) => ({ default: m.AccountAddressesPage })),
 );
+const AccountProfilePage = lazy(() =>
+  import('./pages/account/AccountProfilePage').then((m) => ({ default: m.AccountProfilePage })),
+);
 
 export function App() {
   return (
@@ -49,9 +53,11 @@ export function App() {
             <Route path="orders" element={<MyOrdersPage />} />
             <Route path="orders/:orderId" element={<OrderDetailPage />} />
             <Route path="addresses" element={<AccountAddressesPage />} />
+            <Route path="profile" element={<AccountProfilePage />} />
           </Route>
 
           <Route path="/collections/:collectionSlug" element={<CollectionPage />} />
+          <Route path="/new-arrivals" element={<NewArrivalsPage />} />
           <Route path="/:categorySlug" element={<PLPPage />} />
           <Route path="/:categorySlug/:productSlug" element={<PDPPage />} />
           <Route path="*" element={<PlaceholderPage title="Coming Soon" />} />

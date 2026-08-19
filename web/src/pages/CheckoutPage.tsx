@@ -15,7 +15,6 @@ import { Breadcrumbs } from '../components/Breadcrumbs';
 import { TrustStripBar } from '../components/TrustStripBar';
 import type { AddressInput, BuyNowItem, CheckoutResponse } from '../api/types';
 import { formatPrice } from '../utils/formatPrice';
-import { placeholderGradient } from '../utils/placeholderGradient';
 import { useDocumentTitle } from '../utils/useDocumentTitle';
 import { ApiError } from '../api/client';
 import styles from './CheckoutPage.module.css';

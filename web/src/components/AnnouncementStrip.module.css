@@ -1,12 +1,13 @@
 .strip {
-  background: var(--color-burgundy-dark);
-  color: var(--color-white);
+  height: 30px;
+  background: var(--color-burgundy);
+  color: var(--color-bg);
   display: flex;
   justify-content: center;
   align-items: center;
-  gap: var(--space-3);
-  padding: var(--space-2) var(--space-4);
-  font-size: var(--text-xs);
+  gap: 12px;
+  padding: 0 var(--space-4);
+  font-size: 16px;
   letter-spacing: 0.02em;
   flex-wrap: wrap;
   text-align: center;
@@ -15,7 +16,7 @@
 .item {
   display: inline-flex;
   align-items: center;
-  gap: var(--space-3);
+  gap: 12px;
   white-space: nowrap;
 }
 
@@ -23,6 +24,6 @@
   width: 3px;
   height: 3px;
   border-radius: 50%;
-  background: var(--color-brand-gold);
+  background: var(--color-gold);
   display: inline-block;
 }

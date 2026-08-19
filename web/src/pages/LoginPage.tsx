@@ -1,27 +1,24 @@
-import { useState, type FormEvent } from 'react';
+import { useEffect, useState, type FormEvent } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useQueryClient } from '@tanstack/react-query';
 import { sendOtp, verifyOtp } from '../api/auth';
 import { ApiError } from '../api/client';
 import { useDocumentTitle } from '../utils/useDocumentTitle';
+import { AuthVisualPanel } from '../features/auth/AuthVisualPanel';
+import { PhoneNumberForm } from '../features/auth/PhoneNumberForm';
+import { OtpVerificationForm } from '../features/auth/OtpVerificationForm';
 import styles from './LoginPage.module.css';
 
 type Step = 'mobile' | 'otp';
 
-function LockIcon() {
-  return (
-    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
-      <rect x="4.5" y="10.5" width="15" height="10" rx="2" />
-      <path d="M8 10.5V7a4 4 0 0 1 8 0v3.5" />
-    </svg>
-  );
-}
+// Matches the backend's otpVerifySchema (z.string().length(6)) — kept as one
+// constant so the box count and payload length can never drift apart.
+const OTP_LENGTH = 6;
+const RESEND_COOLDOWN_SECONDS = 30;
 
-// Not one of the 21 planned phases — the plan left "Account/Login: Phase 3's
-// OTP flow needs its own UI phase" as a placeholder, but Phase 10 (checkout)
-// requires a logged-in customer, so without this page checkout is
-// unreachable from the UI at all. Built now as a necessary prerequisite,
-// not a scope decision made silently: flagged in the phase summary.
+// All API calls and cross-step state live here; PhoneNumberForm and
+// OtpVerificationForm are purely presentational (plan: "keep server/API
+// calls outside purely visual components").
 export function LoginPage() {
   useDocumentTitle('Sign In');
   const navigate = useNavigate();
@@ -34,7 +31,16 @@ export function LoginPage() {
   const [error, setError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isResending, setIsResending] = useState(false);
-  const [justResent, setJustResent] = useState(false);
+  const [resendSecondsLeft, setResendSecondsLeft] = useState(RESEND_COOLDOWN_SECONDS);
+
+  // Client-side countdown only paces the UI — the server remains the actual
+  // enforcement authority (OTP_RESEND_COOLDOWN_SECONDS), surfaced via the
+  // existing ApiError message path if the two ever disagree.
+  useEffect(() => {
+    if (step !== 'otp' || resendSecondsLeft === 0) return;
+    const timer = setTimeout(() => setResendSecondsLeft((s) => s - 1), 1000);
+    return () => clearTimeout(timer);
+  }, [step, resendSecondsLeft]);
 
   async function handleSendOtp(e: FormEvent) {
     e.preventDefault();
@@ -42,6 +48,8 @@ export function LoginPage() {
     setIsSubmitting(true);
     try {
       await sendOtp(mobile, 'LOGIN');
+      setOtp('');
+      setResendSecondsLeft(RESEND_COOLDOWN_SECONDS);
       setStep('otp');
     } catch (err) {
       setError(err instanceof ApiError ? err.message : 'Could not send OTP. Try again.');
@@ -55,8 +63,7 @@ export function LoginPage() {
     setIsResending(true);
     try {
       await sendOtp(mobile, 'LOGIN');
-      setJustResent(true);
-      setTimeout(() => setJustResent(false), 3000);
+      setResendSecondsLeft(RESEND_COOLDOWN_SECONDS);
     } catch (err) {
       setError(err instanceof ApiError ? err.message : 'Could not resend OTP. Try again.');
     } finally {
@@ -69,7 +76,10 @@ export function LoginPage() {
     setError(null);
     setIsSubmitting(true);
     try {
-      await verifyOtp(mobile, otp, 'LOGIN');
+      // otp may carry trailing/leading ' ' placeholders from the box grid's
+      // internal representation (see OtpVerificationForm) — strip before
+      // sending; submit is disabled until all boxes are filled anyway.
+      await verifyOtp(mobile, otp.trim(), 'LOGIN');
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: ['me'] }),
         queryClient.invalidateQueries({ queryKey: ['cart'] }),
@@ -83,94 +93,41 @@ export function LoginPage() {
     }
   }
 
+  function handleChangeNumber() {
+    setStep('mobile');
+    setOtp('');
+    setError(null);
+  }
+
   return (
     <div className={styles.page}>
-      <div className={styles.card}>
-        <div className={styles.iconBadge}>
-          <LockIcon />
+      <div className={styles.panel}>
+        <AuthVisualPanel />
+        <div className={styles.formPanel}>
+          {step === 'mobile' ? (
+            <PhoneNumberForm
+              mobile={mobile}
+              onMobileChange={setMobile}
+              onSubmit={handleSendOtp}
+              isSubmitting={isSubmitting}
+              apiError={error}
+            />
+          ) : (
+            <OtpVerificationForm
+              mobile={mobile}
+              otp={otp}
+              otpLength={OTP_LENGTH}
+              onOtpChange={setOtp}
+              onSubmit={handleVerifyOtp}
+              onChangeNumber={handleChangeNumber}
+              onResend={handleResendOtp}
+              isSubmitting={isSubmitting}
+              isResending={isResending}
+              apiError={error}
+              resendSecondsLeft={resendSecondsLeft}
+            />
+          )}
         </div>
-        <h1 className={styles.heading}>Sign In</h1>
-        <p className={styles.tagline}>
-          {step === 'mobile'
-            ? 'Enter your mobile number to continue'
-            : 'Verify your number to finish signing in'}
-        </p>
-
-        {step === 'mobile' && (
-          <form className={styles.form} onSubmit={handleSendOtp}>
-            <label className={styles.label}>
-              Mobile Number
-              <div className={styles.mobileRow}>
-                <span className={styles.prefix}>+91</span>
-                <input
-                  type="tel"
-                  inputMode="numeric"
-                  className={styles.input}
-                  value={mobile}
-                  onChange={(e) => setMobile(e.target.value.replace(/\D/g, '').slice(0, 10))}
-                  placeholder="98765 43210"
-                  autoFocus
-                  required
-                />
-              </div>
-            </label>
-            {error && <p className={styles.error}>{error}</p>}
-            <button
-              type="submit"
-              className={styles.submit}
-              disabled={isSubmitting || mobile.length !== 10}
-            >
-              {isSubmitting ? 'Sending…' : 'Send OTP'}
-            </button>
-          </form>
-        )}
-
-        {step === 'otp' && (
-          <form className={styles.form} onSubmit={handleVerifyOtp}>
-            <p className={styles.subtext}>
-              Enter the 6-digit code sent to <strong>+91 {mobile}</strong>
-            </p>
-            <label className={styles.label}>
-              OTP
-              <input
-                type="text"
-                inputMode="numeric"
-                className={styles.otpInput}
-                value={otp}
-                onChange={(e) => setOtp(e.target.value.replace(/\D/g, '').slice(0, 6))}
-                placeholder="123456"
-                autoFocus
-                required
-              />
-            </label>
-            {error && <p className={styles.error}>{error}</p>}
-            <button type="submit" className={styles.submit} disabled={isSubmitting || otp.length !== 6}>
-              {isSubmitting ? 'Verifying…' : 'Verify & Sign In'}
-            </button>
-            <div className={styles.footerRow}>
-              <button
-                type="button"
-                className={styles.linkButton}
-                disabled={isResending}
-                onClick={handleResendOtp}
-              >
-                {isResending ? 'Resending…' : justResent ? 'OTP sent ✓' : "Didn't get it? Resend OTP"}
-              </button>
-              <span className={styles.footerDivider} aria-hidden="true" />
-              <button
-                type="button"
-                className={styles.linkButton}
-                onClick={() => {
-                  setStep('mobile');
-                  setOtp('');
-                  setError(null);
-                }}
-              >
-                Change number
-              </button>
-            </div>
-          </form>
-        )}
       </div>
     </div>
   );

@@ -146,7 +146,11 @@ export function HomepageSection({ section, alternate }: Props) {
 
     case 'NEW_ARRIVALS':
       return (
-        <ProductCarousel items={section.items} heading={section.heading ?? 'New Arrivals'} viewAllHref="/new-arrivals" />
+        <ProductCarousel
+          items={section.items}
+          heading={section.heading ?? 'New Arrivals'}
+          viewAllHref="/new-arrivals?sort=newest"
+        />
       );
 
     // BEST_SELLERS

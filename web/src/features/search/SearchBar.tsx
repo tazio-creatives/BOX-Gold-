@@ -31,7 +31,7 @@ export function SearchBar() {
       <input
         type="search"
         className={styles.input}
-        placeholder="Search for rings, earrings, necklaces..."
+        placeholder="Search rings, earrings, necklaces…"
         value={term}
         onChange={(e) => setTerm(e.target.value)}
         onFocus={() => setIsOpen(true)}

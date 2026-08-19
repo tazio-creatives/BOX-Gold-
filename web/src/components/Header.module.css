@@ -3,90 +3,80 @@
   top: 0;
   z-index: 40;
   background: var(--color-bg);
-  border-bottom: 1px solid var(--color-border);
+  border-bottom: 1px solid rgba(198, 161, 91, 0.35);
   transition: box-shadow 0.15s ease;
 }
 
 .scrolled {
-  box-shadow: var(--shadow-sm);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
 }
 
 .inner {
-  max-width: var(--container-max);
+  max-width: 1200px;
   margin: 0 auto;
+  height: 88px;
   display: grid;
-  grid-template-columns: 1fr minmax(280px, 640px) 1fr;
+  grid-template-columns: 140px minmax(360px, 520px) auto;
   align-items: center;
-  gap: var(--space-8);
-  padding: var(--space-6) var(--space-5);
-  transition: padding 0.15s ease;
+  column-gap: 42px;
+  padding: 0 24px;
 }
 
-.scrolled .inner {
-  padding-top: var(--space-4);
-  padding-bottom: var(--space-4);
+.menuArea {
+  display: none;
+  position: relative;
+}
+
+.menuButton {
+  display: none;
 }
 
 .logo {
   display: inline-flex;
-  flex-direction: column;
   align-items: center;
-  line-height: 1;
-  white-space: nowrap;
   flex-shrink: 0;
-  color: var(--color-text);
   text-decoration: none;
-  transition: transform 0.15s ease;
 }
 
-.logoBox {
-  font-family: var(--font-heading);
-  font-weight: 600;
-  font-size: var(--text-2xl);
-  letter-spacing: 0.04em;
-  color: var(--color-text);
+.logoImg {
+  width: 116px;
+  height: 74px;
+  object-fit: contain;
+  display: block;
 }
 
-.logoRule {
-  width: 28px;
-  height: 1px;
-  margin: 3px 0;
-  background: var(--color-burgundy);
-}
-
-.logoDiamonds {
-  font-size: 10px;
-  font-weight: 600;
-  letter-spacing: 0.28em;
-  color: var(--color-burgundy);
-}
-
-.scrolled .logo {
-  transform: scale(0.85);
+/* On desktop the wrapper generates no box of its own, so SearchBar's own
+   root element becomes the direct grid item in the search column. */
+.searchArea {
+  display: contents;
 }
 
 .actions {
   display: flex;
   align-items: center;
   justify-content: flex-end;
-  gap: var(--space-5);
-  flex-shrink: 0;
+  gap: 28px;
 }
 
 .actionLink {
   display: flex;
   align-items: center;
-  gap: var(--space-2);
-  color: var(--color-text);
-  padding: var(--space-1);
-  padding-right: var(--space-2);
-  border-radius: 999px;
-  transition: background-color 0.15s ease, color 0.15s ease;
+  gap: 9px;
+  min-height: 44px;
+  padding: 0 var(--space-1);
+  border-radius: var(--radius-sm);
+  color: var(--color-burgundy);
+  text-decoration: none;
+  transition: color 0.15s ease;
 }
 
 .actionLink:hover {
-  background: var(--color-bg-alt);
-  color: var(--color-burgundy);
+  color: var(--color-gold);
+}
+
+.actionLink:focus-visible {
+  outline: 2px solid var(--color-burgundy);
+  outline-offset: 3px;
 }
 
 .iconWrap {
@@ -94,35 +84,26 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 42px;
-  height: 42px;
-  border-radius: 50%;
-  background: var(--color-bg-alt);
   flex-shrink: 0;
-  transition: background-color 0.15s ease;
-}
-
-.actionLink:hover .iconWrap {
-  background: #fbe4e8;
 }
 
 .actionLabel {
-  font-size: var(--text-sm);
+  font-size: 16px;
   font-weight: 600;
   white-space: nowrap;
 }
 
 .badge {
   position: absolute;
-  top: -2px;
-  right: -2px;
+  top: -6px;
+  right: -6px;
   min-width: 18px;
   height: 18px;
   padding: 0 4px;
   border-radius: 999px;
   border: 2px solid var(--color-bg);
-  background: var(--color-burgundy);
-  color: var(--color-white);
+  background: #7a1733;
+  color: #fff;
   font-size: 10px;
   font-weight: 700;
   line-height: 14px;
@@ -130,7 +111,51 @@
   box-sizing: border-box;
 }
 
+.mobileMenuPanel {
+  position: absolute;
+  top: calc(100% + 10px);
+  left: 0;
+  min-width: 180px;
+  background: var(--color-surface);
+  border: 1px solid rgba(0, 81, 90, 0.35);
+  border-radius: var(--radius-md);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.12);
+  padding: var(--space-2);
+  display: flex;
+  flex-direction: column;
+  z-index: 50;
+}
+
+.mobileMenuLink {
+  padding: var(--space-3) var(--space-3);
+  border-radius: var(--radius-sm);
+  color: var(--color-text);
+  font-size: var(--text-sm);
+  font-weight: 500;
+  text-decoration: none;
+  min-height: 44px;
+  display: flex;
+  align-items: center;
+}
+
+.mobileMenuLink:hover,
+.mobileMenuLink:focus-visible {
+  background: var(--color-bg-alt);
+  color: #7a1733;
+}
+
 @media (max-width: 900px) {
+  .inner {
+    grid-template-columns: auto 1fr auto;
+    column-gap: 20px;
+    padding: 0 16px;
+  }
+
+  .logoImg {
+    width: 91px;
+    height: 58px;
+  }
+
   .actionLabel {
     display: none;
   }
@@ -138,16 +163,68 @@
 
 @media (max-width: 640px) {
   .inner {
-    grid-template-columns: auto 1fr auto;
-    gap: var(--space-3);
-    padding: var(--space-3);
+    height: auto;
+    display: grid;
+    grid-template-columns: 44px 1fr 44px;
+    grid-template-areas:
+      'menu logo cart'
+      'search search search';
+    align-items: center;
+    row-gap: 10px;
+    column-gap: 12px;
+    padding: 10px 16px;
+  }
+
+  .menuArea {
+    grid-area: menu;
+    display: block;
+  }
+
+  .menuButton {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 44px;
+    height: 44px;
+    border: 1px solid rgba(0, 81, 90, 0.35);
+    background: none;
+    color: var(--color-burgundy);
+    cursor: pointer;
+    border-radius: var(--radius-sm);
+  }
+
+  .menuButton:focus-visible {
+    outline: 2px solid var(--color-burgundy);
+    outline-offset: 2px;
+  }
+
+  .logo {
+    grid-area: logo;
+    justify-content: center;
   }
 
   .logoImg {
-    height: 24px;
+    width: 81px;
+    height: 52px;
+    margin: 0 auto;
+  }
+
+  .searchArea {
+    grid-area: search;
+    display: block;
   }
 
   .actions {
-    gap: var(--space-3);
+    grid-area: cart;
+  }
+
+  /* Only Cart stays visible in the mobile top row — Wishlist/Account move
+     into the menu panel opened from .menuButton. */
+  .actions .actionLink:not(.cartAction) {
+    display: none;
+  }
+
+  .actionLabel {
+    display: none;
   }
 }

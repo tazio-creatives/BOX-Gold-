@@ -2,6 +2,7 @@
   max-width: var(--container-max);
   margin: 0 auto;
   padding: var(--space-10) var(--space-4);
+  box-shadow: var(--shadow-sm);
 }
 
 .alt {

@@ -1,3 +1,4 @@
+import type { JSX } from 'react';
 import type { Address, AddressType } from '../../api/types';
 import styles from './AddressCard.module.css';
 

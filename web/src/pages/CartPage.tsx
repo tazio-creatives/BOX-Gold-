@@ -174,6 +174,7 @@ export function CartPage() {
   const gstPercent = preTaxSubtotal > 0 ? Math.round((data.gstAmount / preTaxSubtotal) * 100) : 0;
   const discountAmount = appliedCoupon?.discountAmount ?? 0;
   const total = Math.max(data.subtotal - discountAmount, 0);
+  const hasUnavailableItem = data.items.some((item) => !item.isAvailable);
 
   return (
     <div className={styles.page}>
@@ -289,10 +290,13 @@ export function CartPage() {
               setCouponInput('');
               setCouponError(null);
             }}
+            errorMessage={
+              hasUnavailableItem ? 'Remove or adjust the out-of-stock items in your bag to continue.' : null
+            }
             primaryAction={{
               label: 'Proceed to Checkout',
               icon: <BagIcon />,
-              disabled: data.items.every((item) => !item.isAvailable),
+              disabled: hasUnavailableItem,
               onClick: () => navigate('/checkout'),
             }}
             secondaryAction={{
