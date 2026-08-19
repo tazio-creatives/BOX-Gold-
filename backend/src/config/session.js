@@ -1,7 +1,7 @@
 import session from 'express-session';
 import connectPgSimple from 'connect-pg-simple';
 import { pool } from './db.js';
-import { isProduction } from './env.js';
+import { env, isProduction } from './env.js';
 
 const PgStore = connectPgSimple(session);
 
@@ -19,6 +19,7 @@ export function createSessionMiddleware({ tableName, cookieName, secret, maxAgeH
       httpOnly: true,
       secure: isProduction,
       sameSite: 'lax',
+      domain: env.cookieDomain,
       maxAge: maxAgeHours * 60 * 60 * 1000,
     },
   });

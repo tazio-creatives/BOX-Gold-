@@ -19,6 +19,14 @@ export const env = {
   // Customers shouldn't be re-prompted for OTP on every visit (plan §11) — long-lived vs admin's 12h.
   customerSessionMaxAgeHours: Number(process.env.CUSTOMER_SESSION_MAX_AGE_HOURS ?? 24 * 30),
 
+  // Unset by default: an unset cookie `domain` scopes to the exact host,
+  // which is fine locally (one host, "localhost", shared across dev's
+  // different frontend ports). Deployments split across subdomains (e.g.
+  // admin.example.com / example.com both calling api.example.com) must set
+  // this to the shared parent, e.g. ".example.com", or the browser will
+  // never send the session cookie back on cross-subdomain requests.
+  cookieDomain: process.env.COOKIE_DOMAIN || undefined,
+
   guestCartSessionCookieName: process.env.GUEST_CART_SESSION_COOKIE_NAME ?? 'box_diamonds_cart_sid',
   guestCartSessionMaxAgeDays: Number(process.env.GUEST_CART_SESSION_MAX_AGE_DAYS ?? 90),
 
