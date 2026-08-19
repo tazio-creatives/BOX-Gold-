@@ -2,6 +2,10 @@
   position: relative;
 }
 
+.selectWidth {
+  max-width: 260px;
+}
+
 .row {
   display: flex;
   align-items: center;
@@ -24,22 +28,6 @@
   font-weight: 600;
   text-decoration: underline;
   cursor: pointer;
-}
-
-.select {
-  width: 100%;
-  max-width: 260px;
-  padding: var(--space-3) var(--space-4);
-  border: 1px solid var(--color-border);
-  border-radius: 10px;
-  background: var(--color-surface);
-  color: var(--color-text);
-  font-size: calc(var(--text-sm) + 2px);
-}
-
-.select:focus {
-  outline: none;
-  border-color: var(--color-burgundy);
 }
 
 .guidePopover {

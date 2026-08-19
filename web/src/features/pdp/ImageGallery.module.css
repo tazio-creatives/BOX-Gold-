@@ -121,6 +121,7 @@
 
 .thumb,
 .thumbActive {
+  flex: none;
   width: 108px;
   height: 108px;
   border-radius: 10px;
@@ -212,4 +213,24 @@
 
 .lightboxNavNext {
   right: var(--space-5);
+}
+
+@media (max-width: 767px) {
+  .main {
+    /* 4/3 + cover was cropping the top/bottom of portrait-oriented product
+       shots (e.g. a ring's raised setting) on the narrow mobile column.
+       A taller box + contain keeps the whole product visible. */
+    aspect-ratio: 1 / 1;
+    background: var(--color-bg-alt);
+  }
+
+  .mainImage {
+    object-fit: contain;
+  }
+
+  .thumb,
+  .thumbActive {
+    width: 72px;
+    height: 72px;
+  }
 }

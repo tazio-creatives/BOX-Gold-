@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import type { ProductSize } from '../../api/types';
+import { SelectDropdown } from '../../components/SelectDropdown';
 import styles from './SizeSelector.module.css';
 
 // Generic, universal reference chart — not per-product data, just a common
@@ -16,7 +17,7 @@ const SIZE_GUIDE_ROWS: [string, string][] = [
 interface SizeSelectorProps {
   sizes: ProductSize[];
   selectedSizeId: string | null;
-  onSelect: (sizeId: string) => void;
+  onSelect: (_sizeId: string) => void;
 }
 
 export function SizeSelector({ sizes, selectedSizeId, onSelect }: SizeSelectorProps) {
@@ -34,22 +35,18 @@ export function SizeSelector({ sizes, selectedSizeId, onSelect }: SizeSelectorPr
           Size Guide
         </button>
       </div>
-      <select
+      <SelectDropdown
         id="pdp-size-select"
-        className={styles.select}
         value={selectedSizeId ?? ''}
-        onChange={(e) => onSelect(e.target.value)}
-      >
-        <option value="" disabled>
-          Choose a size
-        </option>
-        {sizes.map((size) => (
-          <option key={size.id} value={size.id} disabled={size.availableStock <= 0}>
-            {size.label}
-            {size.availableStock <= 0 ? ' — Out of stock' : ''}
-          </option>
-        ))}
-      </select>
+        placeholder="Choose a size"
+        options={sizes.map((size) => ({
+          value: size.id,
+          label: size.label + (size.availableStock <= 0 ? ' — Out of stock' : ''),
+          disabled: size.availableStock <= 0,
+        }))}
+        onChange={onSelect}
+        className={styles.selectWidth}
+      />
 
       {showGuide && (
         <div className={styles.guidePopover} role="dialog" aria-label="Size guide">

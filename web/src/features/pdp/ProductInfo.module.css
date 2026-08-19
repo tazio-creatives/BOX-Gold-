@@ -143,7 +143,7 @@
 .fieldError {
   margin: var(--space-2) 0 0;
   font-size: calc(var(--text-xs) + 4px);
-  color: var(--color-burgundy);
+  color: #dc2626;
 }
 
 .actions {
@@ -192,4 +192,35 @@
   border-color: var(--color-border);
   color: var(--color-text-muted);
   cursor: not-allowed;
+}
+
+@media (max-width: 767px) {
+  .name {
+    font-size: 22px;
+  }
+
+  /* Gold Color (dropdown) + Purity (pills) side by side in a 160px column
+     forced the pills onto 4 stacked rows on a narrow screen, leaving a
+     wall of empty space next to them. Stacking gives each field the full
+     width it actually needs, same as Diamond Quality/Size below it. */
+  .variantRow {
+    flex-direction: column;
+    gap: var(--space-4);
+  }
+
+  .colorCol {
+    width: 100%;
+  }
+
+  .actions {
+    gap: var(--space-2);
+  }
+
+  .addToBag,
+  .buyNow {
+    min-height: 50px;
+    padding: var(--space-2) var(--space-2);
+    font-size: 14px;
+    gap: 6px;
+  }
 }

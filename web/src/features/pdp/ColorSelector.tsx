@@ -1,4 +1,5 @@
 import type { GoldColor } from '../../api/types';
+import { SelectDropdown } from '../../components/SelectDropdown';
 import styles from './ColorSelector.module.css';
 
 const COLOR_LABEL: Record<GoldColor, string> = {
@@ -10,7 +11,7 @@ const COLOR_LABEL: Record<GoldColor, string> = {
 interface ColorSelectorProps {
   colors: GoldColor[];
   selectedColor: GoldColor | null;
-  onSelect: (color: GoldColor) => void;
+  onSelect: (_color: GoldColor) => void;
 }
 
 export function ColorSelector({ colors, selectedColor, onSelect }: ColorSelectorProps) {
@@ -21,21 +22,13 @@ export function ColorSelector({ colors, selectedColor, onSelect }: ColorSelector
       <label className={styles.label} htmlFor="pdp-color-select">
         Gold Color
       </label>
-      <select
+      <SelectDropdown
         id="pdp-color-select"
-        className={styles.select}
         value={selectedColor ?? ''}
-        onChange={(e) => onSelect(e.target.value as GoldColor)}
-      >
-        <option value="" disabled>
-          Choose a color
-        </option>
-        {colors.map((color) => (
-          <option key={color} value={color}>
-            {COLOR_LABEL[color]}
-          </option>
-        ))}
-      </select>
+        placeholder="Choose a color"
+        options={colors.map((color) => ({ value: color, label: COLOR_LABEL[color] }))}
+        onChange={(value) => onSelect(value as GoldColor)}
+      />
     </div>
   );
 }

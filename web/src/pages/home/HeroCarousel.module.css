@@ -182,8 +182,13 @@
 
 @media (max-width: 767px) {
   .hero {
-    aspect-ratio: 4 / 4.2;
-    min-height: 380px;
+    /* Content-driven height, not a fixed aspect-ratio box — the previous
+       4/4.2 ratio clipped the third trust row item (hero has
+       overflow:hidden), since the full copy stack (heading + subheading +
+       CTAs + 3 trust items) is taller than that ratio allows once the
+       heading wraps to two lines on a narrow screen. */
+    aspect-ratio: auto;
+    min-height: 560px;
   }
 
   /* On mobile the image fills the whole card behind the text (no side-by-
@@ -191,11 +196,12 @@
      text would sit directly over the model's face/jewellery. A full-width
      wash keeps it legible without losing the photo entirely. */
   .scrim {
-    background: rgba(251, 248, 244, 0.68);
+    background: rgba(251, 248, 244, 0.78);
   }
 
   .copy {
-    padding: var(--space-5) var(--space-4);
+    padding: 48px var(--space-4) var(--space-6);
+    justify-content: flex-start;
   }
 
   .copyInner {
@@ -203,7 +209,7 @@
   }
 
   .heading {
-    font-size: 36px;
+    font-size: 32px;
     max-width: 100%;
   }
 
@@ -223,5 +229,13 @@
 
   .trustSep {
     display: none;
+  }
+
+  /* Sits over the photo rather than the text column, so keep it clear of
+     the trust row instead of pinned to the card's bottom-right corner. */
+  .dots {
+    bottom: auto;
+    top: 20px;
+    right: var(--space-4);
   }
 }
