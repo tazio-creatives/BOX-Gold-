@@ -7,7 +7,6 @@ import { addCartItem } from '../api/cart';
 import type { Cart, GoldColor, VariantPricePreview } from '../api/types';
 import { getAncestorChain } from '../utils/categoryTree';
 import { Breadcrumbs } from '../components/Breadcrumbs';
-import { TrustStripBar } from '../components/TrustStripBar';
 import { useHead, defaultHead } from '../seo/head';
 import { breadcrumbJsonLd, organizationJsonLd, productJsonLd } from '../seo/jsonLd';
 import { ImageGallery } from '../features/pdp/ImageGallery';
@@ -289,10 +288,6 @@ export function PDPPage() {
       </div>
 
       <ProductTabs product={product} />
-
-      <div className={styles.trustCard}>
-        <TrustStripBar className={styles.trustStripFlat} />
-      </div>
 
       <RelatedProducts products={relatedData?.products ?? []} categorySlug={category?.slug ?? null} />
     </div>

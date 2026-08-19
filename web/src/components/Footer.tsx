@@ -55,7 +55,7 @@ export function Footer() {
     <footer className={styles.footer}>
       <div className={styles.top}>
         <div className={styles.brandCol}>
-          <img src="/logo.png" alt="Box Diamonds" className={styles.logo} />
+          <img src="/images/logo-white.png" alt="Box Diamonds" className={styles.logo} />
           <p className={styles.tagline}>Because every precious moment deserves a perfect sparkle.</p>
           <div className={styles.social}>
             <SocialIcon label="Instagram">

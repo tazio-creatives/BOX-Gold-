@@ -29,19 +29,6 @@
   --details-heading-weight: 700;
 }
 
-.trustCard {
-  background: var(--color-surface);
-  border-radius: 10px;
-  margin-top: var(--space-5);
-}
-
-.trustStripFlat {
-  margin-top: 0;
-  border-top: none;
-  --trust-title-size: calc(var(--text-sm) + 2px);
-  --trust-subtitle-size: calc(var(--text-xs) + 2px);
-}
-
 @media (max-width: 900px) {
   .layout {
     grid-template-columns: 1fr;
