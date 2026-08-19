@@ -4,34 +4,13 @@ import { useQuery } from '@tanstack/react-query';
 import { fetchAdminOrders } from '../../api/orders';
 import type { OrderStatus } from '../../api/types';
 import { formatPrice } from '../../utils/formatPrice';
+import { shortOrderNumber } from '../../utils/orderNumber';
+import { ORDER_STATUSES, ORDER_STATUS_BADGE_CLASS } from '../../utils/orderStatus';
 import sharedStyles from '../../styles/shared.module.css';
 import styles from './OrdersListPage.module.css';
 
-const STATUSES: OrderStatus[] = [
-  'PENDING_PAYMENT',
-  'CONFIRMED',
-  'PROCESSING',
-  'SHIPPED',
-  'OUT_FOR_DELIVERY',
-  'DELIVERED',
-  'PAYMENT_FAILED',
-  'EXPIRED',
-  'CANCELLED',
-  'RETURN_REQUESTED',
-  'REFUNDED',
-];
-
-const STATUS_CLASS: Record<string, string> = {
-  DELIVERED: 'badgeSuccess',
-  CONFIRMED: 'badgeSuccess',
-  PROCESSING: 'badgeSuccess',
-  SHIPPED: 'badgeSuccess',
-  OUT_FOR_DELIVERY: 'badgeSuccess',
-  PENDING_PAYMENT: 'badgeWarning',
-  PAYMENT_FAILED: 'badgeDanger',
-  EXPIRED: 'badgeDanger',
-  CANCELLED: 'badgeDanger',
-};
+const STATUSES = ORDER_STATUSES;
+const STATUS_CLASS = ORDER_STATUS_BADGE_CLASS;
 
 export function OrdersListPage() {
   const [searchParams, setSearchParams] = useSearchParams();
@@ -79,6 +58,7 @@ export function OrdersListPage() {
             <thead>
               <tr>
                 <th>Order</th>
+                <th>Product</th>
                 <th>Customer</th>
                 <th>Status</th>
                 <th>Total</th>
@@ -89,7 +69,15 @@ export function OrdersListPage() {
               {data.orders.map((order) => (
                 <tr key={order.id}>
                   <td>
-                    <Link to={`/orders/${order.id}`}>{order.orderNumber}</Link>
+                    <Link to={`/orders/${order.id}`} title={order.orderNumber}>
+                      {shortOrderNumber(order.orderNumber)}
+                    </Link>
+                  </td>
+                  <td>
+                    {order.productName ?? '—'}
+                    {order.itemCount > 1 && (
+                      <div className={styles.subtext}>+{order.itemCount - 1} more</div>
+                    )}
                   </td>
                   <td>
                     {order.contactName}

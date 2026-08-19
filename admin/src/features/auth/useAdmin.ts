@@ -6,7 +6,7 @@ export function useAdmin() {
   const { data, isLoading } = useQuery({
     queryKey: ['me'],
     queryFn: fetchMe,
-    retry: (failureCount, error) => !(error instanceof ApiError && error.status === 401),
+    retry: (_failureCount, error) => !(error instanceof ApiError && error.status === 401),
   });
 
   return {

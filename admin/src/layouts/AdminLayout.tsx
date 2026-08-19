@@ -54,7 +54,7 @@ export function AdminLayout() {
     <div className={styles.shell}>
       <aside className={styles.sidebar}>
         <div className={styles.brand}>
-          BOX <span className={styles.brandAccent}>DIAMONDS</span>
+          <img src="/images/logo-sidebar.png" alt="Box Diamonds" className={styles.brandLogo} />
         </div>
         <nav className={styles.nav}>
           {NAV_ITEMS.map((item) => (

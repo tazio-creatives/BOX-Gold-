@@ -1,24 +1,26 @@
+import { useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { useQuery, useQueryClient, useMutation } from '@tanstack/react-query';
-import { fetchAdminOrder } from '../../api/orders';
-import { shipOrder, cancelShipment, simulateTracking } from '../../api/shipping';
+import { fetchAdminOrder, updateOrderStatus } from '../../api/orders';
+import { shipOrder, cancelShipment, simulateTracking, addTrackingEvent } from '../../api/shipping';
+import type { OrderStatus } from '../../api/types';
 import { formatPrice } from '../../utils/formatPrice';
 import { ApiError } from '../../api/client';
+import { ORDER_STATUSES, ORDER_STATUS_BADGE_CLASS, formatOrderStatus } from '../../utils/orderStatus';
 import sharedStyles from '../../styles/shared.module.css';
 import styles from './OrderDetailPage.module.css';
-
-function formatStatus(status: string) {
-  return status
-    .replace(/_/g, ' ')
-    .toLowerCase()
-    .replace(/\b\w/g, (c) => c.toUpperCase());
-}
 
 const SHIPPABLE_STATUSES = new Set(['CONFIRMED', 'PROCESSING']);
 
 export function OrderDetailPage() {
   const { id } = useParams<{ id: string }>();
   const queryClient = useQueryClient();
+
+  const [statusDraft, setStatusDraft] = useState<OrderStatus | ''>('');
+  const [statusNote, setStatusNote] = useState('');
+  const [eventStatus, setEventStatus] = useState('');
+  const [eventLocation, setEventLocation] = useState('');
+  const [eventNote, setEventNote] = useState('');
 
   const { data, isLoading, isError } = useQuery({
     queryKey: ['admin-order', id],
@@ -27,6 +29,16 @@ export function OrderDetailPage() {
   });
 
   const invalidate = () => queryClient.invalidateQueries({ queryKey: ['admin-order', id] });
+
+  const statusMutation = useMutation({
+    mutationFn: () => updateOrderStatus(id as string, statusDraft as OrderStatus, statusNote.trim() || undefined),
+    onSuccess: () => {
+      invalidate();
+      setStatusDraft('');
+      setStatusNote('');
+    },
+    onError: (err) => window.alert(err instanceof ApiError ? err.message : 'Could not update order status.'),
+  });
 
   const shipMutation = useMutation({
     mutationFn: () => shipOrder(id as string),
@@ -46,6 +58,22 @@ export function OrderDetailPage() {
     onError: (err) => window.alert(err instanceof ApiError ? err.message : 'Could not update tracking.'),
   });
 
+  const eventMutation = useMutation({
+    mutationFn: () =>
+      addTrackingEvent(id as string, {
+        status: eventStatus.trim(),
+        location: eventLocation.trim() || undefined,
+        note: eventNote.trim() || undefined,
+      }),
+    onSuccess: () => {
+      invalidate();
+      setEventStatus('');
+      setEventLocation('');
+      setEventNote('');
+    },
+    onError: (err) => window.alert(err instanceof ApiError ? err.message : 'Could not add tracking event.'),
+  });
+
   if (isLoading) return <p>Loading…</p>;
   if (isError || !data) {
     return (
@@ -59,6 +87,7 @@ export function OrderDetailPage() {
   }
 
   const { order } = data;
+  const badgeClass = ORDER_STATUS_BADGE_CLASS[order.status] ?? 'badgeNeutral';
 
   return (
     <div>
@@ -66,15 +95,62 @@ export function OrderDetailPage() {
         ← Back to orders
       </Link>
 
-      <div className={sharedStyles.pageHeader}>
+      <div className={styles.headerCard}>
         <div>
-          <h1 className={sharedStyles.pageTitle}>{order.orderNumber}</h1>
+          <p className={styles.orderNumber}>{order.orderNumber}</p>
           <p className={styles.subtext}>
             {order.contactName} · {order.contactMobile} · {order.contactEmail}
           </p>
+          <p className={styles.subtext}>
+            Placed {new Date(order.createdAt).toLocaleString('en-IN', { dateStyle: 'medium', timeStyle: 'short' })}
+          </p>
         </div>
-        <span className={sharedStyles.badgeNeutral}>{formatStatus(order.status)}</span>
+        <div className={styles.headerRight}>
+          <span className={`${sharedStyles[badgeClass]} ${styles.currentStatusBadge}`}>
+            {formatOrderStatus(order.status)}
+          </span>
+          <p className={styles.totalPreview}>{formatPrice(order.totalAmount)}</p>
+        </div>
       </div>
+
+      <section className={`${sharedStyles.cardPadded} ${styles.statusChangeCard}`}>
+        <h2 className={styles.sectionHeading}>Change Order Status</h2>
+        <form
+          className={styles.statusForm}
+          onSubmit={(e) => {
+            e.preventDefault();
+            if (statusDraft) statusMutation.mutate();
+          }}
+        >
+          <select
+            className={styles.statusSelect}
+            value={statusDraft}
+            onChange={(e) => setStatusDraft(e.target.value as OrderStatus)}
+          >
+            <option value="">Select new status…</option>
+            {ORDER_STATUSES.map((s) => (
+              <option key={s} value={s} disabled={s === order.status}>
+                {formatOrderStatus(s)}
+                {s === order.status ? ' (current)' : ''}
+              </option>
+            ))}
+          </select>
+          <input
+            type="text"
+            className={styles.statusNoteInput}
+            placeholder="Note (optional)"
+            value={statusNote}
+            onChange={(e) => setStatusNote(e.target.value)}
+          />
+          <button
+            type="submit"
+            className={sharedStyles.buttonPrimary}
+            disabled={!statusDraft || statusMutation.isPending}
+          >
+            {statusMutation.isPending ? 'Updating…' : 'Update Status'}
+          </button>
+        </form>
+      </section>
 
       <div className={styles.layout}>
         <div className={styles.main}>
@@ -133,16 +209,101 @@ export function OrderDetailPage() {
 
           <section className={sharedStyles.cardPadded}>
             <h2 className={styles.sectionHeading}>Order Timeline</h2>
-            {order.statusHistory.map((h, i) => (
-              <div key={i} className={styles.timelineRow}>
-                <span className={styles.timelineStatus}>{formatStatus(h.status)}</span>
-                <span className={styles.timelineDate}>
-                  {new Date(h.createdAt).toLocaleString('en-IN', { dateStyle: 'medium', timeStyle: 'short' })}
-                </span>
-                {h.note && <span className={styles.timelineNote}>{h.note}</span>}
-              </div>
-            ))}
+            <ol className={styles.timeline}>
+              {order.statusHistory.map((h, i) => (
+                <li key={i} className={styles.timelineItem}>
+                  <span className={styles.timelineDot} />
+                  <div className={styles.timelineBody}>
+                    <div className={styles.timelineTop}>
+                      <span className={styles.timelineStatus}>{formatOrderStatus(h.status)}</span>
+                      <span className={styles.timelineDate}>
+                        {new Date(h.createdAt).toLocaleString('en-IN', { dateStyle: 'medium', timeStyle: 'short' })}
+                      </span>
+                    </div>
+                    {h.note && <p className={styles.timelineNote}>{h.note}</p>}
+                  </div>
+                </li>
+              ))}
+            </ol>
           </section>
+
+          {order.shipment && (
+            <section className={sharedStyles.cardPadded}>
+              <h2 className={styles.sectionHeading}>Shipment History</h2>
+              <p className={styles.hint}>
+                Logged manually for now — once a courier partner is integrated, real tracking updates will appear
+                here automatically alongside these entries.
+              </p>
+
+              <form
+                className={styles.eventForm}
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  if (eventStatus.trim()) eventMutation.mutate();
+                }}
+              >
+                <input
+                  type="text"
+                  className={styles.eventInput}
+                  placeholder="Status (e.g. In Transit, Reached Hub)"
+                  value={eventStatus}
+                  onChange={(e) => setEventStatus(e.target.value)}
+                />
+                <input
+                  type="text"
+                  className={styles.eventInput}
+                  placeholder="Location (optional)"
+                  value={eventLocation}
+                  onChange={(e) => setEventLocation(e.target.value)}
+                />
+                <input
+                  type="text"
+                  className={styles.eventInputWide}
+                  placeholder="Note (optional)"
+                  value={eventNote}
+                  onChange={(e) => setEventNote(e.target.value)}
+                />
+                <button
+                  type="submit"
+                  className={sharedStyles.buttonPrimary}
+                  disabled={!eventStatus.trim() || eventMutation.isPending}
+                >
+                  {eventMutation.isPending ? 'Adding…' : 'Add Update'}
+                </button>
+              </form>
+
+              {order.shipment.trackingEvents.length === 0 && (
+                <p className={sharedStyles.empty}>No tracking updates logged yet.</p>
+              )}
+              {order.shipment.trackingEvents.length > 0 && (
+                <ol className={styles.timeline}>
+                  {order.shipment.trackingEvents.map((event) => (
+                    <li key={event.id} className={styles.timelineItem}>
+                      <span className={styles.timelineDot} />
+                      <div className={styles.timelineBody}>
+                        <div className={styles.timelineTop}>
+                          <span className={styles.timelineStatus}>{event.status}</span>
+                          <span className={styles.timelineDate}>
+                            {new Date(event.createdAt).toLocaleString('en-IN', {
+                              dateStyle: 'medium',
+                              timeStyle: 'short',
+                            })}
+                          </span>
+                        </div>
+                        <p className={styles.timelineNote}>
+                          {event.location && <span>{event.location}</span>}
+                          {event.location && event.note && ' · '}
+                          {event.note && <span>{event.note}</span>}
+                          {(event.location || event.note) && ' · '}
+                          <span className={styles.eventSource}>{event.source.toLowerCase()}</span>
+                        </p>
+                      </div>
+                    </li>
+                  ))}
+                </ol>
+              )}
+            </section>
+          )}
         </div>
 
         <aside className={styles.side}>
@@ -170,7 +331,7 @@ export function OrderDetailPage() {
               <>
                 <p className={styles.shipmentLine}>
                   {order.shipment.courierName ?? order.shipment.provider} —{' '}
-                  <strong>{formatStatus(order.shipment.status)}</strong>
+                  <strong>{formatOrderStatus(order.shipment.status)}</strong>
                 </p>
                 {order.shipment.trackingNumber && (
                   <p className={styles.shipmentLine}>Tracking: {order.shipment.trackingNumber}</p>

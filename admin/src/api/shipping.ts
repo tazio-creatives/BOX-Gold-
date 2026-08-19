@@ -1,5 +1,5 @@
 import { apiFetch } from './client';
-import type { Shipment } from './types';
+import type { Shipment, ShipmentTrackingEvent } from './types';
 
 export function shipOrder(orderId: string) {
   return apiFetch<{ shipment: Shipment }>(`/admin/shipping/orders/${orderId}/ship`, {
@@ -18,5 +18,18 @@ export function simulateTracking(orderId: string, status: 'OUT_FOR_DELIVERY' | '
   return apiFetch<{ shipment: Shipment }>(`/admin/shipping/orders/${orderId}/simulate-tracking`, {
     method: 'POST',
     body: JSON.stringify({ status }),
+  });
+}
+
+export interface AddTrackingEventInput {
+  status: string;
+  location?: string;
+  note?: string;
+}
+
+export function addTrackingEvent(orderId: string, input: AddTrackingEventInput) {
+  return apiFetch<{ event: ShipmentTrackingEvent }>(`/admin/shipping/orders/${orderId}/tracking-events`, {
+    method: 'POST',
+    body: JSON.stringify(input),
   });
 }

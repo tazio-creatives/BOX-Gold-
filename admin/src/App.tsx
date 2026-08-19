@@ -4,6 +4,7 @@ import { LoginPage } from './pages/LoginPage';
 import { DashboardPage } from './pages/DashboardPage';
 import { ProductsListPage } from './pages/products/ProductsListPage';
 import { ProductFormPage } from './pages/products/ProductFormPage';
+import { AiImageStudioPage } from './pages/products/AiImageStudioPage';
 import { CategoriesPage } from './pages/CategoriesPage';
 import { CollectionsPage } from './pages/CollectionsPage';
 import { OrdersListPage } from './pages/orders/OrdersListPage';
@@ -26,6 +27,7 @@ export function App() {
         <Route path="/products" element={<ProductsListPage />} />
         <Route path="/products/new" element={<ProductFormPage />} />
         <Route path="/products/:id/edit" element={<ProductFormPage />} />
+        <Route path="/products/:id/ai-image-studio" element={<AiImageStudioPage />} />
         <Route path="/categories" element={<CategoriesPage />} />
         <Route path="/collections" element={<CollectionsPage />} />
         <Route path="/homepage" element={<HomepagePage />} />

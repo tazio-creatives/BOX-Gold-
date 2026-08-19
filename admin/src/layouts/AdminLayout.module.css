@@ -5,7 +5,7 @@
 }
 
 .sidebar {
-  background: #0f1115;
+  background: #00515a;
   color: #e5e7eb;
   display: flex;
   flex-direction: column;
@@ -13,15 +13,14 @@
 }
 
 .brand {
-  font-weight: 700;
-  letter-spacing: 0.02em;
+  display: block;
   padding: 0 var(--space-5) var(--space-6);
-  font-size: var(--text-base);
-  color: #fff;
 }
 
-.brandAccent {
-  color: #a5b4fc;
+.brandLogo {
+  display: block;
+  width: 132px;
+  height: auto;
 }
 
 .nav {
@@ -39,7 +38,7 @@
   gap: var(--space-3);
   padding: var(--space-3) var(--space-3);
   text-decoration: none;
-  color: #9ca3af;
+  color: rgba(255, 255, 255, 0.65);
   font-size: var(--text-base);
   font-weight: 500;
   border-radius: var(--radius-sm);
@@ -53,12 +52,12 @@
 
 .navLink:hover {
   color: #fff;
-  background: rgba(255, 255, 255, 0.06);
+  background: rgba(255, 255, 255, 0.08);
 }
 
 .navLinkActive {
-  color: #fff;
-  background: var(--color-accent);
+  color: #c6a15b;
+  background: rgba(198, 161, 91, 0.16);
 }
 
 .footer {
@@ -80,8 +79,8 @@
   width: 34px;
   height: 34px;
   border-radius: 50%;
-  background: var(--color-accent);
-  color: #fff;
+  background: #c6a15b;
+  color: #00363c;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -102,7 +101,7 @@
 .adminRole {
   margin: 2px 0 0;
   font-size: var(--text-xs);
-  color: #8a8f9c;
+  color: rgba(255, 255, 255, 0.55);
 }
 
 .logoutButton {

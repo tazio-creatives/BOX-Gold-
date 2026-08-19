@@ -207,6 +207,8 @@ export interface OrderListItem {
   contactMobile: string;
   totalAmount: number;
   createdAt: string;
+  productName: string | null;
+  itemCount: number;
 }
 
 export interface OrderItem {
@@ -242,12 +244,22 @@ export interface ShippingAddress {
   country: string;
 }
 
+export interface ShipmentTrackingEvent {
+  id: string;
+  status: string;
+  location: string | null;
+  note: string | null;
+  source: 'MANUAL' | 'SYSTEM' | 'WEBHOOK';
+  createdAt: string;
+}
+
 export interface Shipment {
   id: string;
   provider: string;
   trackingNumber: string | null;
   courierName: string | null;
   status: string;
+  trackingEvents: ShipmentTrackingEvent[];
 }
 
 export interface OrderDetail {

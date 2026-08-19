@@ -15,6 +15,7 @@ import type { GoldColor, MetalType, ProductInput, ProductStatus, Purity } from '
 import { ApiError } from '../../api/client';
 import { formatPrice } from '../../utils/formatPrice';
 import { ProductGallery } from '../../features/products/ProductGallery';
+import { ImageEnhancer } from '../../features/imageEnhancement/ImageEnhancer';
 import sharedStyles from '../../styles/shared.module.css';
 import styles from './ProductFormPage.module.css';
 
@@ -176,6 +177,30 @@ export function ProductFormPage() {
         ? (f.diamondConfigIds ?? []).filter((c) => c !== id)
         : [...(f.diamondConfigIds ?? []), id],
     }));
+  }
+
+  // Early-create path for "Generate with AI" clicked on an unsaved product
+  // (plan §3 correction) — ai_studio_jobs.product_id is NOT NULL, so a real
+  // product must exist before the Studio route can create a job. Reuses the
+  // same createProduct call the normal Save uses, just triggered sooner with
+  // only the DB's actual minimum fields validated.
+  const createForStudioMutation = useMutation({
+    mutationFn: () => createProduct({ ...form, name: form.name.trim(), sku: form.sku.trim() }),
+    onSuccess: (result) => navigate(`/products/${result.product.id}/ai-image-studio`),
+    onError: (err) => setError(err instanceof ApiError ? err.message : 'Could not create product.'),
+  });
+
+  function handleGenerateWithAI() {
+    if (isEditing) {
+      navigate(`/products/${id}/ai-image-studio`);
+      return;
+    }
+    if (!form.name.trim() || !form.sku.trim() || !form.metalType) {
+      setError('Enter a product name, SKU, and metal type before generating images with AI.');
+      return;
+    }
+    setError(null);
+    createForStudioMutation.mutate();
   }
 
   const saveMutation = useMutation({
@@ -689,10 +714,42 @@ export function ProductFormPage() {
           </div>
         </section>
 
+        <section className={sharedStyles.cardPadded}>
+          <h2 className={styles.sectionHeading}>Product Images</h2>
+          <div className={styles.imageSourceGrid}>
+            <div className={styles.imageSourceCard}>
+              <p className={styles.imageSourceTitle}>Manual Upload</p>
+              <p className={styles.imageSourceBody}>Upload your own featured and gallery images below.</p>
+            </div>
+            <div className={styles.imageSourceCardRecommended}>
+              <span className={sharedStyles.badgeSuccess}>Recommended</span>
+              <p className={styles.imageSourceTitle}>Generate with AI</p>
+              <p className={styles.imageSourceBody}>
+                Upload jewellery references and generate a front, 45° hero, presenter, and lifestyle image.
+              </p>
+              <button
+                type="button"
+                className={sharedStyles.buttonPrimary}
+                disabled={createForStudioMutation.isPending}
+                onClick={handleGenerateWithAI}
+              >
+                {createForStudioMutation.isPending ? 'Creating…' : 'Start AI Generation'}
+              </button>
+            </div>
+          </div>
+        </section>
+
         {isEditing && (
           <section className={sharedStyles.cardPadded}>
             <h2 className={styles.sectionHeading}>Photos</h2>
             <ProductGallery productId={id as string} />
+          </section>
+        )}
+
+        {isEditing && (
+          <section className={sharedStyles.cardPadded}>
+            <h2 className={styles.sectionHeading}>Photo Quality Enhancer</h2>
+            <ImageEnhancer />
           </section>
         )}
 

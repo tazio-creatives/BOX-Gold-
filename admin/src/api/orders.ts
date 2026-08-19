@@ -18,3 +18,10 @@ export function fetchAdminOrders(status?: OrderStatus, page = 1, limit = 20) {
 export function fetchAdminOrder(id: string) {
   return apiFetch<{ order: OrderDetail }>(`/admin/orders/${id}`);
 }
+
+export function updateOrderStatus(id: string, status: OrderStatus, note?: string) {
+  return apiFetch<{ order: OrderDetail }>(`/admin/orders/${id}/status`, {
+    method: 'PATCH',
+    body: JSON.stringify({ status, note }),
+  });
+}
