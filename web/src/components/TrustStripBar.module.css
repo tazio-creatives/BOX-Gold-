@@ -57,3 +57,25 @@
     grid-template-columns: 1fr;
   }
 }
+
+/* Boxed variant — each item gets its own outlined card instead of one
+   shared top border across the row (used on the cart page, right below
+   the item list). */
+.stripBoxed {
+  grid-template-columns: repeat(3, 1fr);
+  margin-top: 0;
+  padding: 0;
+  border-top: none;
+}
+
+.itemBoxed {
+  border: 1px solid var(--color-border);
+  border-radius: 10px;
+  padding: var(--space-4);
+}
+
+.itemBoxed:hover {
+  background: none;
+  transform: none;
+  border-color: var(--color-burgundy);
+}

@@ -12,7 +12,6 @@ import { AddressCard } from '../features/address/AddressCard';
 import { OrderSummary } from '../features/checkout/OrderSummary';
 import { StepIndicator } from '../features/checkout/StepIndicator';
 import { Breadcrumbs } from '../components/Breadcrumbs';
-import { TrustStripBar } from '../components/TrustStripBar';
 import type { AddressInput, BuyNowItem, CheckoutResponse } from '../api/types';
 import { formatPrice } from '../utils/formatPrice';
 import { useDocumentTitle } from '../utils/useDocumentTitle';
@@ -128,9 +127,10 @@ export function CheckoutPage() {
     mutationFn: submitCheckout,
     onSuccess: (result) => {
       setOrderResult(result);
-      queryClient.invalidateQueries({ queryKey: ['cart'] });
-      // Stub gateway (plan §11) — confirm the payment immediately instead of
-      // making the shopper click through a fake "Pay Now" step.
+      // Not invalidated here — the order is only PENDING_PAYMENT at this
+      // point, and the backend doesn't touch the cart until payment is
+      // actually confirmed (see payMutation below), so refetching now would
+      // just get the same still-full cart back.
       payMutation.mutate({ providerRef: result.payment.providerRef, outcome: 'SUCCEEDED' });
     },
     onError: (err) => {
@@ -172,6 +172,7 @@ export function CheckoutPage() {
     mutationFn: ({ providerRef, outcome }: { providerRef: string; outcome: 'SUCCEEDED' | 'FAILED' }) =>
       simulatePayment(providerRef, outcome),
     onSuccess: (result) => {
+      queryClient.invalidateQueries({ queryKey: ['cart'] });
       navigate(`/order-confirmation/${result.order.id}`);
     },
     onError: (err) => {
@@ -491,10 +492,6 @@ export function CheckoutPage() {
             }}
           />
         </div>
-      </div>
-
-      <div className={styles.trustCard}>
-        <TrustStripBar className={styles.trustStripFlat} />
       </div>
     </div>
   );

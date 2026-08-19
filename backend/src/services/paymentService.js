@@ -18,6 +18,7 @@ import {
   confirmReservationsForOrderTx,
   releaseReservationsForOrderTx,
 } from '../repositories/reservations.repository.js';
+import { findCartByOwnerTx, clearOrderedItemsFromCartTx } from '../repositories/carts.repository.js';
 import { findProductsByIds } from '../repositories/products.repository.js';
 import { invalidateProductsPagesBatch } from './pageCacheInvalidation.js';
 import { enqueueEmail } from './emailService.js';
@@ -76,6 +77,12 @@ export async function confirmPayment(rawBody, signature) {
           orderId: orderForCoupon.id,
         });
       }
+
+      // Remove exactly the items this order paid for from the shopper's
+      // cart — see clearOrderedItemsFromCartTx for why this can't be a
+      // blanket "empty the cart" (Buy Now reuses this same confirm path).
+      const cart = await findCartByOwnerTx(client, { userId: orderForCoupon.user_id });
+      if (cart) await clearOrderedItemsFromCartTx(client, cart.id, payment.order_id);
     } else {
       await updatePaymentStatusTx(client, payment.id, 'FAILED', payload);
       await updateOrderStatusTx(client, payment.order_id, 'PAYMENT_FAILED');

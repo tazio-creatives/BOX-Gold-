@@ -228,6 +228,12 @@ export interface CartItem {
   sizeLabel: string | null;
   diamondConfigId: string | null;
   diamondConfigName: string | null;
+  // Raw cart row values (undefaulted) — use these, not goldColor/purity/
+  // diamondConfigId above, when building the variant for a remove/update
+  // request; those are defaulted to the product's own value for display.
+  cartGoldColor: string | null;
+  cartPurity: string | null;
+  cartDiamondConfigId: string | null;
   sellingPrice: number;
   availableStock: number;
   quantity: number;

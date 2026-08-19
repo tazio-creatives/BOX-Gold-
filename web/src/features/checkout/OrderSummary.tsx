@@ -27,7 +27,7 @@ interface OrderSummaryProps {
   gstPercent: number;
   total: number;
   couponInput: string;
-  onCouponInputChange: (value: string) => void;
+  onCouponInputChange: (_value: string) => void;
   appliedCoupon: { code: string } | null;
   couponError: string | null;
   isApplyingCoupon: boolean;
@@ -36,6 +36,7 @@ interface OrderSummaryProps {
   errorMessage?: string | null;
   primaryAction?: OrderSummaryAction;
   secondaryAction?: OrderSummaryAction;
+  showTrustList?: boolean;
 }
 
 function ShieldIcon() {
@@ -68,9 +69,9 @@ function CertifiedIcon() {
 }
 
 const TRUST_ITEMS = [
-  { Icon: ShieldIcon, title: '100% Secure Payments', subtitle: 'Your payment information is safe with us.' },
-  { Icon: TruckIcon, title: 'Free Insured Shipping', subtitle: 'Delivered safely to your doorstep.' },
-  { Icon: CertifiedIcon, title: 'Certified Diamonds', subtitle: 'IGI / SGL certified jewellery.' },
+  { Icon: CertifiedIcon, title: 'Purity Guaranteed', subtitle: 'on every online purchase' },
+  { Icon: TruckIcon, title: 'Secure Delivery', subtitle: 'by our trusted partners' },
+  { Icon: ShieldIcon, title: 'Easy & Secure Payments', subtitle: '100% safe & encrypted' },
 ];
 
 export function OrderSummary({
@@ -91,6 +92,7 @@ export function OrderSummary({
   errorMessage,
   primaryAction,
   secondaryAction,
+  showTrustList = true,
 }: OrderSummaryProps) {
   return (
     <aside className={styles.card}>
@@ -201,19 +203,21 @@ export function OrderSummary({
         </button>
       )}
 
-      <ul className={styles.trustList}>
-        {TRUST_ITEMS.map(({ Icon, title, subtitle }) => (
-          <li key={title} className={styles.trustItem}>
-            <span className={styles.trustIcon}>
-              <Icon />
-            </span>
-            <div>
-              <p className={styles.trustTitle}>{title}</p>
-              <p className={styles.trustSubtitle}>{subtitle}</p>
-            </div>
-          </li>
-        ))}
-      </ul>
+      {showTrustList && (
+        <ul className={styles.trustList}>
+          {TRUST_ITEMS.map(({ Icon, title, subtitle }) => (
+            <li key={title} className={styles.trustItem}>
+              <span className={styles.trustIcon}>
+                <Icon />
+              </span>
+              <div>
+                <p className={styles.trustTitle}>{title}</p>
+                <p className={styles.trustSubtitle}>{subtitle}</p>
+              </div>
+            </li>
+          ))}
+        </ul>
+      )}
     </aside>
   );
 }

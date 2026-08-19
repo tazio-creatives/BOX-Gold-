@@ -198,19 +198,6 @@
   text-decoration: underline;
 }
 
-.trustCard {
-  background: var(--color-surface);
-  border: 1px solid var(--color-border);
-  border-radius: 16px;
-  margin-top: var(--space-8);
-  box-shadow: var(--shadow-sm);
-}
-
-.trustStripFlat {
-  margin-top: 0;
-  border-top: none;
-}
-
 /* Payment gateway step */
 .paymentBox {
   max-width: 440px;
@@ -281,7 +268,12 @@
 
 @media (max-width: 900px) {
   .layout {
-    grid-template-columns: 1fr;
+    /* Plain `1fr` still carries an automatic minimum size equal to the
+       widest child's min-content (here, OrderSummary's card) — grid grows
+       the track to fit it rather than shrinking, blowing the whole column
+       out past the viewport. minmax(0, 1fr) removes that floor. Same fix
+       as CartPage.module.css's .layout, which shares this OrderSummary. */
+    grid-template-columns: minmax(0, 1fr);
   }
 
   .contactGrid {

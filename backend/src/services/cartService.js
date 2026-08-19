@@ -55,6 +55,14 @@ function toItemDto(item, product, size, pricing, diamondConfigName) {
     sizeId: size ? size.id : null,
     sizeLabel: size ? size.label : null,
     diamondConfigId: pricing.diamondConfigId,
+    // Raw cart_items values (often null for products with no configurable
+    // variant), as opposed to the pricing-defaulted fields above — mutations
+    // (remove/update quantity) must send these back, not the defaulted
+    // display values, since carts.repository.js matches against the actual
+    // stored row and a defaulted-but-not-actually-set value matches nothing.
+    cartGoldColor: item.gold_color,
+    cartPurity: item.purity,
+    cartDiamondConfigId: item.diamond_config_id,
     diamondConfigName: diamondConfigName ?? null,
     sellingPrice,
     availableStock,

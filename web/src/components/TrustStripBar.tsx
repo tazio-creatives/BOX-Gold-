@@ -40,6 +40,15 @@ function LockIcon() {
   );
 }
 
+function CertifiedIcon() {
+  return (
+    <svg {...ICON_PROPS}>
+      <path d="M12 2l2.4 1.4 2.8-.2 1 2.6 2.4 1.4-.6 2.8.6 2.8-2.4 1.4-1 2.6-2.8-.2L12 18l-2.4 1.4-2.8.2-1-2.6-2.4-1.4.6-2.8-.6-2.8 2.4-1.4 1-2.6 2.8.2L12 2z" />
+      <path d="M9 12l2 2 4-4" />
+    </svg>
+  );
+}
+
 const ITEMS = [
   { Icon: TruckIcon, title: 'Free Insured Shipping', subtitle: 'Across India' },
   { Icon: ReturnIcon, title: '15 Days Easy Returns', subtitle: 'No questions asked' },
@@ -47,14 +56,42 @@ const ITEMS = [
   { Icon: LockIcon, title: 'Secure Payments', subtitle: '100% safe & encrypted' },
 ];
 
+// Cart-specific 3-item assurance set, matching the exact wording of an
+// approved reference design — kept separate from ITEMS (used elsewhere at
+// its full 4-item default) rather than repurposing those entries, since the
+// copy here doesn't map onto shipping/returns/exchange at all. The
+// reference's payment subtitle ("backed by the trust of TATA") named a real
+// unrelated company, so it's swapped for an accurate equivalent instead of
+// carrying over a false claim.
+export const CART_ASSURANCE_ITEMS = [
+  { Icon: CertifiedIcon, title: 'Purity Guaranteed', subtitle: 'on every online purchase' },
+  { Icon: TruckIcon, title: 'Secure Delivery', subtitle: 'by our trusted partners' },
+  { Icon: LockIcon, title: 'Easy & Secure Payments', subtitle: '100% safe & encrypted' },
+];
+
 // PLP-specific static trust strip — deliberately not the CMS-driven homepage
 // TrustStripSection (that one renders one generic checkmark icon per
 // admin-entered item; this needs 4 visually distinct icons with fixed copy).
-export function TrustStripBar({ className }: { className?: string } = {}) {
+export function TrustStripBar({
+  className,
+  variant = 'circle',
+  items = ITEMS,
+}: {
+  className?: string;
+  // 'boxed' gives each item its own outlined card instead of one shared
+  // top border across the row — same icons/copy either way.
+  variant?: 'circle' | 'boxed';
+  // Defaults to the standard 4-item lineup; pass CART_ASSURANCE_ITEMS (or
+  // any same-shaped array) for a different copy/count.
+  items?: typeof ITEMS;
+} = {}) {
+  const stripClass = variant === 'boxed' ? `${styles.strip} ${styles.stripBoxed}` : styles.strip;
+  const itemClass = variant === 'boxed' ? `${styles.item} ${styles.itemBoxed}` : styles.item;
+
   return (
-    <div className={className ? `${styles.strip} ${className}` : styles.strip}>
-      {ITEMS.map(({ Icon, title, subtitle }) => (
-        <div key={title} className={styles.item}>
+    <div className={className ? `${stripClass} ${className}` : stripClass}>
+      {items.map(({ Icon, title, subtitle }) => (
+        <div key={title} className={itemClass}>
           <span className={styles.iconWrap}>
             <Icon />
           </span>

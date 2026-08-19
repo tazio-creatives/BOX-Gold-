@@ -12,7 +12,7 @@ import { placeholderGradient } from '../utils/placeholderGradient';
 import { useDocumentTitle } from '../utils/useDocumentTitle';
 import { ApiError } from '../api/client';
 import { Breadcrumbs } from '../components/Breadcrumbs';
-import { TrustStripBar } from '../components/TrustStripBar';
+import { TrustStripBar, CART_ASSURANCE_ITEMS } from '../components/TrustStripBar';
 import { RelatedProducts } from '../features/pdp/RelatedProducts';
 import { OrderSummary } from '../features/checkout/OrderSummary';
 import styles from './CartPage.module.css';
@@ -35,9 +35,9 @@ function metaLine(item: CartItem): string {
 function itemVariant(item: CartItem): VariantSelection {
   return {
     sizeId: item.sizeId,
-    goldColor: item.goldColor,
-    purity: item.purity,
-    diamondConfigId: item.diamondConfigId,
+    goldColor: item.cartGoldColor,
+    purity: item.cartPurity,
+    diamondConfigId: item.cartDiamondConfigId,
   };
 }
 
@@ -47,12 +47,10 @@ function itemKey(item: CartItem): string {
     .join(':');
 }
 
-function TrashIcon() {
+function CloseIcon() {
   return (
-    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
-      <path d="M4 7h16" />
-      <path d="M9 7V5a2 2 0 0 1 2-2h2a2 2 0 0 1 2 2v2" />
-      <path d="M6 7l1 13a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2l1-13" />
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+      <path d="M6 6l12 12M18 6L6 18" strokeLinecap="round" />
     </svg>
   );
 }
@@ -187,9 +185,20 @@ export function CartPage() {
         </p>
 
         <div className={styles.layout}>
+          <div className={styles.mainColumn}>
           <ul className={styles.list}>
             {data.items.map((item, i) => (
               <li key={itemKey(item)} className={styles.row}>
+                <button
+                  type="button"
+                  className={styles.removeButton}
+                  aria-label="Remove item"
+                  disabled={removeMutation.isPending}
+                  onClick={() => removeMutation.mutate({ productId: item.productId, variant: itemVariant(item) })}
+                >
+                  <CloseIcon />
+                </button>
+
                 <Link to={productUrl({ slug: item.slug, categorySlug: item.categorySlug })}>
                   <div
                     className={styles.image}
@@ -249,15 +258,6 @@ export function CartPage() {
                     <button
                       type="button"
                       className={styles.actionButton}
-                      onClick={() => removeMutation.mutate({ productId: item.productId, variant: itemVariant(item) })}
-                    >
-                      <TrashIcon />
-                      Remove
-                    </button>
-                    <span className={styles.actionDivider} aria-hidden="true" />
-                    <button
-                      type="button"
-                      className={styles.actionButton}
                       disabled={moveToWishlistMutation.isPending}
                       onClick={() =>
                         moveToWishlistMutation.mutate({ productId: item.productId, variant: itemVariant(item) })
@@ -271,6 +271,9 @@ export function CartPage() {
               </li>
             ))}
           </ul>
+
+          <TrustStripBar variant="boxed" items={CART_ASSURANCE_ITEMS} />
+          </div>
 
           <OrderSummary
             itemCount={data.itemCount}
@@ -303,14 +306,31 @@ export function CartPage() {
               label: 'Continue Shopping',
               onClick: () => navigate('/'),
             }}
+            showTrustList={false}
           />
         </div>
       </div>
 
       <RelatedProducts products={featuredData?.products ?? []} categorySlug={null} />
 
-      <div className={styles.trustCard}>
-        <TrustStripBar className={styles.trustStripFlat} />
+      {/* Mobile-only (CSS): OrderSummary stacks below the item list on
+          narrow viewports, so checkout would otherwise require scrolling
+          past every item first. */}
+      <div className={styles.stickyBar}>
+        <div className={styles.stickyBarTotal}>
+          <p className={styles.stickyBarLabel}>
+            Total ({data.itemCount} {data.itemCount === 1 ? 'item' : 'items'})
+          </p>
+          <p className={styles.stickyBarValue}>{formatPrice(total)}</p>
+        </div>
+        <button
+          type="button"
+          className={styles.stickyBarButton}
+          disabled={hasUnavailableItem}
+          onClick={() => navigate('/checkout')}
+        >
+          Proceed to Checkout
+        </button>
       </div>
     </div>
   );
