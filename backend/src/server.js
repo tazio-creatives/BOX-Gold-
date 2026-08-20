@@ -9,6 +9,17 @@ import { registerEmailWorker } from './jobs/emailJob.js';
 
 const app = createApp();
 
+// Without these, an unhandled rejection anywhere (a missed .catch on a
+// background job, a third-party SDK call, etc.) crashes the whole process
+// via Node's default behavior, dropping every in-flight request — including
+// unrelated ones like admin login. Log and keep serving instead.
+process.on('unhandledRejection', (err) => {
+  console.error('Unhandled promise rejection', err);
+});
+process.on('uncaughtException', (err) => {
+  console.error('Uncaught exception', err);
+});
+
 async function main() {
   await startJobQueue();
   await registerPricingWorkers();

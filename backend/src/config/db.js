@@ -3,6 +3,15 @@ import { env } from './env.js';
 
 export const pool = new pg.Pool({ connectionString: env.databaseUrl });
 
+// pg emits 'error' on the pool when an *idle* client's connection is reset
+// by Postgres (network blip, managed-DB idle-connection reap) — with no
+// listener, Node treats that as an uncaught exception and crashes the whole
+// process, dropping every in-flight request (including unrelated ones, e.g.
+// admin login) with a raw connection-reset error instead of a normal 500.
+pool.on('error', (err) => {
+  console.error('Unexpected error on idle Postgres client', err);
+});
+
 export function query(text, params) {
   return pool.query(text, params);
 }
