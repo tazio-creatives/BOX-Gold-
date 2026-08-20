@@ -4,6 +4,7 @@ import { fetchAdminCategories, createCategory, updateCategory, deleteCategory } 
 import type { Category } from '../api/types';
 import { buildCategoryTree, type CategoryTreeNode } from '../utils/categoryTree';
 import { CategoryForm } from '../features/categories/CategoryForm';
+import { Toast } from '../components/Toast';
 import sharedStyles from '../styles/shared.module.css';
 import styles from './CategoriesPage.module.css';
 
@@ -13,6 +14,7 @@ export function CategoriesPage() {
   const queryClient = useQueryClient();
   const { data, isLoading } = useQuery({ queryKey: ['admin-categories'], queryFn: fetchAdminCategories });
   const [mode, setMode] = useState<Mode>({ type: 'none' });
+  const [errorToast, setErrorToast] = useState<string | null>(null);
 
   const invalidate = () => queryClient.invalidateQueries({ queryKey: ['admin-categories'] });
 
@@ -35,7 +37,7 @@ export function CategoriesPage() {
   const deleteMutation = useMutation({
     mutationFn: (id: string) => deleteCategory(id),
     onSuccess: invalidate,
-    onError: (err) => window.alert(err instanceof Error ? err.message : 'Could not delete category.'),
+    onError: (err) => setErrorToast(err instanceof Error ? err.message : 'Could not delete category.'),
   });
 
   if (isLoading) return <p>Loading…</p>;
@@ -127,6 +129,8 @@ export function CategoriesPage() {
         {tree.length === 0 && <p className={sharedStyles.empty}>No categories yet.</p>}
         {tree.map(renderNode)}
       </div>
+
+      {errorToast && <Toast message={errorToast} variant="error" onDismiss={() => setErrorToast(null)} />}
     </div>
   );
 }

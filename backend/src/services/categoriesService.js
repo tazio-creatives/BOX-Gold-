@@ -8,6 +8,8 @@ import {
   createCategory as createCategoryRow,
   updateCategory as updateCategoryRow,
   deleteCategory as deleteCategoryRow,
+  countProductsInCategory,
+  countChildCategories,
 } from '../repositories/categories.repository.js';
 import { invalidateCategoryPages } from './pageCacheInvalidation.js';
 
@@ -60,6 +62,26 @@ export async function updateCategory(id, input) {
 export async function deleteCategory(id) {
   const existing = await findCategoryById(id);
   if (!existing) throw new NotFoundError('Category not found');
+
+  // products.category_id is ON DELETE RESTRICT, so an unchecked delete fails
+  // with a generic FK-violation 409 that doesn't say why. Check up front and
+  // give the admin an actionable message instead.
+  const productCount = await countProductsInCategory(id);
+  if (productCount > 0) {
+    throw new AppError(
+      409,
+      `Cannot delete "${existing.name}": ${productCount} product${productCount === 1 ? ' is' : 's are'} still assigned to this category. Reassign or delete them first.`,
+    );
+  }
+
+  const childCount = await countChildCategories(id);
+  if (childCount > 0) {
+    throw new AppError(
+      409,
+      `Cannot delete "${existing.name}": it has ${childCount} subcategor${childCount === 1 ? 'y' : 'ies'}. Delete or move them first.`,
+    );
+  }
+
   await deleteCategoryRow(id);
   await invalidateCategoryPages(existing);
 }

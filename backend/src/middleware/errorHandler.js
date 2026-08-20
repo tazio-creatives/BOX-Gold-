@@ -16,9 +16,11 @@ export function errorHandler(err, req, res, _next) {
     return res.status(409).json({ error: { message: 'Already exists' } });
   }
 
-  // Postgres foreign_key_violation — e.g. deleting a category still assigned
-  // to products, or a product still referenced by order_items.
-  if (err.code === '23503') {
+  // Postgres foreign_key_violation (23503) and restrict_violation (23001) —
+  // ON DELETE RESTRICT constraints raise the latter, not the former, e.g.
+  // deleting a category still assigned to products, or a product still
+  // referenced by order_items.
+  if (err.code === '23503' || err.code === '23001') {
     return res.status(409).json({ error: { message: 'Still referenced by other records' } });
   }
 

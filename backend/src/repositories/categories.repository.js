@@ -119,6 +119,16 @@ export async function updateCategory(id, fields) {
   return rows[0] ?? null;
 }
 
+export async function countProductsInCategory(id) {
+  const { rows } = await query('SELECT COUNT(*)::int AS count FROM products WHERE category_id = $1', [id]);
+  return rows[0].count;
+}
+
+export async function countChildCategories(id) {
+  const { rows } = await query('SELECT COUNT(*)::int AS count FROM categories WHERE parent_id = $1', [id]);
+  return rows[0].count;
+}
+
 export async function deleteCategory(id) {
   await query('DELETE FROM categories WHERE id = $1', [id]);
 }
