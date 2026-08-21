@@ -6,6 +6,7 @@ import { fetchAdminCategories } from '../../api/categories';
 import type { ProductStatus } from '../../api/types';
 import { formatPrice } from '../../utils/formatPrice';
 import { buildCategoryTree, flattenTree } from '../../utils/categoryTree';
+import { ConfirmDialog } from '../../components/ConfirmDialog';
 import sharedStyles from '../../styles/shared.module.css';
 import styles from './ProductsListPage.module.css';
 
@@ -52,6 +53,7 @@ export function ProductsListPage() {
   const [status, setStatus] = useState<ProductStatus | ''>('');
   const [category, setCategory] = useState('');
   const [page, setPage] = useState(1);
+  const [pendingDelete, setPendingDelete] = useState<{ id: string; name: string } | null>(null);
 
   const { data, isLoading } = useQuery({
     queryKey: ['admin-products', { status, category, page }],
@@ -63,8 +65,14 @@ export function ProductsListPage() {
 
   const deleteMutation = useMutation({
     mutationFn: (id: string) => deleteProduct(id),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['admin-products'] }),
-    onError: (err) => window.alert(err instanceof Error ? err.message : 'Could not delete product.'),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['admin-products'] });
+      setPendingDelete(null);
+    },
+    onError: (err) => {
+      window.alert(err instanceof Error ? err.message : 'Could not delete product.');
+      setPendingDelete(null);
+    },
   });
 
   const featuredMutation = useMutation({
@@ -174,9 +182,7 @@ export function ProductsListPage() {
                       type="button"
                       className={styles.deleteButton}
                       aria-label={`Delete ${product.name}`}
-                      onClick={() => {
-                        if (window.confirm(`Delete "${product.name}"?`)) deleteMutation.mutate(product.id);
-                      }}
+                      onClick={() => setPendingDelete({ id: product.id, name: product.name })}
                     >
                       <TrashIcon />
                     </button>
@@ -210,6 +216,16 @@ export function ProductsListPage() {
             Next
           </button>
         </div>
+      )}
+
+      {pendingDelete && (
+        <ConfirmDialog
+          title="Delete product"
+          message={`Delete "${pendingDelete.name}"? This cannot be undone.`}
+          isPending={deleteMutation.isPending}
+          onConfirm={() => deleteMutation.mutate(pendingDelete.id)}
+          onCancel={() => setPendingDelete(null)}
+        />
       )}
     </div>
   );

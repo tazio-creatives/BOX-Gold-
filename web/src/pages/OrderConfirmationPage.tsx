@@ -1,5 +1,6 @@
+import { useEffect } from 'react';
 import { Link, useParams } from 'react-router-dom';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { fetchOrderById } from '../api/orders';
 import { formatPrice } from '../utils/formatPrice';
 import { placeholderGradient } from '../utils/placeholderGradient';
@@ -66,13 +67,32 @@ function itemMetaLine(item: { purity: string | null; goldColor: string | null; s
 
 export function OrderConfirmationPage() {
   const { orderId } = useParams<{ orderId: string }>();
+  const queryClient = useQueryClient();
   const { data, isLoading, isError } = useQuery({
     queryKey: ['order', orderId],
     queryFn: () => fetchOrderById(orderId as string),
     enabled: !!orderId,
+    // A real gateway (Cashfree) confirms the order asynchronously via a
+    // server-to-server webhook, arriving some seconds after the customer
+    // finishes on the checkout page — poll briefly so this page updates
+    // itself instead of leaving the customer stuck on "Order Received"
+    // until they manually refresh. Same pattern as ProductGallery.tsx's
+    // AI-job-status polling in admin.
+    refetchInterval: (query) => (query.state.data?.order.status === 'PENDING_PAYMENT' ? 2000 : false),
   });
 
   useDocumentTitle(data ? `Order ${data.order.orderNumber}` : 'Order Confirmation');
+
+  // Cart clearing happens server-side once payment is confirmed (see
+  // backend paymentService.confirmPayment) — invalidate here, the one place
+  // that's true for both the dev stub and the real Cashfree flow (which has
+  // no synchronous "payment succeeded" response on the checkout page to
+  // hook a cart invalidation into).
+  useEffect(() => {
+    if (data?.order.status === 'CONFIRMED') {
+      queryClient.invalidateQueries({ queryKey: ['cart'] });
+    }
+  }, [data?.order.status, queryClient]);
 
   if (isLoading) {
     return (
@@ -141,7 +161,10 @@ export function OrderConfirmationPage() {
               <li key={item.id} className={styles.item}>
                 <div className={styles.itemThumb} style={{ background: placeholderGradient(i) }} />
                 <div className={styles.itemInfo}>
-                  <p className={styles.itemName}>{item.productName}</p>
+                  <p className={styles.itemName}>
+                    {item.productName}
+                    {item.isBackordered && <span className={styles.backorderBadge}>Make to Order</span>}
+                  </p>
                   {meta && <p className={styles.itemVariant}>{meta}</p>}
                 </div>
                 <div className={styles.itemTrailing}>

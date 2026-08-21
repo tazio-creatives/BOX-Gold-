@@ -126,21 +126,9 @@ export function HomepageSection({ section, alternate }: Props) {
       );
 
     case 'BENTO_CATEGORIES':
-      if (section.items.length === 6) {
-        return (
-          <section>
-            <CategoryShowcase items={section.items} />
-          </section>
-        );
-      }
       return (
-        <section className={sectionClass}>
-          {section.heading && <h2 className={styles.heading}>{section.heading}</h2>}
-          <div className={styles.grid}>
-            {section.items.map((item, i) => (
-              <BentoCard key={item.id} item={item} index={i} />
-            ))}
-          </div>
+        <section>
+          <CategoryShowcase items={section.items} heading={section.heading} />
         </section>
       );
 

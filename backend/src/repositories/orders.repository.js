@@ -8,7 +8,7 @@ export async function lockProductForCheckoutTx(client, productId) {
   const { rows } = await client.query(
     `SELECT id, name, sku, status, metal_type, purity, gold_color, gold_value, diamond_value,
             making_charge, gst_percent, selling_price, stock_quantity,
-            net_weight_grams, diamond_weight_carats, diamond_config_id
+            net_weight_grams, gold_weight_grams, diamond_weight_carats, diamond_config_id
      FROM products WHERE id = $1 FOR UPDATE`,
     [productId],
   );
@@ -20,7 +20,8 @@ export async function lockProductForCheckoutTx(client, productId) {
 // product_sizes row before the stock check+reserve.
 export async function lockProductSizeForCheckoutTx(client, sizeId) {
   const { rows } = await client.query(
-    `SELECT id, product_id, label, stock_quantity FROM product_sizes WHERE id = $1 FOR UPDATE`,
+    `SELECT id, product_id, label, stock_quantity, weight_grams, diamond_weight_carats
+     FROM product_sizes WHERE id = $1 FOR UPDATE`,
     [sizeId],
   );
   return rows[0] ?? null;
@@ -70,8 +71,9 @@ export async function insertOrderItemTx(client, fields) {
     `INSERT INTO order_items
        (order_id, product_id, product_name, product_sku, quantity,
         gold_value, diamond_value, making_charge, gst_amount, unit_price, line_total, gold_rate_id,
-        product_size_id, product_size_label, gold_color, purity, diamond_config_id, diamond_config_name)
-     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18)
+        product_size_id, product_size_label, gold_color, purity, diamond_config_id, diamond_config_name,
+        is_backordered)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19)
      RETURNING *`,
     [
       fields.orderId,
@@ -92,6 +94,7 @@ export async function insertOrderItemTx(client, fields) {
       fields.purity ?? null,
       fields.diamondConfigId ?? null,
       fields.diamondConfigName ?? null,
+      fields.isBackordered ?? false,
     ],
   );
   return rows[0];

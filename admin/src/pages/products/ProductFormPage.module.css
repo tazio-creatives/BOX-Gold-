@@ -43,11 +43,39 @@
   margin-bottom: var(--space-4);
 }
 
-.sizeRow {
+.sizeCard {
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  padding: var(--space-3);
+}
+
+.sizeCardHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: var(--space-3);
+}
+
+.sizeCardTitle {
+  font-size: var(--text-sm);
+  font-weight: 600;
+  color: var(--color-text-muted);
+}
+
+.sizeCardFields {
   display: grid;
-  grid-template-columns: 1fr 1fr auto;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
   gap: var(--space-3);
-  align-items: end;
+}
+
+.sizeCardFields input[type='number'] {
+  -moz-appearance: textfield;
+}
+
+.sizeCardFields input[type='number']::-webkit-inner-spin-button,
+.sizeCardFields input[type='number']::-webkit-outer-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
 }
 
 .variantGroup {

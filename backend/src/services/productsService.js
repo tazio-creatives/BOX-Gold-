@@ -6,6 +6,7 @@ import {
   findProductById,
   findProductImages,
   findProductSizes,
+  findProductSizesByIds,
   createProduct as createProductRow,
   updateProduct as updateProductRow,
   deleteProduct as deleteProductRow,
@@ -22,8 +23,19 @@ import {
   getCategoryAndDescendantIds,
 } from '../repositories/categories.repository.js';
 import { findCollectionBySlug } from '../repositories/collections.repository.js';
+import { findDiamondConfigById } from '../repositories/diamondConfigs.repository.js';
 import { computeVariantPricing } from './pricingService.js';
 import { invalidateProductPages } from './pageCacheInvalidation.js';
+
+// net_weight_grams is derived, not admin-entered directly — it's the total
+// finished-piece weight (gold weight + diamond weight) shown to customers,
+// while gold_weight_grams alone is what pricingService.computeGoldValue
+// prices against (pricing a diamond's physical weight as gold would be
+// wrong even though "net weight" here means the combined total).
+function deriveNetWeightGrams(goldWeightGrams, diamondWeightGrams) {
+  if (goldWeightGrams == null && diamondWeightGrams == null) return null;
+  return Math.round(((goldWeightGrams ?? 0) + (diamondWeightGrams ?? 0)) * 1000) / 1000;
+}
 
 export async function resolveCategoryIds(categorySlug) {
   if (!categorySlug) return undefined;
@@ -70,7 +82,10 @@ export async function getPublicProductBySlug(slug) {
   const images = await findProductImages(product.id);
   const sizes = await findProductSizes(product.id);
   const variantOptions = await findProductVariantOptions(product.id);
-  return { ...product, images, sizes, variantOptions };
+  const diamondConfigName = product.diamond_config_id
+    ? ((await findDiamondConfigById(product.diamond_config_id))?.name ?? null)
+    : null;
+  return { ...product, images, sizes, variantOptions, diamondConfigName };
 }
 
 export async function getRelatedProducts(slug, limit = 4) {
@@ -100,6 +115,7 @@ export async function adminGetProduct(id) {
 export async function adminCreateProduct(input) {
   const slug = input.slug ? slugify(input.slug) : slugify(input.name);
   const { sizes: sizesInput, goldColors, purities, diamondConfigIds, ...fields } = input;
+  fields.netWeightGrams = deriveNetWeightGrams(fields.goldWeightGrams, fields.diamondWeightGrams);
   let product = await createProductRow({ ...fields, slug, status: input.status ?? 'DRAFT' });
   if (sizesInput !== undefined) {
     await replaceProductSizes(product.id, sizesInput);
@@ -127,6 +143,19 @@ export async function adminUpdateProduct(id, input) {
   if (Object.hasOwn(fields, 'slug') && fields.slug) {
     fields.slug = slugify(fields.slug);
   }
+  if (Object.hasOwn(fields, 'goldWeightGrams') || Object.hasOwn(fields, 'diamondWeightGrams')) {
+    const goldWeightGrams = Object.hasOwn(fields, 'goldWeightGrams')
+      ? fields.goldWeightGrams
+      : existing.gold_weight_grams == null
+        ? null
+        : Number(existing.gold_weight_grams);
+    const diamondWeightGrams = Object.hasOwn(fields, 'diamondWeightGrams')
+      ? fields.diamondWeightGrams
+      : existing.diamond_weight_grams == null
+        ? null
+        : Number(existing.diamond_weight_grams);
+    fields.netWeightGrams = deriveNetWeightGrams(goldWeightGrams, diamondWeightGrams);
+  }
   let product = await updateProductRow(id, fields);
   if (sizesInput !== undefined) {
     await replaceProductSizes(id, sizesInput);
@@ -146,7 +175,7 @@ export async function adminUpdateProduct(id, input) {
 // Public/customer-facing price preview for a purity/diamond-quality
 // combination — reuses the same numeric engine as cart/checkout so the
 // number shown while shopping always matches what gets charged.
-export async function previewProductVariantPricing(id, { purity, diamondConfigId }) {
+export async function previewProductVariantPricing(id, { purity, diamondConfigId, sizeId }) {
   const product = await findProductById(id);
   if (!product || product.status !== 'PUBLISHED') throw new NotFoundError('Product not found');
 
@@ -158,7 +187,24 @@ export async function previewProductVariantPricing(id, { purity, diamondConfigId
     throw new NotFoundError('Selected diamond quality is not available for this product');
   }
 
-  const pricing = await computeVariantPricing(product, { purity, diamondConfigId });
+  let sizeWeightGrams = null;
+  let sizeDiamondWeightCarats = null;
+  if (sizeId) {
+    const [size] = await findProductSizesByIds([sizeId]);
+    if (!size || size.product_id !== id) {
+      throw new NotFoundError('Selected size is not available for this product');
+    }
+    sizeWeightGrams = size.weight_grams != null ? Number(size.weight_grams) : null;
+    sizeDiamondWeightCarats =
+      size.diamond_weight_carats != null ? Number(size.diamond_weight_carats) : null;
+  }
+
+  const pricing = await computeVariantPricing(product, {
+    purity,
+    diamondConfigId,
+    sizeWeightGrams,
+    sizeDiamondWeightCarats,
+  });
   const mrp = Number(product.mrp);
   const discountPercent =
     mrp && mrp > pricing.sellingPrice ? Math.round(((mrp - pricing.sellingPrice) / mrp) * 100) : 0;

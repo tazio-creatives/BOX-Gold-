@@ -5,7 +5,8 @@ import { AppError, NotFoundError } from '../utils/AppError.js';
 import { env } from '../config/env.js';
 import { boss } from '../jobs/queue.js';
 import { JOB_AI_STUDIO_ANALYSE, JOB_AI_STUDIO_GENERATE, resetAssetForRetry } from '../jobs/aiStudioJob.js';
-import { JEWELLERY_TYPES } from '../services/aiStudioService.js';
+import { JEWELLERY_TYPES, resolveAssetTypesForJob, ASSET_DISPLAY_ORDER } from '../services/aiStudioService.js';
+import { findPresenterById } from '../repositories/presenters.repository.js';
 import { storageProvider } from '../providers/storage/index.js';
 import { processAndStoreImage } from '../services/imageProcessingService.js';
 import { withTransaction } from '../config/db.js';
@@ -22,7 +23,10 @@ import {
   findAssetsByJobId,
   findAssetsByJobIdTx,
   findAssetById,
+  lockAssetByIdTx,
+  updateAsset,
   updateAssetTx,
+  clearFeaturedForJobTx,
   findMaxSortOrderTx,
   clearPrimaryForProductTx,
   insertProductImageTx,
@@ -30,13 +34,18 @@ import {
 
 const MIN_DIMENSION_PX = 200;
 const MAX_DIMENSION_PX = 8000;
-const SHOT_TYPES = ['FRONT', 'HERO_45', 'PRESENTER', 'LIFESTYLE'];
+const CATALOGUE_ASSET_TYPES = ['YELLOW_FRONT', 'YELLOW_HERO_45', 'ROSE_FRONT', 'ROSE_HERO_45'];
 
 export const confirmSchema = z.object({
   jewelleryType: z.enum(JEWELLERY_TYPES.filter((t) => t !== 'UNKNOWN')),
   categoryId: z.string().uuid().nullable().optional(),
-  metalColor: z.enum(['YELLOW', 'ROSE', 'WHITE']).nullable().optional(),
-  presenterStyle: z.enum(['CONTEMPORARY', 'TRADITIONAL']),
+  presenterId: z.string().uuid().nullable().optional(),
+  generateRoseGold: z.boolean().optional(),
+});
+
+const selectionSchema = z.object({
+  selected: z.boolean().optional(),
+  isFeatured: z.boolean().optional(),
 });
 
 function keyFromUrl(url) {
@@ -48,7 +57,7 @@ function keyFromUrl(url) {
 function assetDto(asset) {
   return {
     id: asset.id,
-    shotType: asset.shot_type,
+    assetType: asset.asset_type,
     displayOrder: asset.display_order,
     status: asset.status,
     imageUrl: asset.image_key ? `${env.uploadsPublicBaseUrl}/${asset.image_key}` : null,
@@ -63,7 +72,7 @@ function assetDto(asset) {
   };
 }
 
-function jobDto(job, assets) {
+function jobDto(job, assets, presenter) {
   return {
     id: job.id,
     productId: job.product_id,
@@ -74,8 +83,11 @@ function jobDto(job, assets) {
     categoryConfidenceThreshold: env.aiStudioCategoryConfidenceThreshold,
     jewelleryType: job.jewellery_type,
     categoryId: job.category_id,
-    metalColor: job.metal_color,
-    presenterStyle: job.presenter_style,
+    presenterId: job.presenter_id,
+    presenter: presenter
+      ? { id: presenter.id, displayName: presenter.display_name, styleLabel: presenter.style_label }
+      : null,
+    generateRoseGold: job.generate_rose_gold,
     error: job.error,
     createdAt: job.created_at,
     confirmedAt: job.confirmed_at,
@@ -102,10 +114,12 @@ async function validateImageFile(file) {
   }
 }
 
-// Upload 1-4 reference photos, create the job, kick off analysis. Rejects
-// with 409 (returning the existing job id) if one is already active for
-// this product — enforced here and by the partial unique index, so a
-// double-click race still fails cleanly rather than 500ing (plan §8).
+// Upload 1 primary + up to 3 supporting reference photos (4 total), create
+// the job, kick off analysis. Rejects with 409 (returning the existing job
+// id) if one is already active for this product — enforced here and by the
+// partial unique index, so a double-click race still fails cleanly rather
+// than 500ing (plan §8). The first file in the array is always the primary
+// image (UploadStep.tsx puts it first).
 export async function createJob(req, res, next) {
   try {
     const productId = req.params.id;
@@ -113,8 +127,8 @@ export async function createJob(req, res, next) {
     if (!product) throw new NotFoundError('Product not found');
 
     const files = req.files ?? [];
-    if (files.length === 0) throw new AppError(400, 'At least one reference image is required');
-    if (files.length > 4) throw new AppError(400, 'At most 4 reference images are allowed');
+    if (files.length === 0) throw new AppError(400, 'A primary reference image is required');
+    if (files.length > 4) throw new AppError(400, 'At most 1 primary + 3 supporting images are allowed');
 
     const existing = await findActiveJobByProduct(productId);
     if (existing) {
@@ -164,22 +178,36 @@ export async function createJob(req, res, next) {
   }
 }
 
-export async function getJob(req, res, next) {
+// Lets the Studio page resume an in-progress job for a product instead of
+// always starting at Upload — powers "Save as Draft" actually being
+// resumable (the job just stays in whatever status it was left in).
+export async function getActiveJob(req, res, next) {
   try {
-    const job = await findJobById(req.params.jobId);
-    if (!job || job.product_id !== req.params.id) throw new NotFoundError('Job not found');
-    const assets = await findAssetsByJobId(job.id);
-    res.json({ job: jobDto(job, assets) });
+    const job = await findActiveJobByProduct(req.params.id);
+    res.json({ jobId: job?.id ?? null });
   } catch (err) {
     next(err);
   }
 }
 
-// Category + metal + presenter must ALL be explicitly supplied here — even
+export async function getJob(req, res, next) {
+  try {
+    const job = await findJobById(req.params.jobId);
+    if (!job || job.product_id !== req.params.id) throw new NotFoundError('Job not found');
+    const assets = await findAssetsByJobId(job.id);
+    const presenter = job.presenter_id ? await findPresenterById(job.presenter_id) : null;
+    res.json({ job: jobDto(job, assets, presenter) });
+  } catch (err) {
+    next(err);
+  }
+}
+
+// Category + (optional) presenter must be explicitly supplied here — even
 // when analysis was confident, the admin's choice is what's used, never a
 // silent fallback to the AI's guess (plan §5). jewelleryType excludes
 // 'UNKNOWN' at the schema level, so an unresolved analysis can never reach
-// generation without a real category being picked first.
+// generation without a real category being picked first. presenterId is
+// nullable ("No Presenter" is a valid, explicit choice, not an omission).
 export async function confirmJob(req, res, next) {
   try {
     const job = await findJobById(req.params.jobId);
@@ -192,18 +220,30 @@ export async function confirmJob(req, res, next) {
     const template = await findCategoryTemplate(input.jewelleryType);
     if (!template) throw new AppError(400, `No generation template for "${input.jewelleryType}"`);
 
+    let presenter = null;
+    if (input.presenterId) {
+      presenter = await findPresenterById(input.presenterId);
+      if (!presenter || !presenter.is_active) throw new AppError(400, 'Selected presenter is not available');
+      if (!presenter.supported_jewellery_types.includes(input.jewelleryType)) {
+        throw new AppError(400, 'Selected presenter does not support this jewellery type');
+      }
+    }
+
+    const generateRoseGold = input.generateRoseGold ?? true;
+
     await updateJob(job.id, {
       jewellery_type: input.jewelleryType,
       category_id: input.categoryId ?? null,
-      metal_color: input.metalColor ?? null,
-      presenter_style: input.presenterStyle,
+      presenter_id: input.presenterId ?? null,
+      generate_rose_gold: generateRoseGold,
       confirmed_at: new Date(),
       status: 'generating',
     });
 
+    const assetTypes = resolveAssetTypesForJob({ generateRoseGold, hasPresenter: !!presenter });
     await insertAssets(
       job.id,
-      SHOT_TYPES.map((shotType, i) => ({ shotType, displayOrder: i })),
+      assetTypes.map((assetType) => ({ assetType, displayOrder: ASSET_DISPLAY_ORDER[assetType] })),
     );
 
     await boss.send(JOB_AI_STUDIO_GENERATE, { jobId: job.id });
@@ -214,6 +254,10 @@ export async function confirmJob(req, res, next) {
   }
 }
 
+// Regenerate/retry — allowed on a FAILED asset (retry) or a READY one
+// (Step 4/5's "Regenerate" action, letting the admin reroll a shot they
+// don't like before moving on). Never on PENDING/GENERATING — those are
+// already in flight.
 export async function retryAsset(req, res, next) {
   try {
     const job = await findJobById(req.params.jobId);
@@ -224,13 +268,51 @@ export async function retryAsset(req, res, next) {
 
     const asset = await findAssetById(req.params.assetId);
     if (!asset || asset.job_id !== job.id) throw new NotFoundError('Asset not found');
-    if (asset.status !== 'FAILED') throw new AppError(409, 'Only a failed asset can be retried');
+    if (!['FAILED', 'READY'].includes(asset.status)) {
+      throw new AppError(409, 'Only a failed or completed asset can be regenerated');
+    }
 
     await resetAssetForRetry(asset.id);
     await updateJob(job.id, { status: 'generating' });
     await boss.send(JOB_AI_STUDIO_GENERATE, { jobId: job.id, assetIds: [asset.id] });
 
     res.status(202).json({ jobId: job.id });
+  } catch (err) {
+    next(err);
+  }
+}
+
+// Step 5's per-card select/deselect and "Set as Featured" actions. Setting
+// isFeatured atomically clears every other asset in the job first, so
+// exactly one stays featured — only a READY catalogue-type asset can be
+// featured (mirrors the DB CHECK constraint).
+export async function updateAssetSelection(req, res, next) {
+  try {
+    const job = await findJobById(req.params.jobId);
+    if (!job || job.product_id !== req.params.id) throw new NotFoundError('Job not found');
+
+    const asset = await findAssetById(req.params.assetId);
+    if (!asset || asset.job_id !== job.id) throw new NotFoundError('Asset not found');
+
+    const input = selectionSchema.parse(req.body);
+
+    let updated = asset;
+    if (input.isFeatured) {
+      if (asset.status !== 'READY' || !CATALOGUE_ASSET_TYPES.includes(asset.asset_type)) {
+        throw new AppError(400, 'Only a completed catalogue image can be set as featured');
+      }
+      updated = await withTransaction(async (client) => {
+        await clearFeaturedForJobTx(client, job.id);
+        return updateAssetTx(client, asset.id, { is_featured: true });
+      });
+    } else if (input.isFeatured === false) {
+      updated = await updateAsset(asset.id, { is_featured: false });
+    }
+    if (input.selected !== undefined) {
+      updated = await updateAsset(asset.id, { selected: input.selected });
+    }
+
+    res.json({ asset: assetDto(updated) });
   } catch (err) {
     next(err);
   }
@@ -253,11 +335,12 @@ export async function cancelJob(req, res, next) {
   }
 }
 
-// Transactional and idempotent (plan §7/§11): locks the job row, replays
-// cleanly if already completed, skips any asset already imported, and never
-// deletes/requires regenerating anything on failure — the whole operation is
-// safe to just call again.
-export async function importJob(req, res, next) {
+// Imports exactly one selected+READY+not-yet-imported asset — called
+// per-asset by the frontend (sequentially, over every selected asset) so it
+// can show a real completed/total progress percentage rather than a fake
+// animated bar. Transactional and idempotent per-call: re-calling for an
+// already-imported asset is a safe no-op.
+export async function importAsset(req, res, next) {
   try {
     const productId = req.params.id;
     const jobId = req.params.jobId;
@@ -265,53 +348,70 @@ export async function importJob(req, res, next) {
     const result = await withTransaction(async (client) => {
       const job = await lockJobById(client, jobId);
       if (!job || job.product_id !== productId) throw new NotFoundError('Job not found');
-
-      if (job.status === 'completed') {
-        return { alreadyCompleted: true };
-      }
-      if (!['review_ready', 'importing'].includes(job.status)) {
+      if (!['review_ready', 'partially_failed', 'importing'].includes(job.status)) {
         throw new AppError(409, `Job is not ready to import (status: ${job.status})`);
       }
 
-      const assets = await findAssetsByJobIdTx(client, jobId);
-      const selected = assets.filter((a) => a.selected);
-      if (selected.some((a) => a.status !== 'READY')) {
-        throw new AppError(409, 'All selected images must be ready before importing');
+      const asset = await lockAssetByIdTx(client, req.params.assetId);
+      if (!asset || asset.job_id !== jobId) throw new NotFoundError('Asset not found');
+      if (asset.imported) return { alreadyImported: true, asset };
+      if (!asset.selected) throw new AppError(400, 'Asset is not selected for import');
+      if (asset.status !== 'READY') throw new AppError(409, 'Asset is not ready to import');
+
+      if (job.status !== 'importing') await updateJobTx(client, jobId, { status: 'importing' });
+      if (asset.is_featured) await clearPrimaryForProductTx(client, productId);
+
+      const nextSortOrder = (await findMaxSortOrderTx(client, productId)) + 1;
+      const raw = await storageProvider.read(asset.image_key);
+      const variants = await processAndStoreImage(productId, raw);
+
+      for (const v of variants) {
+        await insertProductImageTx(client, {
+          productId,
+          type: 'AI_GENERATED',
+          variant: v.variant,
+          format: v.format,
+          url: v.url,
+          isPrimary: asset.is_featured,
+          sortOrder: nextSortOrder,
+        });
       }
-
-      await updateJobTx(client, jobId, { status: 'importing' });
-
-      let nextSortOrder = (await findMaxSortOrderTx(client, productId)) + 1;
-      const frontPending = selected.find((a) => a.shot_type === 'FRONT' && !a.imported);
-      if (frontPending) await clearPrimaryForProductTx(client, productId);
-
-      for (const asset of selected.sort((a, b) => a.display_order - b.display_order)) {
-        if (asset.imported) continue;
-
-        const raw = await storageProvider.read(asset.image_key);
-        const variants = await processAndStoreImage(productId, raw);
-        const sortOrder = nextSortOrder++;
-
-        for (const v of variants) {
-          await insertProductImageTx(client, {
-            productId,
-            type: 'AI_GENERATED',
-            variant: v.variant,
-            format: v.format,
-            url: v.url,
-            isPrimary: asset.shot_type === 'FRONT',
-            sortOrder,
-          });
-        }
-        await updateAssetTx(client, asset.id, { imported: true });
-      }
-
-      const completedJob = await updateJobTx(client, jobId, { status: 'completed', completed_at: new Date() });
-      return { alreadyCompleted: false, job: completedJob };
+      const updated = await updateAssetTx(client, asset.id, { imported: true });
+      return { alreadyImported: false, asset: updated };
     });
 
+    res.json({ imported: true, alreadyImported: result.alreadyImported, asset: assetDto(result.asset) });
+  } catch (err) {
+    next(err);
+  }
+}
+
+// Finalizes the job once every selected asset has been imported via
+// importAsset above — idempotent, callable more than once.
+export async function completeImport(req, res, next) {
+  try {
+    const productId = req.params.id;
+    const jobId = req.params.jobId;
+
+    const job = await findJobById(jobId);
+    if (!job || job.product_id !== productId) throw new NotFoundError('Job not found');
+    if (job.status === 'completed') {
+      const images = await findProductImages(productId);
+      return res.json({ imported: true, alreadyCompleted: true, images });
+    }
+    if (job.status !== 'importing') {
+      throw new AppError(409, `Job is not mid-import (status: ${job.status})`);
+    }
+
+    const assets = await findAssetsByJobId(jobId);
+    const selected = assets.filter((a) => a.selected);
+    if (selected.some((a) => !a.imported)) {
+      throw new AppError(409, 'Not every selected image has been imported yet');
+    }
+
+    await updateJob(jobId, { status: 'completed', completed_at: new Date() });
     const images = await findProductImages(productId);
-    res.json({ imported: true, alreadyCompleted: result.alreadyCompleted, images });
+    res.json({ imported: true, alreadyCompleted: false, images });
   } catch (err) {
     next(err);
   }

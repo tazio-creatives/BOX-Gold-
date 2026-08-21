@@ -5,6 +5,7 @@ import type { Category } from '../api/types';
 import { buildCategoryTree, type CategoryTreeNode } from '../utils/categoryTree';
 import { CategoryForm } from '../features/categories/CategoryForm';
 import { Toast } from '../components/Toast';
+import { ConfirmDialog } from '../components/ConfirmDialog';
 import sharedStyles from '../styles/shared.module.css';
 import styles from './CategoriesPage.module.css';
 
@@ -15,6 +16,7 @@ export function CategoriesPage() {
   const { data, isLoading } = useQuery({ queryKey: ['admin-categories'], queryFn: fetchAdminCategories });
   const [mode, setMode] = useState<Mode>({ type: 'none' });
   const [errorToast, setErrorToast] = useState<string | null>(null);
+  const [pendingDelete, setPendingDelete] = useState<CategoryTreeNode | null>(null);
 
   const invalidate = () => queryClient.invalidateQueries({ queryKey: ['admin-categories'] });
 
@@ -36,8 +38,14 @@ export function CategoriesPage() {
 
   const deleteMutation = useMutation({
     mutationFn: (id: string) => deleteCategory(id),
-    onSuccess: invalidate,
-    onError: (err) => setErrorToast(err instanceof Error ? err.message : 'Could not delete category.'),
+    onSuccess: () => {
+      invalidate();
+      setPendingDelete(null);
+    },
+    onError: (err) => {
+      setErrorToast(err instanceof Error ? err.message : 'Could not delete category.');
+      setPendingDelete(null);
+    },
   });
 
   if (isLoading) return <p>Loading…</p>;
@@ -73,13 +81,7 @@ export function CategoriesPage() {
             >
               Edit
             </button>
-            <button
-              type="button"
-              className={sharedStyles.buttonLink}
-              onClick={() => {
-                if (window.confirm(`Delete "${node.name}"?`)) deleteMutation.mutate(node.id);
-              }}
-            >
+            <button type="button" className={sharedStyles.buttonLink} onClick={() => setPendingDelete(node)}>
               Delete
             </button>
           </div>
@@ -131,6 +133,16 @@ export function CategoriesPage() {
       </div>
 
       {errorToast && <Toast message={errorToast} variant="error" onDismiss={() => setErrorToast(null)} />}
+
+      {pendingDelete && (
+        <ConfirmDialog
+          title="Delete category"
+          message={`Delete "${pendingDelete.name}"? This cannot be undone.`}
+          isPending={deleteMutation.isPending}
+          onConfirm={() => deleteMutation.mutate(pendingDelete.id)}
+          onCancel={() => setPendingDelete(null)}
+        />
+      )}
     </div>
   );
 }

@@ -1,7 +1,7 @@
 import { z } from 'zod';
 
 const METAL_TYPES = ['GOLD', 'PLATINUM'];
-const PURITIES = ['14K', '18K', '22K', '24K'];
+const PURITIES = ['9K', '14K', '18K', '22K', '24K'];
 const GOLD_COLORS = ['YELLOW', 'ROSE', 'WHITE'];
 const STATUSES = ['DRAFT', 'AI_PROCESSING', 'AI_READY', 'PUBLISHED', 'FAILED'];
 
@@ -34,7 +34,8 @@ export const createProductSchema = z.object({
   purity: z.enum(PURITIES).nullable().optional(),
   goldColor: z.enum(GOLD_COLORS).nullable().optional(),
   grossWeightGrams: z.coerce.number().positive().nullable().optional(),
-  netWeightGrams: z.coerce.number().positive().nullable().optional(),
+  goldWeightGrams: z.coerce.number().positive().nullable().optional(),
+  diamondWeightGrams: z.coerce.number().nonnegative().nullable().optional(),
   diamondWeightCarats: z.coerce.number().nonnegative().nullable().optional(),
   diamondConfigId: z.string().uuid().nullable().optional(),
   diamondCount: z.coerce.number().int().nonnegative().nullable().optional(),
@@ -69,6 +70,8 @@ export const createProductSchema = z.object({
       z.object({
         label: z.string().trim().min(1).max(50),
         stockQuantity: z.coerce.number().int().nonnegative(),
+        weightGrams: z.coerce.number().positive().nullable().optional(),
+        diamondWeightCarats: z.coerce.number().nonnegative().nullable().optional(),
       }),
     )
     .optional(),
@@ -87,4 +90,5 @@ export const featuredSchema = z.object({
 export const variantPricePreviewQuerySchema = z.object({
   purity: z.enum(PURITIES).optional(),
   diamondConfigId: z.string().uuid().optional(),
+  sizeId: z.string().uuid().optional(),
 });

@@ -32,7 +32,7 @@ async function recalculateGoldPricesHandler() {
     if (!rate) continue;
 
     const goldValue =
-      Math.round(Number(product.net_weight_grams) * Number(rate.rate_per_gram) * 100) / 100;
+      Math.round(Number(product.gold_weight_grams) * Number(rate.rate_per_gram) * 100) / 100;
     const diamondValue = Number(product.diamond_value);
     const sellingPrice = computeSellingPrice({
       goldValue,

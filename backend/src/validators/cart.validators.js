@@ -1,6 +1,6 @@
 import { z } from 'zod';
 
-const PURITIES = ['14K', '18K', '22K', '24K'];
+const PURITIES = ['9K', '14K', '18K', '22K', '24K'];
 const GOLD_COLORS = ['YELLOW', 'ROSE', 'WHITE'];
 
 export const addCartItemSchema = z.object({

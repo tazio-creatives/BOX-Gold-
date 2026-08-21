@@ -68,9 +68,12 @@ function toDetailDto(row) {
     goldColor: row.gold_color,
     grossWeightGrams: row.gross_weight_grams == null ? null : Number(row.gross_weight_grams),
     netWeightGrams: row.net_weight_grams == null ? null : Number(row.net_weight_grams),
+    goldWeightGrams: row.gold_weight_grams == null ? null : Number(row.gold_weight_grams),
+    diamondWeightGrams: row.diamond_weight_grams == null ? null : Number(row.diamond_weight_grams),
     diamondWeightCarats:
       row.diamond_weight_carats == null ? null : Number(row.diamond_weight_carats),
     diamondConfigId: row.diamond_config_id,
+    diamondConfigName: row.diamondConfigName ?? null,
     diamondCount: row.diamond_count,
     diamondType: row.diamond_type,
     diamondColour: row.diamond_colour,
@@ -121,6 +124,8 @@ function toDetailDto(row) {
       label: s.label,
       stockQuantity: s.stock_quantity,
       availableStock: s.available_stock,
+      weightGrams: s.weight_grams == null ? null : Number(s.weight_grams),
+      diamondWeightCarats: s.diamond_weight_carats == null ? null : Number(s.diamond_weight_carats),
     })),
 
     goldColorOptions: row.variantOptions?.goldColors ?? [],
@@ -171,10 +176,11 @@ export async function getBySlug(req, res, next) {
 
 export async function pricePreview(req, res, next) {
   try {
-    const { purity, diamondConfigId } = variantPricePreviewQuerySchema.parse(req.query);
+    const { purity, diamondConfigId, sizeId } = variantPricePreviewQuerySchema.parse(req.query);
     const result = await productsService.previewProductVariantPricing(req.params.id, {
       purity,
       diamondConfigId,
+      sizeId,
     });
     res.json(result);
   } catch (err) {

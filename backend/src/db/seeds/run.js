@@ -72,6 +72,7 @@ async function main() {
       ['22K', 6802.0],
       ['18K', 5565.0],
       ['14K', 4328.0],
+      ['9K', 2782.5],
     ]) {
       await client.query(
         `INSERT INTO gold_rates (purity, rate_per_gram, source) VALUES ($1, $2, 'seed')`,

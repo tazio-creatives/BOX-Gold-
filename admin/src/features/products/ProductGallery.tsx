@@ -8,7 +8,6 @@ import {
   deleteProductImage,
   type ImageGroup,
 } from '../../api/productImages';
-import { fetchAiImageStatus, regenerateAiImages, approveAiImage, rejectAiImage } from '../../api/aiImages';
 import { ApiError } from '../../api/client';
 import sharedStyles from '../../styles/shared.module.css';
 import styles from './ProductGallery.module.css';
@@ -18,6 +17,9 @@ function thumbUrl(group: ImageGroup): string | null {
   return preferred?.url ?? group.variants[0]?.url ?? null;
 }
 
+// Pure manual photo management (upload, reorder, set primary, delete) — no
+// AI generation UI here. That lives in AiVariantsPanel, under the separate
+// "Generate with AI" card, so the two flows never visually mix.
 export function ProductGallery({ productId }: { productId: string }) {
   const queryClient = useQueryClient();
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -28,23 +30,12 @@ export function ProductGallery({ productId }: { productId: string }) {
     queryFn: () => fetchProductImages(productId),
   });
 
-  const { data: jobData } = useQuery({
-    queryKey: ['admin-ai-images', productId],
-    queryFn: () => fetchAiImageStatus(productId),
-    refetchInterval: (query) => {
-      const status = query.state.data?.job?.status;
-      return status === 'PENDING' || status === 'PROCESSING' ? 2000 : false;
-    },
-  });
-
   const invalidateImages = () => queryClient.invalidateQueries({ queryKey: ['admin-product-images', productId] });
-  const invalidateJob = () => queryClient.invalidateQueries({ queryKey: ['admin-ai-images', productId] });
 
   const uploadMutation = useMutation({
     mutationFn: (file: File) => uploadProductImage(productId, file),
     onSuccess: () => {
       invalidateImages();
-      invalidateJob();
       setUploadError(null);
     },
     onError: (err) => setUploadError(err instanceof ApiError ? err.message : 'Upload failed.'),
@@ -65,25 +56,6 @@ export function ProductGallery({ productId }: { productId: string }) {
     onSuccess: invalidateImages,
   });
 
-  const regenerateMutation = useMutation({
-    mutationFn: () => regenerateAiImages(productId),
-    onSuccess: invalidateJob,
-    onError: (err) => window.alert(err instanceof ApiError ? err.message : 'Could not regenerate.'),
-  });
-
-  const approveMutation = useMutation({
-    mutationFn: (imageId: string) => approveAiImage(productId, imageId),
-    onSuccess: () => {
-      invalidateImages();
-      invalidateJob();
-    },
-  });
-
-  const rejectMutation = useMutation({
-    mutationFn: (imageId: string) => rejectAiImage(productId, imageId),
-    onSuccess: invalidateJob,
-  });
-
   function move(groups: ImageGroup[], index: number, direction: -1 | 1) {
     const target = index + direction;
     if (target < 0 || target >= groups.length) return;
@@ -93,8 +65,6 @@ export function ProductGallery({ productId }: { productId: string }) {
   }
 
   const groups = imagesData?.images ?? [];
-  const job = jobData?.job ?? null;
-  const pendingCandidates = job?.candidates.filter((c) => !c.approved) ?? [];
 
   return (
     <div>
@@ -118,16 +88,6 @@ export function ProductGallery({ productId }: { productId: string }) {
         >
           {uploadMutation.isPending ? 'Uploading…' : 'Upload Photo'}
         </button>
-        {groups.some((g) => g.type === 'ORIGINAL') && (
-          <button
-            type="button"
-            className={sharedStyles.button}
-            disabled={regenerateMutation.isPending}
-            onClick={() => regenerateMutation.mutate()}
-          >
-            {regenerateMutation.isPending ? 'Requesting…' : 'Regenerate AI Variants'}
-          </button>
-        )}
       </div>
       {uploadError && <p className={sharedStyles.error}>{uploadError}</p>}
 
@@ -172,34 +132,6 @@ export function ProductGallery({ productId }: { productId: string }) {
               </div>
             );
           })}
-        </div>
-      )}
-
-      {job && (job.status === 'PENDING' || job.status === 'PROCESSING') && (
-        <p className={styles.jobStatus}>Generating AI variants…</p>
-      )}
-      {job && job.status === 'FAILED' && <p className={sharedStyles.error}>AI generation failed: {job.error}</p>}
-
-      {pendingCandidates.length > 0 && (
-        <div className={styles.candidatesSection}>
-          <h3 className={styles.candidatesHeading}>AI-Generated Candidates — Review</h3>
-          <div className={styles.grid}>
-            {pendingCandidates.map((candidate) => (
-              <div key={candidate.id} className={styles.card}>
-                <div className={styles.thumbWrapper}>
-                  <img src={candidate.imageUrl} alt="" className={styles.thumb} />
-                </div>
-                <div className={styles.cardActions}>
-                  <button type="button" onClick={() => approveMutation.mutate(candidate.id)}>
-                    Approve
-                  </button>
-                  <button type="button" onClick={() => rejectMutation.mutate(candidate.id)}>
-                    Reject
-                  </button>
-                </div>
-              </div>
-            ))}
-          </div>
         </div>
       )}
     </div>

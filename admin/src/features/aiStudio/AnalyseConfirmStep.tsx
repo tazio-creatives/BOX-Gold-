@@ -1,13 +1,9 @@
-import { REAL_JEWELLERY_TYPES, type StudioJob } from '../../api/aiStudio';
-import type { Category, GoldColor } from '../../api/types';
+import { useState } from 'react';
+import { REAL_JEWELLERY_TYPES, type JewelleryType, type StudioJob } from '../../api/aiStudio';
+import { Toggle } from '../../components/Toggle';
+import { inferJewelleryTypeFromCategory } from './generationRules';
 import sharedStyles from '../../styles/shared.module.css';
 import styles from './AnalyseConfirmStep.module.css';
-
-const GOLD_COLORS: { value: GoldColor; label: string }[] = [
-  { value: 'YELLOW', label: 'Yellow Gold' },
-  { value: 'ROSE', label: 'Rose Gold' },
-  { value: 'WHITE', label: 'White Gold' },
-];
 
 function formatType(type: string) {
   return type.replace(/_/g, ' ').toLowerCase().replace(/\b\w/g, (c) => c.toUpperCase());
@@ -19,30 +15,36 @@ function pct(n: number) {
 
 interface AnalyseConfirmStepProps {
   job: StudioJob;
-  categories: Category[];
-  jewelleryType: string;
-  onJewelleryTypeChange: (_v: string) => void;
-  categoryId: string | null;
-  onCategoryIdChange: (_v: string | null) => void;
-  metalColor: GoldColor | '';
-  onMetalColorChange: (_v: GoldColor | '') => void;
+  productName: string;
+  productCategoryName: string | null;
+  jewelleryType: JewelleryType | '';
+  onJewelleryTypeChange: (_v: JewelleryType) => void;
+  generateRoseGold: boolean;
+  onGenerateRoseGoldChange: (_v: boolean) => void;
 }
 
 // AI-detected attributes are suggestions only — nothing here is ever applied
 // to the product without the admin explicitly confirming it below (plan §5).
+// Jewellery Type/Category/Metal Colour dropdowns are gone — the studio is
+// always opened from an existing product, so that information is read from
+// the product record, only overridable via "Update Product Category" if the
+// AI disagrees with it.
 export function AnalyseConfirmStep({
   job,
-  categories,
+  productName,
+  productCategoryName,
   jewelleryType,
   onJewelleryTypeChange,
-  categoryId,
-  onCategoryIdChange,
-  metalColor,
-  onMetalColorChange,
+  generateRoseGold,
+  onGenerateRoseGoldChange,
 }: AnalyseConfirmStepProps) {
+  const [isEditingType, setIsEditingType] = useState(false);
   const analysis = job.analysis;
-  const isLowConfidence =
-    !analysis || analysis.jewelleryType === 'UNKNOWN' || analysis.jewelleryTypeConfidence < job.categoryConfidenceThreshold;
+
+  const inferredType = inferJewelleryTypeFromCategory(productCategoryName);
+  const hasComparableCategory = inferredType != null;
+  const matches = hasComparableCategory && analysis && analysis.jewelleryType === inferredType;
+  const mismatches = hasComparableCategory && analysis && analysis.jewelleryType !== 'UNKNOWN' && !matches;
 
   return (
     <div>
@@ -52,20 +54,26 @@ export function AnalyseConfirmStep({
         ))}
       </div>
 
+      <div className={styles.productInfo}>
+        <div>
+          <p className={styles.productInfoLabel}>Product Name</p>
+          <p className={styles.productInfoValue}>{productName}</p>
+        </div>
+        <div>
+          <p className={styles.productInfoLabel}>Product Category</p>
+          <p className={styles.productInfoValue}>{productCategoryName ?? '—'}</p>
+        </div>
+      </div>
+
       {analysis && (
         <div className={styles.attrGrid}>
           <div className={styles.attrCard}>
-            <p className={styles.attrLabel}>Detected Type</p>
+            <p className={styles.attrLabel}>AI-Detected Jewellery Type</p>
             <p className={styles.attrValue}>{formatType(analysis.jewelleryType)}</p>
             <span className={styles.confidence}>Confidence: {pct(analysis.jewelleryTypeConfidence)}</span>
           </div>
           <div className={styles.attrCard}>
-            <p className={styles.attrLabel}>Metal Colour</p>
-            <p className={styles.attrValue}>{analysis.metalColor ? formatType(analysis.metalColor) : '—'}</p>
-            <span className={styles.confidence}>Confidence: {pct(analysis.metalColorConfidence)}</span>
-          </div>
-          <div className={styles.attrCard}>
-            <p className={styles.attrLabel}>Gemstone</p>
+            <p className={styles.attrLabel}>Detected Gemstone</p>
             <p className={styles.attrValue}>{analysis.gemstone ?? '—'}</p>
             <span className={styles.confidence}>Confidence: {pct(analysis.gemstoneConfidence)}</span>
           </div>
@@ -74,53 +82,59 @@ export function AnalyseConfirmStep({
             <p className={styles.attrValue}>{analysis.dominantShape ?? '—'}</p>
             <span className={styles.confidence}>Confidence: {pct(analysis.shapeConfidence)}</span>
           </div>
+          <div className={styles.attrCard}>
+            <p className={styles.attrLabel}>Detection Confidence</p>
+            <p className={styles.attrValue}>{pct(analysis.jewelleryTypeConfidence)}</p>
+          </div>
         </div>
       )}
 
-      {isLowConfidence && (
-        <p className={styles.notice}>
-          The AI couldn't confidently identify this item — please select the correct jewellery type below before
-          continuing.
+      {matches && (
+        <p className={styles.matchNotice}>Product information matches the uploaded jewellery.</p>
+      )}
+      {mismatches && analysis && (
+        <p className={styles.mismatchNotice}>
+          The existing product category is {productCategoryName}, but AI detected {formatType(analysis.jewelleryType)}.
         </p>
       )}
 
-      <div className={sharedStyles.formGrid2}>
-        <label className={sharedStyles.field}>
-          Jewellery Type (required)
-          <select value={jewelleryType} onChange={(e) => onJewelleryTypeChange(e.target.value)}>
-            <option value="">— Select —</option>
-            {REAL_JEWELLERY_TYPES.map((t) => (
-              <option key={t} value={t}>
-                {formatType(t)}
-              </option>
-            ))}
-          </select>
-        </label>
+      {(mismatches || isEditingType) && (
+        <div className={styles.mismatchActions}>
+          {!isEditingType && (
+            <>
+              <button type="button" className={sharedStyles.button} onClick={() => onJewelleryTypeChange(inferredType as JewelleryType)}>
+                Use Product Information
+              </button>
+              <button type="button" className={sharedStyles.button} onClick={() => setIsEditingType(true)}>
+                Update Product Category
+              </button>
+            </>
+          )}
+          {isEditingType && (
+            <label className={sharedStyles.field}>
+              Jewellery Type for this generation (does not change the product's category)
+              <select value={jewelleryType} onChange={(e) => onJewelleryTypeChange(e.target.value as JewelleryType)}>
+                <option value="">— Select —</option>
+                {REAL_JEWELLERY_TYPES.map((t) => (
+                  <option key={t} value={t}>
+                    {formatType(t)}
+                  </option>
+                ))}
+              </select>
+            </label>
+          )}
+        </div>
+      )}
 
-        <label className={sharedStyles.field}>
-          Product Category
-          <select value={categoryId ?? ''} onChange={(e) => onCategoryIdChange(e.target.value || null)}>
-            <option value="">— None —</option>
-            {categories.map((c) => (
-              <option key={c.id} value={c.id}>
-                {c.name}
-              </option>
-            ))}
-          </select>
-        </label>
-
-        <label className={sharedStyles.field}>
-          Metal Colour
-          <select value={metalColor} onChange={(e) => onMetalColorChange(e.target.value as GoldColor | '')}>
-            <option value="">— None —</option>
-            {GOLD_COLORS.map((g) => (
-              <option key={g.value} value={g.value}>
-                {g.label}
-              </option>
-            ))}
-          </select>
-        </label>
-      </div>
+      <section className={styles.generationPlan}>
+        <h3 className={styles.generationPlanTitle}>Generation Plan</h3>
+        <Toggle
+          checked={generateRoseGold}
+          onChange={onGenerateRoseGoldChange}
+          label="Generate Rose Gold Version"
+          helperText="Creates Rose Gold catalogue and presenter images in addition to the Yellow Gold images."
+        />
+      </section>
     </div>
   );
 }

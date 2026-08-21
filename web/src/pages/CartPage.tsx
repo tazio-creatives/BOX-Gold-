@@ -172,7 +172,7 @@ export function CartPage() {
   const gstPercent = preTaxSubtotal > 0 ? Math.round((data.gstAmount / preTaxSubtotal) * 100) : 0;
   const discountAmount = appliedCoupon?.discountAmount ?? 0;
   const total = Math.max(data.subtotal - discountAmount, 0);
-  const hasUnavailableItem = data.items.some((item) => !item.isAvailable);
+  const MAX_LINE_QUANTITY = 20; // mirrors the backend's addCartItemSchema/updateCartItemSchema cap
 
   return (
     <div className={styles.page}>
@@ -227,12 +227,8 @@ export function CartPage() {
                   <p className={styles.meta}>{metaLine(item)}</p>
                   <p className={styles.price}>{formatPrice(item.sellingPrice)}</p>
 
-                  {!item.isAvailable && (
-                    <p className={styles.warning}>
-                      {item.availableStock <= 0
-                        ? 'Out of stock'
-                        : `Only ${item.availableStock} available — reduce quantity`}
-                    </p>
+                  {item.isBackordered && (
+                    <p className={styles.backorderNotice}>Make to Order — ships in 7–10 working days</p>
                   )}
 
                   <div className={styles.stepper}>
@@ -247,7 +243,7 @@ export function CartPage() {
                     <button
                       type="button"
                       onClick={() => changeQuantity(item, item.quantity + 1)}
-                      disabled={item.quantity >= item.availableStock}
+                      disabled={item.quantity >= MAX_LINE_QUANTITY}
                       aria-label="Increase quantity"
                     >
                       +
@@ -293,13 +289,10 @@ export function CartPage() {
               setCouponInput('');
               setCouponError(null);
             }}
-            errorMessage={
-              hasUnavailableItem ? 'Remove or adjust the out-of-stock items in your bag to continue.' : null
-            }
+            errorMessage={null}
             primaryAction={{
               label: 'Proceed to Checkout',
               icon: <BagIcon />,
-              disabled: hasUnavailableItem,
               onClick: () => navigate('/checkout'),
             }}
             secondaryAction={{
@@ -326,7 +319,6 @@ export function CartPage() {
         <button
           type="button"
           className={styles.stickyBarButton}
-          disabled={hasUnavailableItem}
           onClick={() => navigate('/checkout')}
         >
           Proceed to Checkout

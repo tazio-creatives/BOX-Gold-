@@ -163,7 +163,7 @@ export function ProductInfo({
       </p>
       <p className={styles.taxNote}>Inclusive of all taxes</p>
 
-      {isOutOfStock && <p className={styles.stockOut}>Out of Stock</p>}
+      {isOutOfStock && <p className={styles.stockBackorder}>Make to Order — ships in 7–10 working days</p>}
       {isLowStock && <p className={styles.stockLow}>Only {product.availableStock} left</p>}
 
       {product.shortDescription && <p className={styles.description}>{product.shortDescription}</p>}
@@ -212,19 +212,19 @@ export function ProductInfo({
         {showValidation && sizeRequired && <p className={styles.fieldError}>Please select a size</p>}
       </div>
 
-      {product.showDeliveryChecker && <DeliveryChecker />}
+      {product.showDeliveryChecker && <DeliveryChecker isBackordered={isOutOfStock} />}
 
       <div className={styles.actions}>
         <button
           type="button"
           className={styles.addToBag}
-          disabled={isOutOfStock || isAddingToCart}
+          disabled={isAddingToCart}
           onClick={handleAddToCart}
         >
           <BagIcon />
-          {isOutOfStock ? 'Out of Stock' : justAdded ? 'Added ✓' : 'Add to Cart'}
+          {justAdded ? 'Added ✓' : 'Add to Cart'}
         </button>
-        <button type="button" className={styles.buyNow} disabled={isOutOfStock} onClick={handleBuyNow}>
+        <button type="button" className={styles.buyNow} onClick={handleBuyNow}>
           <BoltIcon />
           Buy Now
         </button>

@@ -6,7 +6,7 @@ export interface Admin {
 }
 
 export type MetalType = 'GOLD' | 'PLATINUM';
-export type Purity = '14K' | '18K' | '22K' | '24K';
+export type Purity = '9K' | '14K' | '18K' | '22K' | '24K';
 export type GoldColor = 'YELLOW' | 'ROSE' | 'WHITE';
 export type ProductStatus = 'DRAFT' | 'AI_PROCESSING' | 'AI_READY' | 'PUBLISHED' | 'FAILED';
 
@@ -43,11 +43,15 @@ export interface ProductSize {
   label: string;
   stockQuantity: number;
   availableStock: number;
+  weightGrams: number | null;
+  diamondWeightCarats: number | null;
 }
 
 export interface ProductSizeInput {
   label: string;
   stockQuantity: number;
+  weightGrams: number | null;
+  diamondWeightCarats: number | null;
 }
 
 export interface ProductDetail {
@@ -64,6 +68,8 @@ export interface ProductDetail {
   goldColor: GoldColor | null;
   grossWeightGrams: number | null;
   netWeightGrams: number | null;
+  goldWeightGrams: number | null;
+  diamondWeightGrams: number | null;
   diamondWeightCarats: number | null;
   diamondConfigId: string | null;
   diamondCount: number | null;
@@ -107,8 +113,8 @@ export interface ProductInput {
   metalType: MetalType;
   purity?: Purity | null;
   goldColor?: GoldColor | null;
-  grossWeightGrams?: number | null;
-  netWeightGrams?: number | null;
+  goldWeightGrams?: number | null;
+  diamondWeightGrams?: number | null;
   diamondWeightCarats?: number | null;
   diamondConfigId?: string | null;
   diamondCount?: number | null;
@@ -223,6 +229,7 @@ export interface OrderItem {
   gstAmount: number;
   unitPrice: number;
   lineTotal: number;
+  isBackordered: boolean;
 }
 
 export interface OrderStatusHistoryEntry {

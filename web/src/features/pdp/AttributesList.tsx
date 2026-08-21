@@ -12,8 +12,11 @@ export function AttributesList({ product }: { product: ProductDetail }) {
   if (product.purity) rows.push(['Purity', product.purity]);
 
   if (product.grossWeightGrams != null) rows.push(['Gross Weight', `${product.grossWeightGrams} g`]);
+  if (product.goldWeightGrams != null) rows.push(['Gold Weight', `${product.goldWeightGrams} g`]);
+  if (product.diamondWeightGrams != null) rows.push(['Diamond Weight', `${product.diamondWeightGrams} g`]);
   if (product.netWeightGrams != null) rows.push(['Net Weight', `${product.netWeightGrams} g`]);
-  if (product.diamondWeightCarats) rows.push(['Diamond Weight', `${product.diamondWeightCarats} ct`]);
+  if (product.diamondWeightCarats) rows.push(['Diamond Carat', `${product.diamondWeightCarats} ct`]);
+  if (product.diamondConfigName) rows.push(['Diamond Quality', product.diamondConfigName]);
   if (product.diamondCount) rows.push(['Diamond Count', String(product.diamondCount)]);
   if (product.diamondType) rows.push(['Diamond Type', product.diamondType]);
   if (product.diamondColour) rows.push(['Diamond Colour', product.diamondColour]);

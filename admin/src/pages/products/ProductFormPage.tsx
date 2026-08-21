@@ -7,6 +7,7 @@ import {
   updateProduct,
   setPriceLock,
 } from '../../api/products';
+import { fetchProductImages } from '../../api/productImages';
 import { fetchAdminCategories } from '../../api/categories';
 import { fetchAdminCollections } from '../../api/collections';
 import { previewPricing } from '../../api/pricing';
@@ -15,12 +16,11 @@ import type { GoldColor, MetalType, ProductInput, ProductStatus, Purity } from '
 import { ApiError } from '../../api/client';
 import { formatPrice } from '../../utils/formatPrice';
 import { ProductGallery } from '../../features/products/ProductGallery';
-import { ImageEnhancer } from '../../features/imageEnhancement/ImageEnhancer';
 import sharedStyles from '../../styles/shared.module.css';
 import styles from './ProductFormPage.module.css';
 
 const METAL_TYPES: MetalType[] = ['GOLD', 'PLATINUM'];
-const PURITIES: Purity[] = ['14K', '18K', '22K', '24K'];
+const PURITIES: Purity[] = ['9K', '14K', '18K', '22K', '24K'];
 const GOLD_COLORS: { value: GoldColor; label: string }[] = [
   { value: 'YELLOW', label: 'Yellow Gold' },
   { value: 'ROSE', label: 'Rose Gold' },
@@ -38,8 +38,8 @@ const EMPTY_FORM: ProductInput = {
   metalType: 'GOLD',
   purity: '18K',
   goldColor: null,
-  grossWeightGrams: null,
-  netWeightGrams: null,
+  goldWeightGrams: null,
+  diamondWeightGrams: null,
   diamondWeightCarats: null,
   diamondConfigId: null,
   diamondCount: null,
@@ -76,6 +76,14 @@ export function ProductFormPage() {
     queryFn: () => fetchAdminProduct(id as string),
     enabled: isEditing,
   });
+  // Same query key ProductGallery uses below, so this shares its cache
+  // instead of firing a second request — only here to gate Save on "at
+  // least one image", the one thing besides name that's still required.
+  const { data: imagesData } = useQuery({
+    queryKey: ['admin-product-images', id],
+    queryFn: () => fetchProductImages(id as string),
+    enabled: isEditing,
+  });
   const { data: categoriesData } = useQuery({ queryKey: ['admin-categories'], queryFn: fetchAdminCategories });
   const { data: collectionsData } = useQuery({ queryKey: ['admin-collections'], queryFn: fetchAdminCollections });
   const { data: diamondConfigsData } = useQuery({
@@ -87,6 +95,10 @@ export function ProductFormPage() {
   const [preview, setPreview] = useState<{ goldValue: number; diamondValue: number; sellingPrice: number } | null>(null);
   const [isPreviewing, setIsPreviewing] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // Making Charge is entered as a % of gold value, not a flat rupee amount —
+  // form.makingCharge (the flat figure the API actually stores/uses) is kept
+  // in sync below whenever this percent or the live gold value changes.
+  const [makingChargePercent, setMakingChargePercent] = useState(0);
 
   useEffect(() => {
     if (productData) {
@@ -101,8 +113,8 @@ export function ProductFormPage() {
         metalType: p.metalType,
         purity: p.purity,
         goldColor: p.goldColor,
-        grossWeightGrams: p.grossWeightGrams,
-        netWeightGrams: p.netWeightGrams,
+        goldWeightGrams: p.goldWeightGrams,
+        diamondWeightGrams: p.diamondWeightGrams,
         diamondWeightCarats: p.diamondWeightCarats,
         diamondConfigId: p.diamondConfigId,
         diamondCount: p.diamondCount,
@@ -113,7 +125,12 @@ export function ProductFormPage() {
         certification: p.certification ?? '',
         productSize: p.productSize ?? '',
         careInstructions: p.careInstructions ?? '',
-        sizes: p.sizes.map((s) => ({ label: s.label, stockQuantity: s.stockQuantity })),
+        sizes: p.sizes.map((s) => ({
+          label: s.label,
+          stockQuantity: s.stockQuantity,
+          weightGrams: s.weightGrams,
+          diamondWeightCarats: s.diamondWeightCarats,
+        })),
         goldColors: p.goldColorOptions,
         purities: p.purityOptions,
         diamondConfigIds: p.diamondOptions.map((d) => d.id),
@@ -130,6 +147,14 @@ export function ProductFormPage() {
         metaDescription: p.metaDescription ?? '',
         metaKeywords: p.metaKeywords ?? '',
       });
+      // Reverse-derive a percent for display — the stored figure may
+      // predate this field being percent-based, so this is a best-effort
+      // equivalent, not a persisted value in its own right.
+      setMakingChargePercent(
+        p.priceBreakup.goldValue > 0
+          ? Math.round((p.priceBreakup.makingCharge / p.priceBreakup.goldValue) * 100 * 100) / 100
+          : 0,
+      );
     }
   }, [productData]);
 
@@ -138,10 +163,16 @@ export function ProductFormPage() {
   }
 
   function addSizeRow() {
-    setForm((f) => ({ ...f, sizes: [...(f.sizes ?? []), { label: '', stockQuantity: 0 }] }));
+    setForm((f) => ({
+      ...f,
+      sizes: [...(f.sizes ?? []), { label: '', stockQuantity: 0, weightGrams: null, diamondWeightCarats: null }],
+    }));
   }
 
-  function updateSizeRow(index: number, patch: Partial<{ label: string; stockQuantity: number }>) {
+  function updateSizeRow(
+    index: number,
+    patch: Partial<{ label: string; stockQuantity: number; weightGrams: number | null; diamondWeightCarats: number | null }>,
+  ) {
     setForm((f) => ({
       ...f,
       sizes: (f.sizes ?? []).map((s, i) => (i === index ? { ...s, ...patch } : s)),
@@ -179,13 +210,25 @@ export function ProductFormPage() {
     }));
   }
 
+  // Keeps the flat form.makingCharge the API actually stores/uses in sync
+  // with the % the admin enters, recomputed off the live gold value exactly
+  // like the auto-preview effect below keeps goldValue itself current.
+  useEffect(() => {
+    const computed = Math.round(((form.goldValue ?? 0) * makingChargePercent) / 100 * 100) / 100;
+    setForm((f) => (f.makingCharge === computed ? f : { ...f, makingCharge: computed }));
+  }, [makingChargePercent, form.goldValue]);
+
   // Early-create path for "Generate with AI" clicked on an unsaved product
   // (plan §3 correction) — ai_studio_jobs.product_id is NOT NULL, so a real
   // product must exist before the Studio route can create a job. Reuses the
-  // same createProduct call the normal Save uses, just triggered sooner with
-  // only the DB's actual minimum fields validated.
+  // same createProduct call the normal Save uses. SKU is auto-filled (it's
+  // just an internal reference, DB-required but not something the admin
+  // needs to think about yet) — name is NOT auto-filled: skipping that check
+  // let a bare click create a throwaway "Untitled Product" row with every
+  // press, cluttering the Products list even when nobody follows through
+  // with an actual upload.
   const createForStudioMutation = useMutation({
-    mutationFn: () => createProduct({ ...form, name: form.name.trim(), sku: form.sku.trim() }),
+    mutationFn: (overrides: { name: string; sku: string }) => createProduct({ ...form, ...overrides }),
     onSuccess: (result) => navigate(`/products/${result.product.id}/ai-image-studio`),
     onError: (err) => setError(err instanceof ApiError ? err.message : 'Could not create product.'),
   });
@@ -195,18 +238,47 @@ export function ProductFormPage() {
       navigate(`/products/${id}/ai-image-studio`);
       return;
     }
-    if (!form.name.trim() || !form.sku.trim() || !form.metalType) {
-      setError('Enter a product name, SKU, and metal type before generating images with AI.');
+    if (!form.name.trim()) {
+      setError('Enter a product name before generating images with AI.');
       return;
     }
     setError(null);
-    createForStudioMutation.mutate();
+    const name = form.name.trim();
+    const sku = form.sku.trim() || `DRAFT-${Date.now()}`;
+    setForm((f) => ({ ...f, name, sku }));
+    createForStudioMutation.mutate({ name, sku });
+  }
+
+  // Manual Upload had no wired-up action at all in Add mode — the actual
+  // upload widget (ProductGallery, below) is edit-only for the same reason
+  // AI generation needed an early-create: there's no product row yet to
+  // attach images to. Mirrors handleGenerateWithAI's create flow, just
+  // landing back on the edit page instead of AI Image Studio.
+  const createForManualUploadMutation = useMutation({
+    mutationFn: (overrides: { name: string; sku: string }) => createProduct({ ...form, ...overrides }),
+    onSuccess: (result) => navigate(`/products/${result.product.id}/edit`),
+    onError: (err) => setError(err instanceof ApiError ? err.message : 'Could not create product.'),
+  });
+
+  function handleManualUpload() {
+    if (isEditing) return;
+    if (!form.name.trim()) {
+      setError('Enter a product name before uploading images.');
+      return;
+    }
+    setError(null);
+    const name = form.name.trim();
+    const sku = form.sku.trim() || `DRAFT-${Date.now()}`;
+    setForm((f) => ({ ...f, name, sku }));
+    createForManualUploadMutation.mutate({ name, sku });
   }
 
   const saveMutation = useMutation({
     mutationFn: async () => {
       const payload: ProductInput = {
         ...form,
+        name: form.name.trim(),
+        sku: form.sku.trim() || `DRAFT-${Date.now()}`,
         shortDescription: form.shortDescription || null,
         fullDescription: form.fullDescription || null,
         diamondType: form.diamondType || null,
@@ -237,7 +309,7 @@ export function ProductFormPage() {
       const result = await previewPricing({
         metalType: form.metalType,
         purity: form.purity,
-        netWeightGrams: form.netWeightGrams,
+        goldWeightGrams: form.goldWeightGrams,
         diamondWeightCarats: form.diamondWeightCarats,
         diamondConfigId: form.diamondConfigId,
         makingCharge: form.makingCharge,
@@ -266,7 +338,7 @@ export function ProductFormPage() {
   // silently recompute a value the admin deliberately froze.
   useEffect(() => {
     if (productData?.product.isPriceLocked) return;
-    const hasGoldInputs = form.metalType === 'GOLD' && !!form.purity && !!form.netWeightGrams;
+    const hasGoldInputs = form.metalType === 'GOLD' && !!form.purity && !!form.goldWeightGrams;
     const hasDiamondInputs = !!form.diamondWeightCarats && !!form.diamondConfigId;
     if (!hasGoldInputs && !hasDiamondInputs) return;
 
@@ -278,7 +350,7 @@ export function ProductFormPage() {
   }, [
     form.metalType,
     form.purity,
-    form.netWeightGrams,
+    form.goldWeightGrams,
     form.diamondWeightCarats,
     form.diamondConfigId,
     form.makingCharge,
@@ -312,32 +384,15 @@ export function ProductFormPage() {
         onSubmit={(e) => {
           e.preventDefault();
           setError(null);
-          const needsGoldPricing =
-            form.metalType === 'GOLD' && !!form.purity && !isPriceLocked && !(form.goldValue && form.goldValue > 0);
-          if (needsGoldPricing) {
-            setError(
-              isPreviewing
-                ? 'Still calculating the live gold price — try saving again in a moment.'
-                : 'No live gold price is available for this purity yet — set a gold rate on the Pricing page first.',
-            );
+          // Only name and at least one image are required to save — every
+          // other field (SKU, pricing, sizes, variations, SEO...) is
+          // optional and can be filled in later.
+          if (!form.name.trim()) {
+            setError('Enter a product name.');
             return;
           }
-          const needsDiamondTier = !!form.diamondWeightCarats && !form.diamondConfigId;
-          if (needsDiamondTier) {
-            setError('Select a diamond quality tier — set one on the Pricing page first if none exist yet.');
-            return;
-          }
-          const needsDiamondPricing =
-            !!form.diamondWeightCarats &&
-            !!form.diamondConfigId &&
-            !isPriceLocked &&
-            !(form.diamondValue && form.diamondValue > 0);
-          if (needsDiamondPricing) {
-            setError(
-              isPreviewing
-                ? 'Still calculating the diamond price — try saving again in a moment.'
-                : 'Could not price the selected diamond quality tier — try again.',
-            );
+          if (isEditing && (imagesData?.images.length ?? 0) === 0) {
+            setError('Add at least one product image before saving — use Manual Upload or Generate with AI above.');
             return;
           }
           saveMutation.mutate();
@@ -351,8 +406,8 @@ export function ProductFormPage() {
               <input value={form.name} onChange={(e) => set('name', e.target.value)} required />
             </label>
             <label className={sharedStyles.field}>
-              SKU
-              <input value={form.sku} onChange={(e) => set('sku', e.target.value)} required />
+              SKU (optional — auto-generated if left blank)
+              <input value={form.sku} onChange={(e) => set('sku', e.target.value)} />
             </label>
             <label className={sharedStyles.field}>
               Status
@@ -428,6 +483,45 @@ export function ProductFormPage() {
         </section>
 
         <section className={sharedStyles.cardPadded}>
+          <h2 className={styles.sectionHeading}>Product Images</h2>
+          <div className={styles.imageSourceGrid}>
+            <div className={styles.imageSourceCard}>
+              <p className={styles.imageSourceTitle}>Manual Upload</p>
+              {isEditing ? (
+                <ProductGallery productId={id as string} />
+              ) : (
+                <>
+                  <p className={styles.imageSourceBody}>Upload your own featured and gallery images.</p>
+                  <button
+                    type="button"
+                    className={sharedStyles.button}
+                    disabled={createForManualUploadMutation.isPending}
+                    onClick={handleManualUpload}
+                  >
+                    {createForManualUploadMutation.isPending ? 'Creating…' : 'Start Manual Upload'}
+                  </button>
+                </>
+              )}
+            </div>
+            <div className={styles.imageSourceCardRecommended}>
+              <span className={sharedStyles.badgeSuccess}>Recommended</span>
+              <p className={styles.imageSourceTitle}>Generate with AI</p>
+              <p className={styles.imageSourceBody}>
+                Upload jewellery references and generate a front, 45° hero, presenter, and lifestyle image.
+              </p>
+              <button
+                type="button"
+                className={sharedStyles.buttonPrimary}
+                disabled={createForStudioMutation.isPending}
+                onClick={handleGenerateWithAI}
+              >
+                {createForStudioMutation.isPending ? 'Creating…' : 'Start AI Generation'}
+              </button>
+            </div>
+          </div>
+        </section>
+
+        <section className={sharedStyles.cardPadded}>
           <h2 className={styles.sectionHeading}>Metal, Diamond &amp; Pricing</h2>
           <div className={sharedStyles.formGrid}>
             <label className={sharedStyles.field}>
@@ -471,25 +565,30 @@ export function ProductFormPage() {
               </select>
             </label>
             <label className={sharedStyles.field}>
-              Gross Weight (g)
+              Gold Weight (g)
               <input
                 type="number"
                 step="0.001"
-                value={form.grossWeightGrams ?? ''}
-                onChange={(e) => set('grossWeightGrams', e.target.value ? Number(e.target.value) : null)}
+                value={form.goldWeightGrams ?? ''}
+                onChange={(e) => set('goldWeightGrams', e.target.value ? Number(e.target.value) : null)}
               />
             </label>
             <label className={sharedStyles.field}>
-              Net Weight (g)
+              Diamond Weight (g)
               <input
                 type="number"
                 step="0.001"
-                value={form.netWeightGrams ?? ''}
-                onChange={(e) => set('netWeightGrams', e.target.value ? Number(e.target.value) : null)}
+                min="0"
+                placeholder="Added into Net Weight"
+                value={form.diamondWeightGrams ?? ''}
+                onChange={(e) => set('diamondWeightGrams', e.target.value ? Number(e.target.value) : null)}
               />
+              <span className={styles.sectionHint}>
+                Net Weight ≈ {(Number(form.goldWeightGrams ?? 0) + Number(form.diamondWeightGrams ?? 0)).toFixed(3)} g
+              </span>
             </label>
             <label className={sharedStyles.field}>
-              Diamond Weight (cents) {form.diamondWeightCarats ? `— ${form.diamondWeightCarats} ct` : ''}
+              Diamond Carat (in cents) {form.diamondWeightCarats ? `— ${form.diamondWeightCarats} ct` : ''}
               <input
                 type="number"
                 step="0.1"
@@ -525,22 +624,6 @@ export function ProductFormPage() {
               />
             </label>
             <label className={sharedStyles.field}>
-              Diamond Type
-              <input value={form.diamondType ?? ''} onChange={(e) => set('diamondType', e.target.value)} />
-            </label>
-            <label className={sharedStyles.field}>
-              Diamond Colour
-              <input value={form.diamondColour ?? ''} onChange={(e) => set('diamondColour', e.target.value)} />
-            </label>
-            <label className={sharedStyles.field}>
-              Diamond Clarity
-              <input value={form.diamondClarity ?? ''} onChange={(e) => set('diamondClarity', e.target.value)} />
-            </label>
-            <label className={sharedStyles.field}>
-              Gemstone
-              <input value={form.gemstone ?? ''} onChange={(e) => set('gemstone', e.target.value)} />
-            </label>
-            <label className={sharedStyles.field}>
               Certification
               <input value={form.certification ?? ''} onChange={(e) => set('certification', e.target.value)} />
             </label>
@@ -552,12 +635,14 @@ export function ProductFormPage() {
 
           <div className={`${sharedStyles.formGrid} ${sharedStyles.formSection}`}>
             <label className={sharedStyles.field}>
-              Making Charge (₹)
+              Making Charge (% of gold value)
               <input
                 type="number"
-                value={form.makingCharge ?? 0}
-                onChange={(e) => set('makingCharge', Number(e.target.value))}
+                step="0.01"
+                value={makingChargePercent}
+                onChange={(e) => setMakingChargePercent(Number(e.target.value))}
               />
+              <span className={styles.sectionHint}>≈ {formatPrice(form.makingCharge ?? 0)}</span>
             </label>
             <label className={sharedStyles.field}>
               GST %
@@ -615,35 +700,66 @@ export function ProductFormPage() {
           <h2 className={styles.sectionHeading}>Available Sizes</h2>
           <p className={styles.sectionHint}>
             Optional — leave empty for products that don't need a size choice. When set, shoppers must
-            pick one of these before adding to cart, and each size tracks its own stock.
+            pick one of these before adding to cart, each size tracks its own stock, and can optionally
+            override the product's gold weight and/or diamond weight for that size's price (e.g. a bigger
+            size uses more gold, more diamonds, or both).
           </p>
           <div className={styles.sizeRows}>
             {(form.sizes ?? []).map((size, i) => (
-              <div key={i} className={styles.sizeRow}>
-                <label className={sharedStyles.field}>
-                  Label
-                  <input
-                    value={size.label}
-                    placeholder="e.g. 6"
-                    onChange={(e) => updateSizeRow(i, { label: e.target.value })}
-                  />
-                </label>
-                <label className={sharedStyles.field}>
-                  Stock
-                  <input
-                    type="number"
-                    min="0"
-                    value={size.stockQuantity}
-                    onChange={(e) => updateSizeRow(i, { stockQuantity: Number(e.target.value) })}
-                  />
-                </label>
-                <button
-                  type="button"
-                  className={sharedStyles.buttonLink}
-                  onClick={() => removeSizeRow(i)}
-                >
-                  Remove
-                </button>
+              <div key={i} className={styles.sizeCard}>
+                <div className={styles.sizeCardHeader}>
+                  <span className={styles.sizeCardTitle}>Size {i + 1}</span>
+                  <button type="button" className={sharedStyles.buttonLink} onClick={() => removeSizeRow(i)}>
+                    Remove
+                  </button>
+                </div>
+                <div className={styles.sizeCardFields}>
+                  <label className={sharedStyles.field}>
+                    Label
+                    <input
+                      value={size.label}
+                      placeholder="e.g. 6"
+                      onChange={(e) => updateSizeRow(i, { label: e.target.value })}
+                    />
+                  </label>
+                  <label className={sharedStyles.field}>
+                    Stock
+                    <input
+                      type="number"
+                      min="0"
+                      value={size.stockQuantity}
+                      onChange={(e) => updateSizeRow(i, { stockQuantity: Number(e.target.value) })}
+                    />
+                  </label>
+                  <label className={sharedStyles.field}>
+                    Weight (g) — optional
+                    <input
+                      type="number"
+                      step="0.001"
+                      min="0"
+                      placeholder="Uses product weight"
+                      value={size.weightGrams ?? ''}
+                      onChange={(e) =>
+                        updateSizeRow(i, { weightGrams: e.target.value ? Number(e.target.value) : null })
+                      }
+                    />
+                  </label>
+                  <label className={sharedStyles.field}>
+                    Diamond Weight (ct) — optional
+                    <input
+                      type="number"
+                      step="0.001"
+                      min="0"
+                      placeholder="Uses product diamond weight"
+                      value={size.diamondWeightCarats ?? ''}
+                      onChange={(e) =>
+                        updateSizeRow(i, {
+                          diamondWeightCarats: e.target.value ? Number(e.target.value) : null,
+                        })
+                      }
+                    />
+                  </label>
+                </div>
               </div>
             ))}
           </div>
@@ -713,45 +829,6 @@ export function ProductFormPage() {
             )}
           </div>
         </section>
-
-        <section className={sharedStyles.cardPadded}>
-          <h2 className={styles.sectionHeading}>Product Images</h2>
-          <div className={styles.imageSourceGrid}>
-            <div className={styles.imageSourceCard}>
-              <p className={styles.imageSourceTitle}>Manual Upload</p>
-              <p className={styles.imageSourceBody}>Upload your own featured and gallery images below.</p>
-            </div>
-            <div className={styles.imageSourceCardRecommended}>
-              <span className={sharedStyles.badgeSuccess}>Recommended</span>
-              <p className={styles.imageSourceTitle}>Generate with AI</p>
-              <p className={styles.imageSourceBody}>
-                Upload jewellery references and generate a front, 45° hero, presenter, and lifestyle image.
-              </p>
-              <button
-                type="button"
-                className={sharedStyles.buttonPrimary}
-                disabled={createForStudioMutation.isPending}
-                onClick={handleGenerateWithAI}
-              >
-                {createForStudioMutation.isPending ? 'Creating…' : 'Start AI Generation'}
-              </button>
-            </div>
-          </div>
-        </section>
-
-        {isEditing && (
-          <section className={sharedStyles.cardPadded}>
-            <h2 className={styles.sectionHeading}>Photos</h2>
-            <ProductGallery productId={id as string} />
-          </section>
-        )}
-
-        {isEditing && (
-          <section className={sharedStyles.cardPadded}>
-            <h2 className={styles.sectionHeading}>Photo Quality Enhancer</h2>
-            <ImageEnhancer />
-          </section>
-        )}
 
         <section className={sharedStyles.cardPadded}>
           <h2 className={styles.sectionHeading}>SEO</h2>

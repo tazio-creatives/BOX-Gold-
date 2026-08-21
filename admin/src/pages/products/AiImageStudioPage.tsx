@@ -1,18 +1,20 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   createStudioJob,
+  fetchActiveStudioJob,
   fetchStudioJob,
   confirmStudioJob,
   retryStudioAsset,
-  importStudioJob,
+  updateStudioAssetSelection,
+  importStudioAsset,
+  completeStudioImport,
   cancelStudioJob,
-  type PresenterStyle,
   type JewelleryType,
 } from '../../api/aiStudio';
 import { fetchAdminCategories } from '../../api/categories';
-import type { GoldColor } from '../../api/types';
+import { fetchAdminProduct } from '../../api/products';
 import { ApiError } from '../../api/client';
 import { StudioStepper } from '../../features/aiStudio/StudioStepper';
 import { UploadStep } from '../../features/aiStudio/UploadStep';
@@ -20,8 +22,14 @@ import { AnalyseConfirmStep } from '../../features/aiStudio/AnalyseConfirmStep';
 import { PresenterStep } from '../../features/aiStudio/PresenterStep';
 import { GenerateStep } from '../../features/aiStudio/GenerateStep';
 import { ReviewImportStep } from '../../features/aiStudio/ReviewImportStep';
+import { resolveAssetTypesForJob, inferJewelleryTypeFromCategory } from '../../features/aiStudio/generationRules';
 import sharedStyles from '../../styles/shared.module.css';
 import styles from './AiImageStudioPage.module.css';
+
+// The admin's last Rose Gold choice, remembered as a device-local default
+// for the next product (spec: "use it as the default for the next product,
+// the administrator must still be able to change it for each product").
+const ROSE_GOLD_PREF_KEY = 'aiStudio.defaultGenerateRoseGold';
 
 export function AiImageStudioPage() {
   const { id: productId } = useParams<{ id: string }>();
@@ -29,13 +37,34 @@ export function AiImageStudioPage() {
   const queryClient = useQueryClient();
 
   const [jobId, setJobId] = useState<string | null>(null);
-  const [jewelleryType, setJewelleryType] = useState('');
-  const [categoryId, setCategoryId] = useState<string | null>(null);
-  const [metalColor, setMetalColor] = useState<GoldColor | ''>('');
-  const [presenterStyle, setPresenterStyle] = useState<PresenterStyle | ''>('');
-  const [retryingAssetId, setRetryingAssetId] = useState<string | null>(null);
+  const [hasCheckedActiveJob, setHasCheckedActiveJob] = useState(false);
+  const [confirmSubStep, setConfirmSubStep] = useState<'analyse' | 'presenter'>('analyse');
+  const [jewelleryType, setJewelleryType] = useState<JewelleryType | ''>('');
+  const [generateRoseGold, setGenerateRoseGold] = useState(
+    () => localStorage.getItem(ROSE_GOLD_PREF_KEY) !== 'false',
+  );
+  const [presenterId, setPresenterId] = useState<string | null>(null);
+  const [regeneratingAssetId, setRegeneratingAssetId] = useState<string | null>(null);
 
+  const { data: productData } = useQuery({
+    queryKey: ['admin-product', productId],
+    queryFn: () => fetchAdminProduct(productId as string),
+    enabled: !!productId,
+  });
   const { data: categoriesData } = useQuery({ queryKey: ['admin-categories'], queryFn: fetchAdminCategories });
+  const product = productData?.product ?? null;
+  const productCategory = categoriesData?.categories.find((c) => c.id === product?.categoryId) ?? null;
+
+  // Resume an in-progress job for this product instead of always starting at
+  // Upload — runs once on mount.
+  useEffect(() => {
+    if (!productId || hasCheckedActiveJob) return;
+    fetchActiveStudioJob(productId)
+      .then((res) => {
+        if (res.jobId) setJobId(res.jobId);
+      })
+      .finally(() => setHasCheckedActiveJob(true));
+  }, [productId, hasCheckedActiveJob]);
 
   const jobQueryKey = ['ai-studio-job', productId, jobId];
   const { data: jobData } = useQuery({
@@ -50,37 +79,53 @@ export function AiImageStudioPage() {
   const job = jobData?.job ?? null;
   const invalidateJob = () => queryClient.invalidateQueries({ queryKey: jobQueryKey });
 
+  // Once analysis lands, default the jewellery type used for generation to
+  // whatever the product's own category implies — "Use Product Information"
+  // is the default path, "Update Product Category" is the only way to
+  // change it, and neither ever writes back to the product record itself.
+  useEffect(() => {
+    if (!job?.analysis || jewelleryType) return;
+    const inferred = inferJewelleryTypeFromCategory(productCategory?.name ?? null);
+    if (inferred) {
+      setJewelleryType(inferred);
+    } else if (job.analysis.jewelleryType !== 'UNKNOWN') {
+      setJewelleryType(job.analysis.jewelleryType);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [job?.analysis, productCategory?.name]);
+
   const createMutation = useMutation({
     mutationFn: (files: File[]) => createStudioJob(productId as string, files),
-    onSuccess: (res) => setJobId(res.jobId),
+    onSuccess: (res) => {
+      setJobId(res.jobId);
+      setConfirmSubStep('analyse');
+    },
   });
 
   const confirmMutation = useMutation({
     mutationFn: () =>
       confirmStudioJob(productId as string, jobId as string, {
         jewelleryType: jewelleryType as Exclude<JewelleryType, 'UNKNOWN'>,
-        categoryId,
-        metalColor: metalColor || null,
-        presenterStyle: presenterStyle as PresenterStyle,
+        categoryId: product?.categoryId ?? null,
+        presenterId,
+        generateRoseGold,
       }),
     onSuccess: invalidateJob,
   });
 
   const retryMutation = useMutation({
     mutationFn: (assetId: string) => {
-      setRetryingAssetId(assetId);
+      setRegeneratingAssetId(assetId);
       return retryStudioAsset(productId as string, jobId as string, assetId);
     },
     onSuccess: invalidateJob,
-    onSettled: () => setRetryingAssetId(null),
+    onSettled: () => setRegeneratingAssetId(null),
   });
 
-  const importMutation = useMutation({
-    mutationFn: () => importStudioJob(productId as string, jobId as string),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['admin-product-images', productId] });
-      navigate(`/products/${productId}/edit`);
-    },
+  const selectionMutation = useMutation({
+    mutationFn: ({ assetId, input }: { assetId: string; input: { selected?: boolean; isFeatured?: boolean } }) =>
+      updateStudioAssetSelection(productId as string, jobId as string, assetId, input),
+    onSuccess: invalidateJob,
   });
 
   const cancelMutation = useMutation({
@@ -91,7 +136,12 @@ export function AiImageStudioPage() {
   const createError = createMutation.error instanceof ApiError ? createMutation.error.message : null;
   const confirmError = confirmMutation.error instanceof ApiError ? confirmMutation.error.message : null;
 
-  const canConfirm = !!jewelleryType && !!presenterStyle;
+  function handleGenerateRoseGoldChange(value: boolean) {
+    setGenerateRoseGold(value);
+    localStorage.setItem(ROSE_GOLD_PREF_KEY, String(value));
+  }
+
+  const generateCount = resolveAssetTypesForJob({ generateRoseGold, hasPresenter: !!presenterId }).length;
 
   return (
     <div>
@@ -103,52 +153,93 @@ export function AiImageStudioPage() {
           </button>
         )}
       </div>
-      <p className={styles.subtitle}>Upload a jewellery reference photo and generate a standard 4-image set.</p>
+      <p className={styles.subtitle}>
+        Upload jewellery reference photos and generate a catalogue image set for {product?.name ?? 'this product'}.
+      </p>
 
-      <StudioStepper status={job?.status ?? null} />
+      <StudioStepper status={job?.status ?? null} confirmSubStep={confirmSubStep} generateCount={generateCount} />
 
       <section className={sharedStyles.cardPadded}>
-        {!job && <UploadStep onSubmit={(files) => createMutation.mutate(files)} isPending={createMutation.isPending} error={createError} />}
+        {!job && (
+          <UploadStep onSubmit={(files) => createMutation.mutate(files)} isPending={createMutation.isPending} error={createError} />
+        )}
 
         {job && job.status === 'analysing' && <p>Analysing the reference photo…</p>}
 
-        {job && job.status === 'awaiting_confirmation' && (
+        {job && job.status === 'awaiting_confirmation' && confirmSubStep === 'analyse' && (
           <>
             <AnalyseConfirmStep
               job={job}
-              categories={categoriesData?.categories ?? []}
+              productName={product?.name ?? ''}
+              productCategoryName={productCategory?.name ?? null}
               jewelleryType={jewelleryType}
               onJewelleryTypeChange={setJewelleryType}
-              categoryId={categoryId}
-              onCategoryIdChange={setCategoryId}
-              metalColor={metalColor}
-              onMetalColorChange={setMetalColor}
+              generateRoseGold={generateRoseGold}
+              onGenerateRoseGoldChange={handleGenerateRoseGoldChange}
             />
-            <hr style={{ margin: 'var(--space-5) 0', border: 'none', borderTop: '1px solid var(--color-border)' }} />
-            <PresenterStep value={presenterStyle} onChange={setPresenterStyle} />
-            {confirmError && <p className={sharedStyles.error}>{confirmError}</p>}
             <div className={styles.actions}>
               <button
                 type="button"
                 className={sharedStyles.buttonPrimary}
-                disabled={!canConfirm || confirmMutation.isPending}
-                onClick={() => confirmMutation.mutate()}
+                disabled={!jewelleryType}
+                onClick={() => setConfirmSubStep('presenter')}
               >
-                {confirmMutation.isPending ? 'Starting…' : 'Generate 4 Images'}
+                Continue
               </button>
             </div>
           </>
         )}
 
-        {job && job.status === 'generating' && <GenerateStep assets={job.assets} />}
+        {job && job.status === 'awaiting_confirmation' && confirmSubStep === 'presenter' && (
+          <>
+            <PresenterStep
+              jewelleryType={jewelleryType}
+              presenterId={presenterId}
+              onChange={setPresenterId}
+              generateRoseGold={generateRoseGold}
+            />
+            {confirmError && <p className={sharedStyles.error}>{confirmError}</p>}
+            <div className={styles.actions}>
+              <button type="button" className={sharedStyles.button} onClick={() => setConfirmSubStep('analyse')}>
+                Back
+              </button>
+              <button
+                type="button"
+                className={sharedStyles.buttonPrimary}
+                disabled={confirmMutation.isPending}
+                onClick={() => confirmMutation.mutate()}
+              >
+                {confirmMutation.isPending ? 'Starting…' : `Generate ${generateCount} Images`}
+              </button>
+            </div>
+          </>
+        )}
+
+        {job && job.status === 'generating' && (
+          <GenerateStep
+            assets={job.assets}
+            onRegenerate={(assetId) => retryMutation.mutate(assetId)}
+            regeneratingAssetId={regeneratingAssetId}
+          />
+        )}
 
         {job && ['review_ready', 'partially_failed'].includes(job.status) && (
           <ReviewImportStep
-            assets={job.assets}
-            onRetry={(assetId) => retryMutation.mutate(assetId)}
-            retryingAssetId={retryingAssetId}
-            onImport={() => importMutation.mutate()}
-            isImporting={importMutation.isPending}
+            job={job}
+            onRegenerate={(assetId) => retryMutation.mutate(assetId)}
+            regeneratingAssetId={regeneratingAssetId}
+            onToggleSelected={(assetId, selected) => selectionMutation.mutate({ assetId, input: { selected } })}
+            onSetFeatured={(assetId) => selectionMutation.mutate({ assetId, input: { isFeatured: true } })}
+            importAsset={async (assetId) => {
+              await importStudioAsset(productId as string, jobId as string, assetId);
+              await invalidateJob();
+            }}
+            completeImport={async () => {
+              await completeStudioImport(productId as string, jobId as string);
+              queryClient.invalidateQueries({ queryKey: ['admin-product-images', productId] });
+            }}
+            onImportComplete={() => navigate(`/products/${productId}/edit`)}
+            onSaveAsDraft={() => navigate(`/products/${productId}/edit`)}
           />
         )}
 

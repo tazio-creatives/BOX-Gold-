@@ -4,7 +4,7 @@ import type { GoldRateRow, MetalType, PricingPreviewResult, Purity } from './typ
 export interface PricingPreviewInput {
   metalType: MetalType;
   purity?: Purity | null;
-  netWeightGrams?: number | null;
+  goldWeightGrams?: number | null;
   diamondWeightCarats?: number | null;
   diamondConfigId?: string | null;
   makingCharge?: number;

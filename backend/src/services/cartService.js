@@ -23,6 +23,11 @@ function round2(n) {
   return Math.round(n * 100) / 100;
 }
 
+// Mirrors addCartItemSchema/updateCartItemSchema's per-request cap — that
+// only bounds one request's delta, so a repeated increment (upsertCartItemIncrement
+// adds onto the existing stored quantity) still needs its own ceiling.
+const MAX_LINE_QUANTITY = 20;
+
 async function findOrCreateCart(owner) {
   const existing = await findCartByOwner(owner);
   if (existing) return existing;
@@ -70,9 +75,10 @@ function toItemDto(item, product, size, pricing, diamondConfigName) {
     lineTotal,
     lineGst,
     // Display-time truth only — stock can move between add-to-cart and
-    // checkout; the real enforcement is the FOR UPDATE reservation at
-    // checkout (plan §11), not here.
-    isAvailable: availableStock > 0 && item.quantity <= availableStock,
+    // checkout, and this doesn't block anything either way: a line that
+    // exceeds availableStock is fulfilled as Make to Order (checkoutService)
+    // rather than rejected.
+    isBackordered: item.quantity > availableStock,
   };
 }
 
@@ -103,6 +109,9 @@ export async function getCart(owner) {
         const pricing = await computeVariantPricing(product, {
           purity: item.purity,
           diamondConfigId: item.diamond_config_id,
+          sizeWeightGrams: size?.weight_grams != null ? Number(size.weight_grams) : null,
+          sizeDiamondWeightCarats:
+            size?.diamond_weight_carats != null ? Number(size.diamond_weight_carats) : null,
         });
         const diamondConfigName = pricing.diamondConfigId
           ? (diamondConfigMap.get(pricing.diamondConfigId) ?? null)
@@ -158,15 +167,15 @@ export async function addItem(owner, { productId, quantity, sizeId, goldColor, p
     throw new AppError(400, 'Selected diamond quality is not available for this product');
   }
 
-  const availableStock = size ? size.available_stock : product.available_stock;
-  if (availableStock <= 0) throw new AppError(400, 'This item is out of stock');
-
+  // Out-of-stock no longer blocks adding to cart — it becomes Make to
+  // Order, enforced/flagged for display in toItemDto and at checkout
+  // (checkoutService), not here. Still capped at a fixed ceiling (not
+  // availableStock) so repeated increments can't grow a line unbounded.
   const cart = await findOrCreateCart(owner);
   const variant = { sizeId: sizeId ?? null, goldColor: goldColor ?? null, purity: purity ?? null, diamondConfigId: diamondConfigId ?? null };
-  const requested = Math.min(quantity, availableStock);
-  let item = await upsertCartItemIncrement(cart.id, productId, variant, requested);
-  if (item.quantity > availableStock) {
-    item = await setCartItemQuantity(cart.id, productId, variant, availableStock);
+  let item = await upsertCartItemIncrement(cart.id, productId, variant, quantity);
+  if (item.quantity > MAX_LINE_QUANTITY) {
+    item = await setCartItemQuantity(cart.id, productId, variant, MAX_LINE_QUANTITY);
   }
   return getCart(owner);
 }
@@ -178,21 +187,15 @@ export async function updateItemQuantity(owner, productId, variant, quantity) {
     return getCart(owner);
   }
 
-  let availableStock;
   if (variant?.sizeId) {
     const sizes = await findProductSizes(productId);
-    const size = sizes.find((s) => s.id === variant.sizeId);
-    if (!size) throw new NotFoundError('Product not found');
-    availableStock = size.available_stock;
+    if (!sizes.some((s) => s.id === variant.sizeId)) throw new NotFoundError('Product not found');
   } else {
     const product = await findProductById(productId);
     if (!product) throw new NotFoundError('Product not found');
-    availableStock = product.available_stock;
   }
-  const clamped = Math.min(quantity, Math.max(availableStock, 0));
-  if (clamped <= 0) throw new AppError(400, 'This item is out of stock');
 
-  const updated = await setCartItemQuantity(cart.id, productId, variant, clamped);
+  const updated = await setCartItemQuantity(cart.id, productId, variant, quantity);
   if (!updated) throw new NotFoundError('Item not in cart');
   return getCart(owner);
 }

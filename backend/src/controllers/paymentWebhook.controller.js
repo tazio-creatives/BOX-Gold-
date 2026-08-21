@@ -6,8 +6,7 @@ import * as paymentService from '../services/paymentService.js';
 export async function webhook(req, res, next) {
   try {
     const rawBody = req.body.toString('utf-8');
-    const signature = req.get('X-Payment-Signature');
-    const result = await paymentService.confirmPayment(rawBody, signature);
+    const result = await paymentService.confirmPayment(rawBody, req.headers);
     res.status(200).json({ received: true, alreadyProcessed: result.alreadyProcessed });
   } catch (err) {
     next(err);

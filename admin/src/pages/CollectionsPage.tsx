@@ -8,6 +8,7 @@ import {
 } from '../api/collections';
 import type { Collection } from '../api/types';
 import { ApiError } from '../api/client';
+import { ConfirmDialog } from '../components/ConfirmDialog';
 import sharedStyles from '../styles/shared.module.css';
 import styles from './CategoriesPage.module.css';
 
@@ -79,6 +80,7 @@ export function CollectionsPage() {
   const queryClient = useQueryClient();
   const { data, isLoading } = useQuery({ queryKey: ['admin-collections'], queryFn: fetchAdminCollections });
   const [mode, setMode] = useState<Mode>({ type: 'none' });
+  const [pendingDelete, setPendingDelete] = useState<Collection | null>(null);
 
   const invalidate = () => queryClient.invalidateQueries({ queryKey: ['admin-collections'] });
 
@@ -98,8 +100,14 @@ export function CollectionsPage() {
   });
   const deleteMutation = useMutation({
     mutationFn: (id: string) => deleteCollection(id),
-    onSuccess: invalidate,
-    onError: (err) => window.alert(err instanceof Error ? err.message : 'Could not delete collection.'),
+    onSuccess: () => {
+      invalidate();
+      setPendingDelete(null);
+    },
+    onError: (err) => {
+      window.alert(err instanceof Error ? err.message : 'Could not delete collection.');
+      setPendingDelete(null);
+    },
   });
 
   if (isLoading) return <p>Loading…</p>;
@@ -144,19 +152,23 @@ export function CollectionsPage() {
               <button type="button" className={sharedStyles.buttonLink} onClick={() => setMode({ type: 'edit', collection })}>
                 Edit
               </button>
-              <button
-                type="button"
-                className={sharedStyles.buttonLink}
-                onClick={() => {
-                  if (window.confirm(`Delete "${collection.name}"?`)) deleteMutation.mutate(collection.id);
-                }}
-              >
+              <button type="button" className={sharedStyles.buttonLink} onClick={() => setPendingDelete(collection)}>
                 Delete
               </button>
             </div>
           </div>
         ))}
       </div>
+
+      {pendingDelete && (
+        <ConfirmDialog
+          title="Delete collection"
+          message={`Delete "${pendingDelete.name}"? This cannot be undone.`}
+          isPending={deleteMutation.isPending}
+          onConfirm={() => deleteMutation.mutate(pendingDelete.id)}
+          onCancel={() => setPendingDelete(null)}
+        />
+      )}
     </div>
   );
 }

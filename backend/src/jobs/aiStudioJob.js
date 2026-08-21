@@ -2,7 +2,7 @@ import crypto from 'node:crypto';
 import { boss } from './queue.js';
 import { env } from '../config/env.js';
 import { storageProvider } from '../providers/storage/index.js';
-import { analyseJewellery, generateShot } from '../services/aiStudioService.js';
+import { analyseJewellery, generateShot, presenterReferenceKeyFor } from '../services/aiStudioService.js';
 import {
   findJobById,
   updateJob,
@@ -10,6 +10,7 @@ import {
   updateAsset,
   findCategoryTemplate,
 } from '../repositories/aiStudio.repository.js';
+import { findPresenterById } from '../repositories/presenters.repository.js';
 
 export const JOB_AI_STUDIO_ANALYSE = 'ai-studio-analyse';
 export const JOB_AI_STUDIO_GENERATE = 'ai-studio-generate';
@@ -61,7 +62,17 @@ export function deriveJobStatus(assets) {
   return null; // still in flight
 }
 
-async function generateOneAsset({ jobId, asset, referenceBuffer, mimetype, template, metalColor, presenterStyle, imageModel }) {
+// Defaults the featured/primary catalogue image to YELLOW_FRONT the first
+// time a job has any READY assets and none is featured yet — a no-op on
+// every subsequent call (including after an individual regenerate), so it
+// never overrides an admin's later "Set as Featured" choice from Step 5.
+async function ensureDefaultFeatured(jobId, assets) {
+  if (assets.some((a) => a.is_featured)) return;
+  const front = assets.find((a) => a.asset_type === 'YELLOW_FRONT' && a.status === 'READY');
+  if (front) await updateAsset(front.id, { is_featured: true });
+}
+
+async function generateOneAsset({ jobId, asset, referenceBuffer, mimetype, template, presenter, imageModel }) {
   // A cancelled job's late-arriving results are discarded, never written
   // back (plan §12) — checked immediately before each write, not just once
   // up front, since cancellation can land mid-flight.
@@ -71,13 +82,19 @@ async function generateOneAsset({ jobId, asset, referenceBuffer, mimetype, templ
   await updateAsset(asset.id, { status: 'GENERATING', generation_started_at: new Date() });
 
   try {
+    let presenterReferenceBuffer = null;
+    const poseKey = presenterReferenceKeyFor(asset.asset_type);
+    if (presenter && poseKey) {
+      presenterReferenceBuffer = await storageProvider.read(keyFromUrl(presenter[poseKey]));
+    }
+
     const { buffer, prompt } = await generateShot({
       referenceBuffer,
       mimetype,
       template,
-      shotType: asset.shot_type,
-      metalColor,
-      presenterStyle,
+      assetType: asset.asset_type,
+      presenter,
+      presenterReferenceBuffer,
     });
 
     const stillActive = await findJobById(jobId);
@@ -87,12 +104,15 @@ async function generateOneAsset({ jobId, asset, referenceBuffer, mimetype, templ
       `products/ai-studio/${jobId}/${crypto.randomUUID()}.png`,
       buffer,
     );
+    // is_featured is deliberately NOT set here — see ensureDefaultFeatured,
+    // called once per generation run in generateHandler below. Setting it
+    // per-asset would re-stomp an admin's later "Set as Featured" choice
+    // (Step 5) every time that same asset gets individually regenerated.
     await updateAsset(asset.id, {
       status: 'READY',
       image_key: saved.key,
       generation_metadata: JSON.stringify({ prompt, imageModel }),
       generation_completed_at: new Date(),
-      is_featured: asset.shot_type === 'FRONT',
     });
   } catch (err) {
     const stillActive = await findJobById(jobId);
@@ -120,6 +140,7 @@ async function generateHandler(jobs) {
     const referenceUrls = aiStudioJob.reference_image_urls;
     const referenceBuffer = await storageProvider.read(keyFromUrl(referenceUrls[0]));
     const mimetype = 'image/jpeg';
+    const presenter = aiStudioJob.presenter_id ? await findPresenterById(aiStudioJob.presenter_id) : null;
 
     const allAssets = await findAssetsByJobId(jobId);
     const targets = assetIds
@@ -133,8 +154,7 @@ async function generateHandler(jobs) {
         referenceBuffer,
         mimetype,
         template,
-        metalColor: aiStudioJob.metal_color,
-        presenterStyle: aiStudioJob.presenter_style,
+        presenter,
         imageModel: env.openaiImageModel,
       }),
     );
@@ -143,6 +163,7 @@ async function generateHandler(jobs) {
     if (refreshedJob.status === 'cancelled') return;
 
     const refreshedAssets = await findAssetsByJobId(jobId);
+    await ensureDefaultFeatured(jobId, refreshedAssets);
     const derived = deriveJobStatus(refreshedAssets);
     if (derived) await updateJob(jobId, { status: derived });
   } catch (err) {
@@ -164,6 +185,15 @@ export async function registerAiStudioWorker() {
 
 // Exported for the retry endpoint, which needs to reset one asset back to
 // PENDING before re-enqueuing generation scoped to just that asset id.
+// Must also clear the previous run's timestamps — leaving a stale
+// generation_completed_at behind made the frontend's elapsed-time display
+// compute (old completedAt - new startedAt), a negative number clamped to
+// 0, so every regenerate showed "Generating… 0s" stuck for the whole run.
 export async function resetAssetForRetry(assetId) {
-  return updateAsset(assetId, { status: 'PENDING', error: null });
+  return updateAsset(assetId, {
+    status: 'PENDING',
+    error: null,
+    generation_started_at: null,
+    generation_completed_at: null,
+  });
 }

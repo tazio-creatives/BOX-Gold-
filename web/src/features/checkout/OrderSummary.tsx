@@ -9,6 +9,7 @@ export interface OrderSummaryItem {
   qty: number;
   image: string | null;
   price: number;
+  isBackordered?: boolean;
 }
 
 export interface OrderSummaryAction {
@@ -109,7 +110,10 @@ export function OrderSummary({
                 {item.image && <img src={item.image} alt={item.name} className={styles.itemImageTag} />}
               </div>
               <div className={styles.itemDetails}>
-                <p className={styles.itemName}>{item.name}</p>
+                <p className={styles.itemName}>
+                  {item.name}
+                  {item.isBackordered && <span className={styles.backorderTag}>Make to Order</span>}
+                </p>
                 <p className={styles.itemQty}>Qty: {item.qty}</p>
               </div>
               <p className={styles.itemPrice}>{formatPrice(item.price * item.qty)}</p>

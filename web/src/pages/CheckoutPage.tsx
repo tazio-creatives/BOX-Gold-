@@ -6,6 +6,7 @@ import { fetchCart } from '../api/cart';
 import { fetchAddresses, createAddress } from '../api/addresses';
 import { submitCheckout } from '../api/checkout';
 import { simulatePayment } from '../api/payments';
+import { launchCashfreeCheckout } from '../features/checkout/cashfree';
 import { applyCoupon } from '../api/coupons';
 import { AddressForm } from '../features/address/AddressForm';
 import { AddressCard } from '../features/address/AddressCard';
@@ -31,6 +32,7 @@ interface DisplayItem {
   purity: string | null;
   diamondConfigId: string | null;
   diamondConfigName: string | null;
+  isBackordered: boolean;
 }
 
 interface ContactFieldErrors {
@@ -125,13 +127,25 @@ export function CheckoutPage() {
 
   const checkoutMutation = useMutation({
     mutationFn: submitCheckout,
-    onSuccess: (result) => {
+    onSuccess: async (result) => {
       setOrderResult(result);
-      // Not invalidated here — the order is only PENDING_PAYMENT at this
-      // point, and the backend doesn't touch the cart until payment is
-      // actually confirmed (see payMutation below), so refetching now would
-      // just get the same still-full cart back.
-      payMutation.mutate({ providerRef: result.payment.providerRef, outcome: 'SUCCEEDED' });
+      const { providerRef, paymentSessionId } = result.payment;
+      if (paymentSessionId) {
+        // Real gateway (Cashfree) — launch its Drop-in checkout. Whatever
+        // happens (paid, failed, or the customer just closes the modal),
+        // move on to the confirmation page — it polls the backend for the
+        // real, webhook-confirmed status rather than trusting anything the
+        // SDK itself reports (see paymentService.confirmPayment).
+        try {
+          await launchCashfreeCheckout(paymentSessionId);
+        } catch (err) {
+          console.error('Cashfree checkout failed to launch:', err);
+        }
+        navigate(`/order-confirmation/${result.order.id}`);
+      } else {
+        // Stub (dev only) — no real gateway, auto-completes.
+        payMutation.mutate({ providerRef, outcome: 'SUCCEEDED' });
+      }
     },
     onError: (err) => {
       if (err instanceof ApiError && err.fields && err.fields.length > 0) {
@@ -172,7 +186,10 @@ export function CheckoutPage() {
     mutationFn: ({ providerRef, outcome }: { providerRef: string; outcome: 'SUCCEEDED' | 'FAILED' }) =>
       simulatePayment(providerRef, outcome),
     onSuccess: (result) => {
-      queryClient.invalidateQueries({ queryKey: ['cart'] });
+      // Cart invalidation now lives on OrderConfirmationPage (fires once
+      // the order's polled status actually shows CONFIRMED) — that same
+      // logic has to exist there anyway for the real Cashfree flow, which
+      // has no synchronous "payment succeeded" response to hook into.
       navigate(`/order-confirmation/${result.order.id}`);
     },
     onError: (err) => {
@@ -227,6 +244,7 @@ export function CheckoutPage() {
           purity: buyNow.purity ?? null,
           diamondConfigId: buyNow.diamondConfigId ?? null,
           diamondConfigName: buyNow.diamondConfigName ?? null,
+          isBackordered: buyNow.isBackordered ?? false,
         },
       ]
     : (cartData?.items ?? []).map((i) => ({
@@ -241,6 +259,7 @@ export function CheckoutPage() {
         purity: i.purity,
         diamondConfigId: i.diamondConfigId,
         diamondConfigName: i.diamondConfigName,
+        isBackordered: i.isBackordered,
       }));
 
   // GST-inclusive, same convention as Cart.subtotal.
@@ -262,6 +281,7 @@ export function CheckoutPage() {
       qty: item.quantity,
       image: item.primaryImageUrl,
       price: item.sellingPrice,
+      isBackordered: item.isBackordered,
     };
   });
 

@@ -85,13 +85,13 @@ export async function findCategoryTemplate(jewelleryType) {
 
 export async function insertAssets(jobId, rows) {
   const inserted = [];
-  for (const { shotType, displayOrder } of rows) {
+  for (const { assetType, displayOrder } of rows) {
     const {
       rows: [row],
     } = await query(
-      `INSERT INTO ai_studio_assets (job_id, shot_type, display_order)
+      `INSERT INTO ai_studio_assets (job_id, asset_type, display_order)
        VALUES ($1, $2, $3) RETURNING *`,
-      [jobId, shotType, displayOrder],
+      [jobId, assetType, displayOrder],
     );
     inserted.push(row);
   }
@@ -116,6 +116,13 @@ export async function findAssetsByJobIdTx(client, jobId) {
 
 export async function findAssetById(id) {
   const { rows } = await query('SELECT * FROM ai_studio_assets WHERE id = $1', [id]);
+  return rows[0] ?? null;
+}
+
+// Row lock for the per-asset import endpoint — prevents a double-click race
+// on the same asset from producing two product_images inserts.
+export async function lockAssetByIdTx(client, id) {
+  const { rows } = await client.query('SELECT * FROM ai_studio_assets WHERE id = $1 FOR UPDATE', [id]);
   return rows[0] ?? null;
 }
 
@@ -158,6 +165,13 @@ export async function insertProductImageTx(client, { productId, type, variant, f
     [productId, type, variant, format, url, isPrimary ?? false, sortOrder ?? 0],
   );
   return rows[0];
+}
+
+// Atomic "only one featured asset per job" — pairs with updateAssetTx (set
+// the chosen asset's is_featured=true) inside the same transaction, so
+// Step 5's "Set as Featured" action can never leave two assets featured.
+export async function clearFeaturedForJobTx(client, jobId) {
+  await client.query('UPDATE ai_studio_assets SET is_featured = false WHERE job_id = $1', [jobId]);
 }
 
 export async function updateAssetTx(client, id, fields) {

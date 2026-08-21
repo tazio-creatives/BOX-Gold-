@@ -4,7 +4,7 @@ import type { GoldColor, MetalType, Purity } from '../../api/types';
 import { PriceRangeSlider } from './PriceRangeSlider';
 import styles from './FilterSidebar.module.css';
 
-const KARATS: Purity[] = ['14K', '18K', '22K'];
+const KARATS: Purity[] = ['9K', '14K', '18K', '22K'];
 
 const METAL_OPTIONS: { label: string; metal: MetalType; goldColor: GoldColor | null }[] = [
   { label: 'Yellow Gold', metal: 'GOLD', goldColor: 'YELLOW' },

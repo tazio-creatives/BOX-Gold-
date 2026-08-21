@@ -82,8 +82,8 @@
   color: var(--color-text-muted);
 }
 
-.stockOut {
-  color: var(--color-text);
+.stockBackorder {
+  color: var(--color-text-muted);
   font-weight: 600;
   margin: 0 0 var(--space-3);
 }

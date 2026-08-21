@@ -19,7 +19,10 @@ export function OrderDetails({ order }: { order: Order }) {
           {order.items.map((item) => (
             <li key={item.id} className={styles.item}>
               <div>
-                <p className={styles.itemName}>{item.productName}</p>
+                <p className={styles.itemName}>
+                  {item.productName}
+                  {item.isBackordered && <span className={styles.backorderBadge}>Make to Order</span>}
+                </p>
                 <p className={styles.itemMeta}>
                   SKU {item.productSku} · Qty {item.quantity}
                 </p>

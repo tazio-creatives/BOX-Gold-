@@ -79,17 +79,24 @@ export async function createOrder({ userId, contact, addressId, items, couponCod
       const reserved = await getActiveReservedQuantityTx(client, productId, sizeId ?? null);
       const stockQuantity = size ? size.stock_quantity : product.stock_quantity;
       const available = stockQuantity - reserved;
-      if (available < quantity) {
-        throw new AppError(
-          400,
-          `${product.name} only has ${Math.max(available, 0)} left in stock`,
-        );
-      }
+      // Make to Order: never blocks checkout. A line whose requested
+      // quantity exceeds what's physically available becomes backordered in
+      // full (no partial split between in-stock and backordered units) —
+      // it gets no stock reservation below, and whatever's left of
+      // `available` (if any) is deliberately left unreserved so it stays
+      // purchasable by other, fully-in-stock orders.
+      const isBackordered = quantity > available;
 
       // Purity/diamond quality don't gate stock (only size does, locked
       // above) — they gate price, recomputed here from the same engine
       // cart used so checkout charges exactly what the shopper saw.
-      const pricing = await computeVariantPricing(product, { purity, diamondConfigId });
+      const pricing = await computeVariantPricing(product, {
+        purity,
+        diamondConfigId,
+        sizeWeightGrams: size?.weight_grams != null ? Number(size.weight_grams) : null,
+        sizeDiamondWeightCarats:
+          size?.diamond_weight_carats != null ? Number(size.diamond_weight_carats) : null,
+      });
       let diamondConfigName = null;
       if (pricing.diamondConfigId) {
         const config = await findDiamondConfigById(pricing.diamondConfigId);
@@ -124,6 +131,7 @@ export async function createOrder({ userId, contact, addressId, items, couponCod
         purity: pricing.purity,
         diamondConfigId: pricing.diamondConfigId,
         diamondConfigName,
+        isBackordered,
       });
       subtotal += lineTotal - lineGst;
       gstTotal += lineGst;
@@ -182,16 +190,21 @@ export async function createOrder({ userId, contact, addressId, items, couponCod
         purity: line.purity,
         diamondConfigId: line.diamondConfigId,
         diamondConfigName: line.diamondConfigName,
+        isBackordered: line.isBackordered,
       });
 
-      const expiresAt = new Date(Date.now() + env.reservationTtlMinutes * 60_000);
-      await insertReservationTx(client, {
-        productId: line.product.id,
-        productSizeId: line.size?.id,
-        orderId: orderRow.id,
-        quantity: line.quantity,
-        expiresAt,
-      });
+      // A backordered line has nothing physical to hold — skip the
+      // reservation entirely rather than reserving units that don't exist.
+      if (!line.isBackordered) {
+        const expiresAt = new Date(Date.now() + env.reservationTtlMinutes * 60_000);
+        await insertReservationTx(client, {
+          productId: line.product.id,
+          productSizeId: line.size?.id,
+          orderId: orderRow.id,
+          quantity: line.quantity,
+          expiresAt,
+        });
+      }
     }
 
     await insertOrderStatusHistoryTx(client, orderRow.id, 'PENDING_PAYMENT');

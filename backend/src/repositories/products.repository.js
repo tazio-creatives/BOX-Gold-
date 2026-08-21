@@ -56,7 +56,7 @@ const LIST_COLUMNS = `
   p.metal_type, p.purity, p.gold_color, p.gold_value, p.diamond_value, p.making_charge,
   p.gst_percent, p.product_size, p.mrp, p.selling_price, p.status, p.stock_quantity,
   p.rating_avg, p.rating_count, p.created_at, p.is_featured,
-  p.net_weight_grams, p.diamond_weight_carats, p.diamond_config_id,
+  p.net_weight_grams, p.gold_weight_grams, p.diamond_weight_grams, p.diamond_weight_carats, p.diamond_config_id,
   primary_image.url AS primary_image_url,
   cat.slug AS category_slug,
   ${AVAILABLE_STOCK_SELECT}
@@ -226,7 +226,7 @@ export async function findProductImages(productId) {
 
 export async function findProductSizes(productId) {
   const { rows } = await query(
-    `SELECT ps.id, ps.label, ps.stock_quantity,
+    `SELECT ps.id, ps.label, ps.stock_quantity, ps.weight_grams, ps.diamond_weight_carats,
             GREATEST(ps.stock_quantity - COALESCE(res.reserved_qty, 0), 0)::int AS available_stock
      FROM product_sizes ps
      LEFT JOIN (
@@ -248,7 +248,7 @@ export async function findProductSizes(productId) {
 export async function findProductSizesByIds(ids) {
   if (ids.length === 0) return [];
   const { rows } = await query(
-    `SELECT ps.id, ps.product_id, ps.label, ps.stock_quantity,
+    `SELECT ps.id, ps.product_id, ps.label, ps.stock_quantity, ps.weight_grams, ps.diamond_weight_carats,
             GREATEST(ps.stock_quantity - COALESCE(res.reserved_qty, 0), 0)::int AS available_stock
      FROM product_sizes ps
      LEFT JOIN (
@@ -275,6 +275,8 @@ const INSERT_COLUMNS = [
   'gold_color',
   'gross_weight_grams',
   'net_weight_grams',
+  'gold_weight_grams',
+  'diamond_weight_grams',
   'diamond_weight_carats',
   'diamond_config_id',
   'diamond_count',
@@ -356,10 +358,10 @@ export async function deleteProduct(id) {
 // without an extra query per row (plan §1a invalidation hooks).
 export async function findGoldProductsForRecalculation() {
   const { rows } = await query(
-    `SELECT id, slug, category_id, net_weight_grams, purity, diamond_value, making_charge,
+    `SELECT id, slug, category_id, gold_weight_grams, purity, diamond_value, making_charge,
             gst_percent, selling_price
      FROM products
-     WHERE metal_type = 'GOLD' AND purity IS NOT NULL AND net_weight_grams IS NOT NULL
+     WHERE metal_type = 'GOLD' AND purity IS NOT NULL AND gold_weight_grams IS NOT NULL
        AND is_price_locked = false`,
   );
   return rows;

@@ -62,6 +62,20 @@ export const env = {
   paymentProvider: process.env.PAYMENT_PROVIDER ?? 'stub',
   paymentWebhookSecret: process.env.PAYMENT_WEBHOOK_SECRET ?? 'dev-only-payment-webhook-secret',
 
+  // Cashfree — real payment provider. Sandbox by default; CASHFREE_ENV
+  // must be explicitly set to PRODUCTION to go live. The webhook signature
+  // is verified with the same CASHFREE_SECRET_KEY used for API auth —
+  // Cashfree doesn't issue a separate webhook secret.
+  cashfreeAppId: process.env.CASHFREE_APP_ID,
+  cashfreeSecretKey: process.env.CASHFREE_SECRET_KEY,
+  cashfreeApiVersion: process.env.CASHFREE_API_VERSION ?? '2023-08-01',
+  cashfreeEnv: process.env.CASHFREE_ENV ?? 'SANDBOX',
+
+  // Base URL of the customer-facing storefront (plan §11 Cashfree) — used
+  // to build the payment gateway's post-payment return_url. Not the API's
+  // own URL/PORT above.
+  webAppBaseUrl: process.env.WEB_APP_BASE_URL ?? 'http://localhost:5173',
+
   // Shipping (plan §11b)
   shippingProvider: process.env.SHIPPING_PROVIDER ?? 'stub',
   shippingWebhookSecret: process.env.SHIPPING_WEBHOOK_SECRET ?? 'dev-only-shipping-webhook-secret',

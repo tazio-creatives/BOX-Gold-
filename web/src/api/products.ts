@@ -44,11 +44,12 @@ export function fetchRelatedProducts(slug: string) {
 
 export function fetchVariantPricePreview(
   productId: string,
-  selection: { purity?: string | null; diamondConfigId?: string | null },
+  selection: { purity?: string | null; diamondConfigId?: string | null; sizeId?: string | null },
 ) {
   const qs = new URLSearchParams();
   if (selection.purity) qs.set('purity', selection.purity);
   if (selection.diamondConfigId) qs.set('diamondConfigId', selection.diamondConfigId);
+  if (selection.sizeId) qs.set('sizeId', selection.sizeId);
   const suffix = qs.toString();
   return apiFetch<VariantPricePreview>(`/products/${productId}/price-preview${suffix ? `?${suffix}` : ''}`);
 }

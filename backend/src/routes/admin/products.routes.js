@@ -18,10 +18,13 @@ import {
 import { getStatus, approve, reject, regenerate } from '../../controllers/aiImages.controller.js';
 import {
   createJob as createStudioJob,
+  getActiveJob as getActiveStudioJob,
   getJob as getStudioJob,
   confirmJob as confirmStudioJob,
   retryAsset as retryStudioAsset,
-  importJob as importStudioJob,
+  updateAssetSelection as updateStudioAssetSelection,
+  importAsset as importStudioAsset,
+  completeImport as completeStudioImport,
   cancelJob as cancelStudioJob,
 } from '../../controllers/aiStudio.controller.js';
 import { upload, uploadEnhanceImage } from '../../middleware/upload.js';
@@ -52,7 +55,10 @@ adminProductsRouter.post('/:id/ai-images/:imageId/approve', approve);
 adminProductsRouter.post('/:id/ai-images/:imageId/reject', reject);
 
 // AI Image Studio — separate, deliberately opt-in pipeline (upload -> analyse
-// & confirm -> choose presenter -> generate 4 images -> review & import).
+// & confirm -> choose presenter -> generate N images -> review & import).
+// /active is registered before the /:jobId param route below, or Express
+// would treat "active" as a jobId.
+adminProductsRouter.get('/:id/ai-studio/active', getActiveStudioJob);
 adminProductsRouter.post(
   '/:id/ai-studio',
   aiStudioRateLimiter,
@@ -66,5 +72,7 @@ adminProductsRouter.post(
   aiStudioRateLimiter,
   retryStudioAsset,
 );
-adminProductsRouter.post('/:id/ai-studio/:jobId/import', importStudioJob);
+adminProductsRouter.patch('/:id/ai-studio/:jobId/assets/:assetId', updateStudioAssetSelection);
+adminProductsRouter.post('/:id/ai-studio/:jobId/assets/:assetId/import', importStudioAsset);
+adminProductsRouter.post('/:id/ai-studio/:jobId/import/complete', completeStudioImport);
 adminProductsRouter.post('/:id/ai-studio/:jobId/cancel', cancelStudioJob);

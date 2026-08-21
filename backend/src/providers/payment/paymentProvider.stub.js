@@ -24,15 +24,22 @@ export const stubPaymentProvider = {
   signPayload(payload) {
     const body = JSON.stringify(payload);
     const signature = crypto.createHmac('sha256', env.paymentWebhookSecret).update(body).digest('hex');
-    return { body, signature };
+    return { body, headers: { 'x-payment-signature': signature } };
   },
 
-  verifySignature(rawBody, signature) {
+  verifySignature(rawBody, headers) {
+    const signature = headers['x-payment-signature'];
     if (!signature) return false;
     const expected = crypto.createHmac('sha256', env.paymentWebhookSecret).update(rawBody).digest('hex');
     const expectedBuf = Buffer.from(expected, 'hex');
     const signatureBuf = Buffer.from(signature, 'hex');
     if (expectedBuf.length !== signatureBuf.length) return false;
     return crypto.timingSafeEqual(expectedBuf, signatureBuf);
+  },
+
+  // Stub's own payload IS already {providerRef, status} — no translation
+  // needed, unlike a real provider's nested event envelope.
+  parseWebhookEvent(rawBody) {
+    return JSON.parse(rawBody);
   },
 };

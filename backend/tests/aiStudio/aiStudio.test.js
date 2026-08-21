@@ -2,7 +2,7 @@ import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
 import { deriveJobStatus } from '../../src/jobs/aiStudioJob.js';
 import { confirmSchema } from '../../src/controllers/aiStudio.controller.js';
-import { JEWELLERY_TYPES } from '../../src/services/aiStudioService.js';
+import { JEWELLERY_TYPES, resolveAssetTypesForJob } from '../../src/services/aiStudioService.js';
 import { query } from '../../src/config/db.js';
 import { insertJob, findCategoryTemplate } from '../../src/repositories/aiStudio.repository.js';
 
@@ -40,23 +40,61 @@ describe('deriveJobStatus (plan §4/§6 3-way terminal rule)', () => {
 
 describe('confirmSchema (plan §5: UNKNOWN and low-confidence handling)', () => {
   test('rejects UNKNOWN — generation always needs a real category', () => {
-    assert.throws(() =>
-      confirmSchema.parse({ jewelleryType: 'UNKNOWN', presenterStyle: 'CONTEMPORARY' }),
-    );
+    assert.throws(() => confirmSchema.parse({ jewelleryType: 'UNKNOWN' }));
   });
 
   test('rejects a missing jewelleryType — never silently falls back to the analysis result', () => {
-    assert.throws(() => confirmSchema.parse({ presenterStyle: 'CONTEMPORARY' }));
+    assert.throws(() => confirmSchema.parse({}));
   });
 
-  test('accepts every real jewellery type with a valid presenter style', () => {
+  test('accepts every real jewellery type with no presenter (No Presenter is valid)', () => {
     for (const type of JEWELLERY_TYPES.filter((t) => t !== 'UNKNOWN')) {
-      assert.doesNotThrow(() => confirmSchema.parse({ jewelleryType: type, presenterStyle: 'TRADITIONAL' }));
+      assert.doesNotThrow(() => confirmSchema.parse({ jewelleryType: type, presenterId: null }));
     }
   });
 
-  test('rejects an invalid presenterStyle', () => {
-    assert.throws(() => confirmSchema.parse({ jewelleryType: 'RING', presenterStyle: 'CASUAL' }));
+  test('accepts an explicit generateRoseGold + presenterId', () => {
+    assert.doesNotThrow(() =>
+      confirmSchema.parse({
+        jewelleryType: 'RING',
+        presenterId: '123e4567-e89b-12d3-a456-426614174000',
+        generateRoseGold: true,
+      }),
+    );
+  });
+
+  test('rejects a non-uuid presenterId', () => {
+    assert.throws(() => confirmSchema.parse({ jewelleryType: 'RING', presenterId: 'not-a-uuid' }));
+  });
+});
+
+describe('resolveAssetTypesForJob (rose gold toggle x presenter selection)', () => {
+  test('rose gold off, no presenter -> 2 yellow catalogue shots', () => {
+    assert.deepEqual(
+      resolveAssetTypesForJob({ generateRoseGold: false, hasPresenter: false }),
+      ['YELLOW_FRONT', 'YELLOW_HERO_45'],
+    );
+  });
+
+  test('rose gold off, presenter selected -> 4, both yellow presenter views', () => {
+    assert.deepEqual(
+      resolveAssetTypesForJob({ generateRoseGold: false, hasPresenter: true }),
+      ['YELLOW_FRONT', 'YELLOW_HERO_45', 'PRESENTER_YELLOW_1', 'PRESENTER_YELLOW_2'],
+    );
+  });
+
+  test('rose gold on, no presenter -> 4, yellow + rose catalogue shots', () => {
+    assert.deepEqual(
+      resolveAssetTypesForJob({ generateRoseGold: true, hasPresenter: false }),
+      ['YELLOW_FRONT', 'YELLOW_HERO_45', 'ROSE_FRONT', 'ROSE_HERO_45'],
+    );
+  });
+
+  test('rose gold on, presenter selected -> 6, matched yellow/rose presenter pair', () => {
+    assert.deepEqual(
+      resolveAssetTypesForJob({ generateRoseGold: true, hasPresenter: true }),
+      ['YELLOW_FRONT', 'YELLOW_HERO_45', 'ROSE_FRONT', 'ROSE_HERO_45', 'PRESENTER_YELLOW_1', 'PRESENTER_ROSE'],
+    );
   });
 });
 

@@ -6,7 +6,7 @@ const PINCODE_PATTERN = /^[1-9][0-9]{5}$/;
 
 type Status = 'idle' | 'invalid' | 'valid';
 
-export function DeliveryChecker() {
+export function DeliveryChecker({ isBackordered = false }: { isBackordered?: boolean }) {
   const [pincode, setPincode] = useState('');
   const [status, setStatus] = useState<Status>('idle');
 
@@ -48,7 +48,11 @@ export function DeliveryChecker() {
       </form>
       {status === 'invalid' && <p className={styles.error}>Please enter a valid 6-digit pincode.</p>}
       {status === 'valid' && (
-        <p className={styles.success}>Estimated delivery in 3–7 business days across India.</p>
+        <p className={styles.success}>
+          {isBackordered
+            ? 'Made to order — estimated delivery in 7–10 working days across India.'
+            : 'Estimated delivery in 3–7 business days across India.'}
+        </p>
       )}
     </div>
   );

@@ -5,7 +5,7 @@ import { findDiamondConfigById } from '../repositories/diamondConfigs.repository
 // karat/24 — default purity multiplier (plan §9a: "overridable in settings
 // if market convention differs"; no settings table exists in the approved
 // schema, so this is the hardcoded default for now).
-const PURITY_KARATS = { '14K': 14, '18K': 18, '22K': 22, '24K': 24 };
+const PURITY_KARATS = { '9K': 9, '14K': 14, '18K': 18, '22K': 22, '24K': 24 };
 
 export function deriveRatesFromBase24k(rate24k) {
   return Object.entries(PURITY_KARATS).map(([purity, karat]) => ({
@@ -48,15 +48,15 @@ export function computeSellingPrice({ goldValue, diamondValue, makingCharge, gst
 export async function previewPricing({
   metalType,
   purity,
-  netWeightGrams,
+  goldWeightGrams,
   diamondWeightCarats,
   diamondConfigId,
   makingCharge = 0,
   gstPercent = 3,
 }) {
   const goldValue =
-    metalType === 'GOLD' && purity && netWeightGrams
-      ? (await computeGoldValue(netWeightGrams, purity)).goldValue
+    metalType === 'GOLD' && purity && goldWeightGrams
+      ? (await computeGoldValue(goldWeightGrams, purity)).goldValue
       : 0;
   const diamondValue = diamondWeightCarats
     ? (await computeDiamondValue(diamondWeightCarats, diamondConfigId)).diamondValue
@@ -71,36 +71,55 @@ export function getCurrentRatesSnapshot() {
 }
 
 // Prices a product's line for a customer-selected Gold Color / Purity /
-// Diamond Quality combination. Gold Color never affects price (same karat,
-// different alloy) so it isn't a parameter here. When purity/diamondConfigId
-// match the product's own base values (the common case — no override
-// selected, or the axis isn't configured for this product), the product's
-// already-cached gold_value/diamond_value are reused as-is instead of
-// re-querying rates — same numbers cart/checkout showed before variants
+// Diamond Quality / Size combination. Gold Color never affects price (same
+// karat, different alloy) so it isn't a parameter here. When purity/
+// diamondConfigId match the product's own base values (the common case — no
+// override selected, or the axis isn't configured for this product), the
+// product's already-cached gold_value/diamond_value are reused as-is instead
+// of re-querying rates — same numbers cart/checkout showed before variants
 // existed, zero regression for products with no configured options.
-export async function computeVariantPricing(product, { purity, diamondConfigId } = {}) {
+//
+// sizeWeightGrams/sizeDiamondWeightCarats are optional per-size overrides (a
+// bigger size can use more gold and carry more diamond weight) — when both
+// are omitted/null, this is byte-identical to the pre-size-override behavior
+// below (falls back to the product's own weight/diamond weight).
+export async function computeVariantPricing(
+  product,
+  { purity, diamondConfigId, sizeWeightGrams, sizeDiamondWeightCarats } = {},
+) {
   const effectivePurity = purity || product.purity;
   const effectiveDiamondConfigId = diamondConfigId || product.diamond_config_id;
 
+  const baseWeightGrams = product.gold_weight_grams != null ? Number(product.gold_weight_grams) : null;
+  const effectiveWeightGrams = sizeWeightGrams ?? baseWeightGrams;
+  const weightOverridden =
+    sizeWeightGrams != null && baseWeightGrams != null && sizeWeightGrams !== baseWeightGrams;
+
   let goldValue = Number(product.gold_value);
   if (
-    effectivePurity &&
-    effectivePurity !== product.purity &&
     product.metal_type === 'GOLD' &&
-    product.net_weight_grams != null
+    effectiveWeightGrams != null &&
+    (weightOverridden || (effectivePurity && effectivePurity !== product.purity))
   ) {
-    goldValue = (await computeGoldValue(Number(product.net_weight_grams), effectivePurity)).goldValue;
+    goldValue = (await computeGoldValue(effectiveWeightGrams, effectivePurity)).goldValue;
   }
+
+  const baseDiamondWeightCarats =
+    product.diamond_weight_carats != null ? Number(product.diamond_weight_carats) : null;
+  const effectiveDiamondWeightCarats = sizeDiamondWeightCarats ?? baseDiamondWeightCarats;
+  const diamondWeightOverridden =
+    sizeDiamondWeightCarats != null &&
+    baseDiamondWeightCarats != null &&
+    sizeDiamondWeightCarats !== baseDiamondWeightCarats;
 
   let diamondValue = Number(product.diamond_value);
   if (
     effectiveDiamondConfigId &&
-    effectiveDiamondConfigId !== product.diamond_config_id &&
-    product.diamond_weight_carats
+    effectiveDiamondWeightCarats != null &&
+    (diamondWeightOverridden || effectiveDiamondConfigId !== product.diamond_config_id)
   ) {
-    diamondValue = (
-      await computeDiamondValue(Number(product.diamond_weight_carats), effectiveDiamondConfigId)
-    ).diamondValue;
+    diamondValue = (await computeDiamondValue(effectiveDiamondWeightCarats, effectiveDiamondConfigId))
+      .diamondValue;
   }
 
   const makingCharge = Number(product.making_charge);

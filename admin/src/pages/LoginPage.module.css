@@ -60,6 +60,34 @@
   box-shadow: 0 0 0 3px var(--color-accent-bg);
 }
 
+.passwordRow {
+  position: relative;
+  display: flex;
+}
+
+.passwordRow input {
+  flex: 1;
+  padding-right: 52px;
+}
+
+.togglePassword {
+  position: absolute;
+  right: var(--space-2);
+  top: 50%;
+  transform: translateY(-50%);
+  border: none;
+  background: none;
+  color: var(--color-accent);
+  font-size: var(--text-sm);
+  font-weight: 600;
+  cursor: pointer;
+  padding: var(--space-1) var(--space-2);
+}
+
+.togglePassword:hover {
+  color: var(--color-accent-hover);
+}
+
 .error {
   color: var(--color-danger);
   font-size: var(--text-sm);

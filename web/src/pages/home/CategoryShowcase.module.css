@@ -1,143 +1,142 @@
 .categorySection {
   max-width: 1440px;
-  margin: 0 auto;
-  padding: 40px 24px;
+  margin: 16px auto;
+  padding: 20px 22px 26px;
   background: #ffffff;
+  border: 1px solid #eadfd8;
   border-radius: 22px;
   overflow: hidden;
 }
 
-.categoryGrid {
-  display: grid;
-  grid-template-columns: 1.12fr 0.82fr 1.02fr 1.08fr 0.96fr;
-  gap: 16px;
-  height: 315px;
+.heading {
+  margin: 0 0 14px;
+  font-family: 'Cormorant Garamond', 'Times New Roman', serif;
+  font-size: 28px;
+  font-weight: 600;
+  line-height: 1;
+  color: #251713;
+  text-align: left;
+}
+
+.scrollerWrapper {
+  position: relative;
+}
+
+.categoryTrack {
+  display: flex;
+  gap: 22px;
+  overflow-x: auto;
+  scroll-behavior: smooth;
+  scroll-snap-type: x proximity;
+  scrollbar-width: none;
+  padding: 4px 2px 6px;
+}
+
+.categoryTrack::-webkit-scrollbar {
+  display: none;
 }
 
 .categoryCard {
-  position: relative;
-  overflow: hidden;
-  border-radius: 14px;
-  background: #f5eee8;
+  flex: 0 0 128px;
+  scroll-snap-align: start;
   text-decoration: none;
-  min-width: 0;
-  display: block;
+  text-align: center;
+  color: inherit;
 }
 
-.categoryCard::before,
-.categoryCard::after {
-  display: none;
-  content: none;
+.imageWrapper {
+  position: relative;
+  width: 128px;
+  height: 128px;
+  border-radius: 18px;
+  overflow: hidden;
+  background: #f5eee8;
 }
 
-.categoryCard img {
+.imageWrapper img {
   display: block;
   width: 100%;
   height: 100%;
   object-fit: cover;
   object-position: center;
-  filter: none;
-  opacity: 1;
-  transition: transform 0.5s ease;
+  transition: transform 0.35s ease;
 }
 
-.categoryCard:hover img {
-  transform: scale(1.03);
+.categoryCard:hover .imageWrapper img {
+  transform: scale(1.04);
 }
 
-.categoryStack {
-  display: grid;
-  grid-template-rows: 1fr 1fr;
-  gap: 16px;
-  min-width: 0;
-  min-height: 0;
-}
-
-.categoryStack .categoryCard img {
-  object-position: right center;
-}
-
-.categoryContent {
+.badge {
   position: absolute;
-  left: 28px;
-  bottom: 25px;
+  top: 8px;
+  left: 8px;
   z-index: 2;
-}
-
-.categoryContent h3 {
-  margin: 0 0 12px;
-  font-family: 'Cormorant Garamond', 'Times New Roman', serif;
-  font-size: 22px;
-  font-weight: 600;
-  line-height: 1.1;
-  letter-spacing: 0;
-  color: #271914;
-  text-transform: none;
-}
-
-.categoryContent span {
+  padding: 3px 10px;
+  border-radius: 999px;
+  background: #65051e;
+  color: #ffffff;
   font-family: Inter, Arial, sans-serif;
-  font-size: 13px;
+  font-size: 9px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.cardName {
+  margin: 10px 0 0;
+  font-family: Inter, Arial, sans-serif;
+  font-size: 14px;
   font-weight: 500;
-  line-height: 1;
-  color: #3e322c;
-  text-transform: none;
+  line-height: 1.25;
+  color: #211915;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
-.categoryStack .categoryContent {
-  left: 22px;
-  bottom: 20px;
+.navButton {
+  position: absolute;
+  top: 68px;
+  transform: translateY(-50%);
+  z-index: 3;
+  width: 36px;
+  height: 36px;
+  display: grid;
+  place-items: center;
+  padding: 0;
+  border: 1px solid #eadfd8;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.92);
+  color: #392b26;
+  box-shadow: 0 2px 8px rgba(37, 23, 19, 0.14);
+  cursor: pointer;
 }
 
-.categoryStack .categoryContent h3 {
-  margin-bottom: 10px;
+.navLeft {
+  left: -4px;
 }
 
-/* Position-based, not name-based — this is whichever category the API put
-   last in the array, not a specific category identified by name. Text
-   stays the same dark color as every other card (not white) — a full-bleed
-   real photo always hides this background color, so white text over an
-   arbitrary photo would be a legibility gamble; dark text reads reliably
-   regardless of what image ends up here. */
-.categoryGrid > .categoryCard:last-child {
-  background: #4a0614;
+.navRight {
+  right: -4px;
 }
 
-@media (max-width: 1100px) and (min-width: 641px) {
-  .categoryGrid {
-    grid-template-columns: repeat(2, 1fr);
-    height: auto;
-  }
-
-  /* display: contents unwraps the stack wrapper for layout purposes only —
-     the DOM tree (and therefore :last-child matching above) is unaffected,
-     so the two stacked categories become independent grid cells here. */
-  .categoryStack {
-    display: contents;
-  }
-
-  .categoryCard {
-    height: 280px;
-  }
-}
-
-@media (max-width: 640px) {
-  .categoryGrid {
-    display: flex;
-    overflow-x: auto;
-    gap: 12px;
-    height: auto;
-    scroll-snap-type: x mandatory;
-  }
-
-  .categoryStack {
-    display: contents;
+@media (max-width: 767px) {
+  .categorySection {
+    padding: 16px 14px 20px;
   }
 
   .categoryCard {
-    flex: 0 0 76vw;
-    min-width: 260px;
-    height: 360px;
-    scroll-snap-align: start;
+    flex: 0 0 96px;
+  }
+
+  .imageWrapper {
+    width: 96px;
+    height: 96px;
+  }
+
+  .navButton {
+    top: 52px;
+    width: 32px;
+    height: 32px;
   }
 }

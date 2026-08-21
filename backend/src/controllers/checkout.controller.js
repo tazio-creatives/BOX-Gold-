@@ -17,7 +17,11 @@ export async function checkout(req, res, next) {
     ]);
     res.status(201).json({
       order: toOrderDto(order, items, statusHistory),
-      payment: { provider: payment.provider, providerRef: payment.provider_ref },
+      payment: {
+        provider: payment.provider,
+        providerRef: payment.provider_ref,
+        paymentSessionId: payment.paymentSessionId ?? null,
+      },
     });
   } catch (err) {
     next(err);

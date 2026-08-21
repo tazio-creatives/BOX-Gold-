@@ -12,10 +12,6 @@ import {
   deleteProductImagesBySortOrder,
   findMaxSortOrder,
 } from '../repositories/productImages.repository.js';
-import { insertAiImageJob } from '../repositories/aiImages.repository.js';
-import { boss } from '../jobs/queue.js';
-import { JOB_AI_IMAGE_GENERATE } from '../jobs/aiImageJob.js';
-
 function groupImages(rows) {
   const groups = new Map();
   for (const row of rows) {
@@ -41,11 +37,10 @@ export async function list(req, res, next) {
   }
 }
 
-// Admin uploads the original photo (plan §10) — saved + variant-derived
-// immediately (this is the real photo, not an AI candidate), and kicks off
-// the async AI generation job in the background. Responds as soon as the
-// upload itself is processed; the AI job runs independently (plan §10:
-// "201 response returned immediately — no blocking").
+// Admin uploads a photo directly — this is a plain manual upload, entirely
+// independent of the "Generate with AI" flow (that's a separate, explicit
+// action via the AI Image Studio). Manual uploads never trigger AI
+// generation on their own.
 export async function uploadOriginal(req, res, next) {
   try {
     if (!req.file) throw new AppError(400, 'No image file provided');
@@ -73,16 +68,8 @@ export async function uploadOriginal(req, res, next) {
       await setPrimaryBySortOrder(productId, sortOrder);
     }
 
-    const originalVariant = variants.find((v) => v.variant === 'original');
-    const job = await insertAiImageJob({ productId, provider: 'stub' });
-    await boss.send(JOB_AI_IMAGE_GENERATE, {
-      jobId: job.id,
-      productId,
-      originalKey: originalVariant.key,
-    });
-
     const rows = await findProductImages(productId);
-    res.status(201).json({ images: groupImages(rows), aiImageJobId: job.id });
+    res.status(201).json({ images: groupImages(rows) });
   } catch (err) {
     next(err);
   }

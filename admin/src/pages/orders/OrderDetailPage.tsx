@@ -7,6 +7,7 @@ import type { OrderStatus } from '../../api/types';
 import { formatPrice } from '../../utils/formatPrice';
 import { ApiError } from '../../api/client';
 import { ORDER_STATUSES, ORDER_STATUS_BADGE_CLASS, formatOrderStatus } from '../../utils/orderStatus';
+import { ConfirmDialog } from '../../components/ConfirmDialog';
 import sharedStyles from '../../styles/shared.module.css';
 import styles from './OrderDetailPage.module.css';
 
@@ -21,6 +22,7 @@ export function OrderDetailPage() {
   const [eventStatus, setEventStatus] = useState('');
   const [eventLocation, setEventLocation] = useState('');
   const [eventNote, setEventNote] = useState('');
+  const [confirmingCancelShipment, setConfirmingCancelShipment] = useState(false);
 
   const { data, isLoading, isError } = useQuery({
     queryKey: ['admin-order', id],
@@ -48,8 +50,14 @@ export function OrderDetailPage() {
 
   const cancelMutation = useMutation({
     mutationFn: () => cancelShipment(id as string),
-    onSuccess: invalidate,
-    onError: (err) => window.alert(err instanceof ApiError ? err.message : 'Could not cancel shipment.'),
+    onSuccess: () => {
+      invalidate();
+      setConfirmingCancelShipment(false);
+    },
+    onError: (err) => {
+      window.alert(err instanceof ApiError ? err.message : 'Could not cancel shipment.');
+      setConfirmingCancelShipment(false);
+    },
   });
 
   const trackingMutation = useMutation({
@@ -159,7 +167,15 @@ export function OrderDetailPage() {
             {order.items.map((item) => (
               <div key={item.id} className={styles.itemRow}>
                 <div>
-                  <p className={styles.itemName}>{item.productName}</p>
+                  <p className={styles.itemName}>
+                    {item.productName}
+                    {item.isBackordered && (
+                      <>
+                        {' '}
+                        <span className={sharedStyles.badgeWarning}>Make to Order</span>
+                      </>
+                    )}
+                  </p>
                   <p className={styles.itemMeta}>
                     SKU {item.productSku} · Qty {item.quantity}
                   </p>
@@ -359,9 +375,7 @@ export function OrderDetailPage() {
                       type="button"
                       className={sharedStyles.buttonDanger}
                       disabled={cancelMutation.isPending}
-                      onClick={() => {
-                        if (window.confirm('Cancel this shipment?')) cancelMutation.mutate();
-                      }}
+                      onClick={() => setConfirmingCancelShipment(true)}
                     >
                       Cancel Shipment
                     </button>
@@ -375,6 +389,18 @@ export function OrderDetailPage() {
           </section>
         </aside>
       </div>
+
+      {confirmingCancelShipment && (
+        <ConfirmDialog
+          title="Cancel shipment"
+          message="Cancel this shipment? This cannot be undone."
+          confirmLabel="Cancel Shipment"
+          cancelLabel="Keep Shipment"
+          isPending={cancelMutation.isPending}
+          onConfirm={() => cancelMutation.mutate()}
+          onCancel={() => setConfirmingCancelShipment(false)}
+        />
+      )}
     </div>
   );
 }

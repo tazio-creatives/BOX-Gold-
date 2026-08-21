@@ -126,6 +126,7 @@ export interface ProductSize {
   label: string;
   stockQuantity: number;
   availableStock: number;
+  weightGrams: number | null;
 }
 
 export interface ProductDetail {
@@ -143,7 +144,10 @@ export interface ProductDetail {
   goldColor: GoldColor | null;
   grossWeightGrams: number | null;
   netWeightGrams: number | null;
+  goldWeightGrams: number | null;
+  diamondWeightGrams: number | null;
   diamondWeightCarats: number | null;
+  diamondConfigName: string | null;
   diamondCount: number | null;
   diamondType: string | null;
   diamondColour: string | null;
@@ -198,7 +202,7 @@ export interface VariantPricePreview {
 
 export type SortOption = 'featured' | 'newest' | 'price_asc' | 'price_desc';
 export type MetalType = 'GOLD' | 'PLATINUM';
-export type Purity = '14K' | '18K' | '22K' | '24K';
+export type Purity = '9K' | '14K' | '18K' | '22K' | '24K';
 export type GoldColor = 'YELLOW' | 'ROSE' | 'WHITE';
 
 export interface CategoryFilterCounts {
@@ -238,7 +242,7 @@ export interface CartItem {
   availableStock: number;
   quantity: number;
   lineTotal: number;
-  isAvailable: boolean;
+  isBackordered: boolean;
 }
 
 // One product/size/color/purity/diamond-quality combination a shopper has
@@ -315,6 +319,7 @@ export interface OrderItem {
   goldColor: string | null;
   purity: string | null;
   diamondConfigName: string | null;
+  isBackordered: boolean;
 }
 
 export interface Review {
@@ -410,6 +415,7 @@ export interface BuyNowItem {
   purity?: string | null;
   diamondConfigId?: string | null;
   diamondConfigName?: string | null;
+  isBackordered?: boolean;
 }
 
 export interface CheckoutPayload {
@@ -433,5 +439,5 @@ export interface CouponApplyResponse {
 
 export interface CheckoutResponse {
   order: Order;
-  payment: { provider: string; providerRef: string };
+  payment: { provider: string; providerRef: string; paymentSessionId: string | null };
 }

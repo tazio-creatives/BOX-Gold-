@@ -64,16 +64,20 @@ export function PDPPage() {
     setPricePreview(null);
   }, [productSlug]);
 
-  // Purity and Diamond Quality change price — live-recomputed from the same
-  // engine cart/checkout use, so what's shown here (and what Buy Now
-  // carries into checkout) always matches what actually gets charged.
+  // Purity, Diamond Quality, and Size change price — live-recomputed from
+  // the same engine cart/checkout use, so what's shown here (and what Buy
+  // Now carries into checkout) always matches what actually gets charged.
+  // Size is always sent once picked; the backend decides whether that size
+  // actually has a weight override — sizes without one return the same
+  // numbers as before, so this is safe for the common case too.
   useEffect(() => {
     setPricePreview(null);
-    if (!productData?.product || (!selectedPurity && !selectedDiamondConfigId)) return;
+    if (!productData?.product || (!selectedPurity && !selectedDiamondConfigId && !selectedSizeId)) return;
     let cancelled = false;
     fetchVariantPricePreview(productData.product.id, {
       purity: selectedPurity,
       diamondConfigId: selectedDiamondConfigId,
+      sizeId: selectedSizeId,
     })
       .then((result) => {
         if (!cancelled) setPricePreview(result);
@@ -84,14 +88,15 @@ export function PDPPage() {
     return () => {
       cancelled = true;
     };
-  }, [productData?.product, selectedPurity, selectedDiamondConfigId]);
+  }, [productData?.product, selectedPurity, selectedDiamondConfigId, selectedSizeId]);
 
   // Price should always show the lowest available option first, so default
   // Purity/Diamond Quality to their cheapest configured value the moment a
-  // product with those axes loads — gold color has no price impact and
-  // isn't defaulted, size still requires a deliberate pick. Keyed on the
-  // product id (not on the selections themselves) so this only runs once
-  // per product load and never clobbers a shopper's own later choice.
+  // product with those axes loads. Gold Color defaults to Yellow when
+  // offered (falls back to whatever's first otherwise — no price impact
+  // either way), and Size defaults to the smallest available size. Keyed on
+  // the product id (not on the selections themselves) so this only runs
+  // once per product load and never clobbers a shopper's own later choice.
   useEffect(() => {
     const p = productData?.product;
     if (!p) return;
@@ -104,6 +109,18 @@ export function PDPPage() {
     if (p.diamondOptions.length > 0) {
       const cheapestDiamond = [...p.diamondOptions].sort((a, b) => a.ratePerCent - b.ratePerCent)[0];
       setSelectedDiamondConfigId(cheapestDiamond.id);
+    }
+    if (p.goldColorOptions.length > 0) {
+      setSelectedGoldColor(p.goldColorOptions.includes('YELLOW') ? 'YELLOW' : p.goldColorOptions[0]);
+    }
+    if (p.sizes.length > 0) {
+      const smallestSize = [...p.sizes].sort((a, b) => {
+        const na = parseInt(a.label, 10);
+        const nb = parseInt(b.label, 10);
+        if (Number.isNaN(na) || Number.isNaN(nb)) return 0;
+        return na - nb;
+      })[0];
+      setSelectedSizeId(smallestSize.id);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [productData?.product?.id]);
@@ -200,15 +217,32 @@ export function PDPPage() {
     );
   }
 
-  const isOutOfStock = product.availableStock <= 0;
+  const selectedSize = product.sizes.find((s) => s.id === selectedSizeId) ?? null;
+  // A product-level rollup is wrong once a specific size is picked — a
+  // product with some in-stock and some out-of-stock sizes must reflect the
+  // *selected* size's own stock, not the whole product's availableStock.
+  const isOutOfStock =
+    product.sizes.length > 0 ? (selectedSize ? selectedSize.availableStock <= 0 : false) : product.availableStock <= 0;
   const isLowStock = !isOutOfStock && product.availableStock <= LOW_STOCK_THRESHOLD;
 
-  const selectedSize = product.sizes.find((s) => s.id === selectedSizeId) ?? null;
   const selectedDiamondOption = product.diamondOptions.find((d) => d.id === selectedDiamondConfigId) ?? null;
   const displayPrice = pricePreview?.sellingPrice ?? product.sellingPrice;
   const displayMrp = pricePreview?.mrp ?? product.mrp;
   const displayDiscount = pricePreview?.discountPercent ?? product.discountPercent;
   const displayGstAmount = pricePreview?.gstAmount ?? product.priceBreakup.gstAmount;
+  // Pre-existing gap, not new to size pricing: this table always showed the
+  // static base breakup regardless of purity/diamond selection too — fixed
+  // here since size selection makes the mismatch much more visible (a
+  // bigger ring's weight swings gold value a lot more than most variants).
+  const displayBreakup = pricePreview
+    ? {
+        goldValue: pricePreview.goldValue,
+        diamondValue: pricePreview.diamondValue,
+        makingCharge: pricePreview.makingCharge,
+        gstAmount: pricePreview.gstAmount,
+        total: pricePreview.sellingPrice,
+      }
+    : product.priceBreakup;
 
   return (
     <div className={styles.page}>
@@ -269,6 +303,7 @@ export function PDPPage() {
                     purity: selectedPurity ?? null,
                     diamondConfigId: selectedDiamondConfigId ?? null,
                     diamondConfigName: selectedDiamondOption?.name ?? null,
+                    isBackordered: isOutOfStock,
                   },
                 },
               })
@@ -282,7 +317,7 @@ export function PDPPage() {
           </DetailsCard>
 
           <DetailsCard title="Price Breakup" className={styles.detailsCardHeading}>
-            <PriceBreakupTable breakup={product.priceBreakup} metalType={product.metalType} />
+            <PriceBreakupTable breakup={displayBreakup} metalType={product.metalType} />
           </DetailsCard>
         </div>
       </div>

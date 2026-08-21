@@ -10,10 +10,11 @@ import {
 import { DiamondConfigForm } from '../features/pricing/DiamondConfigForm';
 import type { DiamondConfig } from '../api/types';
 import { ApiError } from '../api/client';
+import { ConfirmDialog } from '../components/ConfirmDialog';
 import sharedStyles from '../styles/shared.module.css';
 import styles from './PricingPage.module.css';
 
-const PURITY_ORDER = ['24K', '22K', '18K', '14K'];
+const PURITY_ORDER = ['24K', '22K', '18K', '14K', '9K'];
 
 type DiamondMode = { type: 'none' } | { type: 'add' } | { type: 'edit'; config: DiamondConfig };
 
@@ -30,6 +31,7 @@ export function PricingPage() {
   const [error, setError] = useState<string | null>(null);
   const [showGoldHistory, setShowGoldHistory] = useState(false);
   const [diamondMode, setDiamondMode] = useState<DiamondMode>({ type: 'none' });
+  const [pendingDelete, setPendingDelete] = useState<DiamondConfig | null>(null);
 
   const { data: goldData, isLoading: isGoldLoading } = useQuery({
     queryKey: ['admin-gold-rates'],
@@ -75,8 +77,14 @@ export function PricingPage() {
 
   const deleteDiamondMutation = useMutation({
     mutationFn: deleteDiamondConfig,
-    onSuccess: invalidateDiamondConfigs,
-    onError: (err) => setError(err instanceof ApiError ? err.message : 'Could not delete diamond quality tier.'),
+    onSuccess: () => {
+      invalidateDiamondConfigs();
+      setPendingDelete(null);
+    },
+    onError: (err) => {
+      setError(err instanceof ApiError ? err.message : 'Could not delete diamond quality tier.');
+      setPendingDelete(null);
+    },
   });
 
   const goldRates = [...(goldData?.current ?? [])].sort(
@@ -241,13 +249,7 @@ export function PricingPage() {
                     >
                       Edit
                     </button>
-                    <button
-                      type="button"
-                      className={sharedStyles.buttonLink}
-                      onClick={() => {
-                        if (window.confirm(`Delete "${config.name}"?`)) deleteDiamondMutation.mutate(config.id);
-                      }}
-                    >
+                    <button type="button" className={sharedStyles.buttonLink} onClick={() => setPendingDelete(config)}>
                       Delete
                     </button>
                   </td>
@@ -257,6 +259,16 @@ export function PricingPage() {
           </table>
         )}
       </section>
+
+      {pendingDelete && (
+        <ConfirmDialog
+          title="Delete diamond quality tier"
+          message={`Delete "${pendingDelete.name}"? This cannot be undone.`}
+          isPending={deleteDiamondMutation.isPending}
+          onConfirm={() => deleteDiamondMutation.mutate(pendingDelete.id)}
+          onCancel={() => setPendingDelete(null)}
+        />
+      )}
     </div>
   );
 }

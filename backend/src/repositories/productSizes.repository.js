@@ -10,11 +10,20 @@ export async function replaceProductSizes(productId, sizes) {
 
   for (let i = 0; i < sizes.length; i++) {
     await query(
-      `INSERT INTO product_sizes (product_id, label, stock_quantity, sort_order)
-       VALUES ($1, $2, $3, $4)
+      `INSERT INTO product_sizes (product_id, label, stock_quantity, sort_order, weight_grams, diamond_weight_carats)
+       VALUES ($1, $2, $3, $4, $5, $6)
        ON CONFLICT (product_id, label)
-       DO UPDATE SET stock_quantity = EXCLUDED.stock_quantity, sort_order = EXCLUDED.sort_order, updated_at = now()`,
-      [productId, sizes[i].label, sizes[i].stockQuantity, i],
+       DO UPDATE SET stock_quantity = EXCLUDED.stock_quantity, sort_order = EXCLUDED.sort_order,
+                     weight_grams = EXCLUDED.weight_grams,
+                     diamond_weight_carats = EXCLUDED.diamond_weight_carats, updated_at = now()`,
+      [
+        productId,
+        sizes[i].label,
+        sizes[i].stockQuantity,
+        i,
+        sizes[i].weightGrams ?? null,
+        sizes[i].diamondWeightCarats ?? null,
+      ],
     );
   }
 

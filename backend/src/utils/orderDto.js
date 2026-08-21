@@ -55,6 +55,7 @@ export function toOrderDto(order, items = [], statusHistory = [], extra = {}) {
       goldColor: item.gold_color ?? null,
       purity: item.purity ?? null,
       diamondConfigName: item.diamond_config_name ?? null,
+      isBackordered: item.is_backordered,
     })),
     statusHistory: statusHistory.map((h) => ({
       status: h.status,

@@ -13,6 +13,7 @@ import {
 } from '../api/homepage';
 import type { HomepageItem, HomepageItemInput, HomepageSection, HomepageSectionType } from '../api/types';
 import { HomepageItemForm } from '../features/homepage/HomepageItemForm';
+import { ConfirmDialog } from '../components/ConfirmDialog';
 import sharedStyles from '../styles/shared.module.css';
 import styles from './HomepagePage.module.css';
 
@@ -82,6 +83,7 @@ export function HomepagePage() {
   const [addingItemTo, setAddingItemTo] = useState<string | null>(null);
   const [editingItem, setEditingItem] = useState<HomepageItem | null>(null);
   const [newSectionType, setNewSectionType] = useState<HomepageSectionType>('HERO');
+  const [pendingDeleteSection, setPendingDeleteSection] = useState<HomepageSection | null>(null);
 
   const invalidate = () => queryClient.invalidateQueries({ queryKey: ['admin-homepage'] });
 
@@ -96,7 +98,10 @@ export function HomepagePage() {
   });
   const deleteSectionMutation = useMutation({
     mutationFn: (id: string) => deleteSection(id),
-    onSuccess: invalidate,
+    onSuccess: () => {
+      invalidate();
+      setPendingDeleteSection(null);
+    },
   });
   const reorderSectionsMutation = useMutation({
     mutationFn: (order: number[]) => reorderSections(order),
@@ -220,11 +225,7 @@ export function HomepagePage() {
                 <button
                   type="button"
                   className={sharedStyles.buttonLink}
-                  onClick={() => {
-                    if (window.confirm(`Delete the "${section.type}" section?`)) {
-                      deleteSectionMutation.mutate(section.id);
-                    }
-                  }}
+                  onClick={() => setPendingDeleteSection(section)}
                 >
                   Delete
                 </button>
@@ -333,6 +334,16 @@ export function HomepagePage() {
           </div>
         ))}
       </div>
+
+      {pendingDeleteSection && (
+        <ConfirmDialog
+          title="Delete section"
+          message={`Delete the "${SECTION_TYPE_LABELS[pendingDeleteSection.type]}" section? This cannot be undone.`}
+          isPending={deleteSectionMutation.isPending}
+          onConfirm={() => deleteSectionMutation.mutate(pendingDeleteSection.id)}
+          onCancel={() => setPendingDeleteSection(null)}
+        />
+      )}
     </div>
   );
 }

@@ -28,6 +28,7 @@ import { adminImageEnhancementRouter } from './routes/admin/imageEnhancement.rou
 import { adminCategoriesRouter } from './routes/admin/categories.routes.js';
 import { adminCollectionsRouter } from './routes/admin/collections.routes.js';
 import { adminPricingRouter } from './routes/admin/pricing.routes.js';
+import { adminPresentersRouter } from './routes/admin/presenters.routes.js';
 import { adminShippingRouter } from './routes/admin/shipping.routes.js';
 import { adminOrdersRouter } from './routes/admin/orders.routes.js';
 import { adminDashboardRouter } from './routes/admin/dashboard.routes.js';
@@ -122,6 +123,7 @@ export function createApp() {
   adminCatalogRouter.use('/categories', adminCategoriesRouter);
   adminCatalogRouter.use('/collections', adminCollectionsRouter);
   adminCatalogRouter.use('/pricing', adminPricingRouter);
+  adminCatalogRouter.use('/presenters', adminPresentersRouter);
   adminCatalogRouter.use('/shipping', adminShippingRouter);
   adminCatalogRouter.use('/orders', adminOrdersRouter);
   adminCatalogRouter.use('/dashboard', adminDashboardRouter);

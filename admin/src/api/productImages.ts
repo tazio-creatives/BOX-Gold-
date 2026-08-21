@@ -36,7 +36,7 @@ export async function uploadProductImage(productId: string, file: File) {
     const body = await response.json().catch(() => ({}));
     throw new ApiError(response.status, body.error?.message ?? response.statusText, body.error?.fields);
   }
-  return response.json() as Promise<{ images: ImageGroup[]; aiImageJobId: string }>;
+  return response.json() as Promise<{ images: ImageGroup[] }>;
 }
 
 export function setPrimaryImage(productId: string, sortOrder: number) {

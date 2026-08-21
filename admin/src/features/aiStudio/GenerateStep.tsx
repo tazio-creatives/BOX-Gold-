@@ -1,14 +1,10 @@
 import { useEffect, useState } from 'react';
 import sharedStyles from '../../styles/shared.module.css';
 import type { StudioAsset } from '../../api/aiStudio';
+import { SHOT_LABELS, groupForAssetType, metalColorForAssetType, type AssetGroup } from './generationRules';
 import styles from './GenerateStep.module.css';
 
-const SHOT_LABELS: Record<StudioAsset['shotType'], string> = {
-  FRONT: 'Front Catalogue',
-  HERO_45: '45° Hero Angle',
-  PRESENTER: 'Presenter',
-  LIFESTYLE: 'Lifestyle Display',
-};
+const GROUP_ORDER: AssetGroup[] = ['Yellow Gold', 'Rose Gold', 'Presenter'];
 
 function elapsedLabel(startedAt: string | null, completedAt: string | null) {
   if (!startedAt) return null;
@@ -17,9 +13,15 @@ function elapsedLabel(startedAt: string | null, completedAt: string | null) {
   return `${seconds}s`;
 }
 
+interface GenerateStepProps {
+  assets: StudioAsset[];
+  onRegenerate: (_assetId: string) => void;
+  regeneratingAssetId: string | null;
+}
+
 // No fixed time estimate — real per-asset start/complete timestamps are
 // recorded server-side, and this just ticks a clock against them.
-export function GenerateStep({ assets }: { assets: StudioAsset[] }) {
+export function GenerateStep({ assets, onRegenerate, regeneratingAssetId }: GenerateStepProps) {
   const [, forceTick] = useState(0);
 
   useEffect(() => {
@@ -31,29 +33,55 @@ export function GenerateStep({ assets }: { assets: StudioAsset[] }) {
 
   return (
     <div>
-      <p>Generating all four shots — this typically takes a few minutes per image.</p>
-      <div className={styles.grid}>
-        {assets.map((asset) => (
-          <div key={asset.id} className={styles.tile}>
-            <p className={styles.shotLabel}>{SHOT_LABELS[asset.shotType]}</p>
-            <div className={styles.thumbWrapper}>
-              {asset.imageUrl ? (
-                <img src={asset.imageUrl} alt={SHOT_LABELS[asset.shotType]} className={styles.thumb} />
-              ) : (
-                <span className={sharedStyles.badgeNeutral}>{asset.status}</span>
-              )}
+      <p>Generating {assets.length} image{assets.length === 1 ? '' : 's'} — this typically takes a few minutes per image.</p>
+
+      {GROUP_ORDER.map((group) => {
+        const groupAssets = assets.filter((a) => groupForAssetType(a.assetType) === group);
+        if (groupAssets.length === 0) return null;
+        return (
+          <div key={group} className={styles.group}>
+            <h3 className={styles.groupTitle}>{group}</h3>
+            <div className={styles.grid}>
+              {groupAssets.map((asset) => (
+                <div key={asset.id} className={styles.tile}>
+                  <p className={styles.shotLabel}>{SHOT_LABELS[asset.assetType]}</p>
+                  <p className={styles.metalLabel}>{metalColorForAssetType(asset.assetType)} Gold</p>
+                  <div className={styles.thumbWrapper}>
+                    {asset.imageUrl ? (
+                      <img src={asset.imageUrl} alt={SHOT_LABELS[asset.assetType]} className={styles.thumb} />
+                    ) : (
+                      <span className={sharedStyles.badgeNeutral}>{asset.status}</span>
+                    )}
+                  </div>
+                  {asset.status === 'GENERATING' && (
+                    <span className={sharedStyles.badgeNeutral}>
+                      Generating… {elapsedLabel(asset.generationStartedAt, asset.generationCompletedAt)}
+                    </span>
+                  )}
+                  {asset.status === 'READY' && <span className={sharedStyles.badgeSuccess}>Ready</span>}
+                  {asset.status === 'FAILED' && <span className={sharedStyles.badgeDanger}>Failed</span>}
+                  {asset.status === 'PENDING' && <span className={sharedStyles.badgeNeutral}>Waiting…</span>}
+
+                  {['READY', 'FAILED'].includes(asset.status) && (
+                    <button
+                      type="button"
+                      className={sharedStyles.buttonLink}
+                      disabled={regeneratingAssetId === asset.id}
+                      onClick={() => onRegenerate(asset.id)}
+                    >
+                      {regeneratingAssetId === asset.id
+                        ? 'Requesting…'
+                        : asset.status === 'FAILED'
+                          ? 'Retry'
+                          : 'Regenerate'}
+                    </button>
+                  )}
+                </div>
+              ))}
             </div>
-            {asset.status === 'GENERATING' && (
-              <span className={sharedStyles.badgeNeutral}>
-                Generating… {elapsedLabel(asset.generationStartedAt, asset.generationCompletedAt)}
-              </span>
-            )}
-            {asset.status === 'READY' && <span className={sharedStyles.badgeSuccess}>Ready</span>}
-            {asset.status === 'FAILED' && <span className={sharedStyles.badgeDanger}>Failed</span>}
-            {asset.status === 'PENDING' && <span className={sharedStyles.badgeNeutral}>Waiting…</span>}
           </div>
-        ))}
-      </div>
+        );
+      })}
     </div>
   );
 }

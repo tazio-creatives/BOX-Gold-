@@ -41,8 +41,7 @@ export function SizeSelector({ sizes, selectedSizeId, onSelect }: SizeSelectorPr
         placeholder="Choose a size"
         options={sizes.map((size) => ({
           value: size.id,
-          label: size.label + (size.availableStock <= 0 ? ' — Out of stock' : ''),
-          disabled: size.availableStock <= 0,
+          label: size.label + (size.availableStock <= 0 ? ' — Make to Order' : ''),
         }))}
         onChange={onSelect}
         className={styles.selectWidth}

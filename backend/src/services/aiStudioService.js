@@ -110,40 +110,145 @@ export async function analyseJewellery(imageBuffer, mimetype) {
 
 const FIDELITY_BLOCK = `The uploaded jewellery reference is the definitive product. Preserve its exact jewellery type, stone count and apparent arrangement, stone shape and position, prongs and setting, metal colour, band or chain proportions, clasps, and every other distinctive construction detail. Do not redesign, reinterpret or add/remove/resize/reposition any component. Photorealistic, premium e-commerce jewellery photography. No text, logos, or watermarks.`;
 
-const PRESENTER_STYLE_DESCRIPTION = {
-  CONTEMPORARY: 'a contemporary presenter with clean, modern, premium studio styling and neutral warm lighting',
-  TRADITIONAL: 'a traditional presenter with graceful ethnic/festive styling and warm ambient lighting',
+// The 7-value asset vocabulary replaces the old 4-value shot_type — metal
+// color is now encoded directly in the identifier (e.g. ROSE_FRONT) instead
+// of being a separate per-job field, since a single job can now produce both
+// Yellow and Rose Gold shots side by side.
+export const ASSET_TYPES = [
+  'YELLOW_FRONT',
+  'YELLOW_HERO_45',
+  'ROSE_FRONT',
+  'ROSE_HERO_45',
+  'PRESENTER_YELLOW_1',
+  'PRESENTER_YELLOW_2',
+  'PRESENTER_ROSE',
+];
+
+// Mirrors the DB CHECK constraint in the ai_studio_presenters migration —
+// must stay in lockstep with it, this is the single source of truth on the
+// JS side.
+export const ASSET_DISPLAY_ORDER = {
+  YELLOW_FRONT: 0,
+  YELLOW_HERO_45: 1,
+  ROSE_FRONT: 2,
+  ROSE_HERO_45: 3,
+  PRESENTER_YELLOW_1: 4,
+  PRESENTER_YELLOW_2: 5,
+  PRESENTER_ROSE: 6,
 };
 
-function buildPrompt({ shotType, template, metalColor, presenterStyle }) {
-  const metalNote = metalColor ? ` The metal colour is ${metalColor.toLowerCase()} gold — preserve it exactly.` : '';
-  switch (shotType) {
-    case 'FRONT':
-      return `${template.front_prompt}${metalNote} ${FIDELITY_BLOCK}`;
-    case 'HERO_45':
-      return `${template.hero_45_prompt}${metalNote} ${FIDELITY_BLOCK}`;
-    case 'PRESENTER':
-      return `Show the exact jewellery worn naturally by ${PRESENTER_STYLE_DESCRIPTION[presenterStyle]}, framed as a ${template.presenter_placement} (${template.presenter_crop} crop).${metalNote} ${FIDELITY_BLOCK}`;
-    case 'LIFESTYLE':
-      return `${template.lifestyle_prompt}${metalNote} ${FIDELITY_BLOCK}`;
+// Which asset types get generated for a job, driven purely by the Rose Gold
+// toggle and whether a presenter was picked. Yellow Gold catalogue shots are
+// always present — Rose Gold and presenter shots are additive. When both
+// rose gold and a presenter are on, PRESENTER_YELLOW_1 + PRESENTER_ROSE form
+// a matched pose pair (same pose, two metals); PRESENTER_YELLOW_2 (a second,
+// different-angle yellow view) is reserved for the no-rose-gold+presenter
+// case, where there's no rose shot to pair against instead.
+export function resolveAssetTypesForJob({ generateRoseGold, hasPresenter }) {
+  const types = ['YELLOW_FRONT', 'YELLOW_HERO_45'];
+  if (generateRoseGold) types.push('ROSE_FRONT', 'ROSE_HERO_45');
+  if (hasPresenter) {
+    types.push('PRESENTER_YELLOW_1');
+    types.push(generateRoseGold ? 'PRESENTER_ROSE' : 'PRESENTER_YELLOW_2');
+  }
+  return types;
+}
+
+export function metalColorForAssetType(assetType) {
+  return assetType.startsWith('ROSE_') || assetType === 'PRESENTER_ROSE' ? 'ROSE' : 'YELLOW';
+}
+
+// Which of a presenter's 4 reference photos to use as the second input image
+// for a given presenter asset type — PRESENTER_YELLOW_1/PRESENTER_ROSE share
+// a pose (the matched comparison pair), PRESENTER_YELLOW_2 uses a different
+// angle so it isn't a near-duplicate of PRESENTER_YELLOW_1 within the same job.
+const PRESENTER_POSE_REFERENCE = {
+  PRESENTER_YELLOW_1: 'front_portrait_url',
+  PRESENTER_ROSE: 'front_portrait_url',
+  PRESENTER_YELLOW_2: 'face_45_url',
+};
+
+// Catalogue shots — exact spec supplied by the client, not an invented
+// approximation: a metal-matched ivory backdrop (warm for yellow gold, cool
+// for rose gold) with named hex values for the base/highlight/shadow, rather
+// than pure white or the templates' own vaguer "seamless neutral studio
+// background" wording.
+const CATALOGUE_SIZE_NOTE = 'Create a premium square jewellery catalogue photograph at 816 × 816px.';
+
+const YELLOW_GOLD_BACKGROUND_NOTE =
+  ' Use a clean warm-ivory seamless studio background with base colour #F7F1E7, a subtle #FFFCF7 highlight and a soft #E7D9C6 grounding shadow.';
+
+const ROSE_GOLD_BACKGROUND_NOTE =
+  ' Use a clean cool-ivory seamless studio background with base colour #F5F2F0, a subtle #FFFAF8 highlight and a soft #DDD4D1 grounding shadow.';
+
+const CATALOGUE_LIGHTING_NOTE =
+  ' Use diffused premium studio lighting from the upper left, realistic metal reflections, controlled diamond sparkle and a soft natural shadow beneath the jewellery. Keep the product centred and occupying approximately 70-78% of the frame. Do not add props, text, hands, packaging, flowers, fabric or decorative elements.';
+
+// Presenter shots stay off pure white on purpose — a plain white backdrop
+// behind a person reads as a passport photo, not premium jewellery
+// presentation. Instead the backdrop colour is chosen to complement whatever
+// the presenter reference photo actually shows (skin tone, hair, outfit),
+// rather than being hardcoded per presenter (no such field exists on the
+// presenters table, and a text instruction lets the model read it directly
+// off the attached reference image).
+const PRESENTER_BACKGROUND_NOTE =
+  ' Use a soft, solid studio backdrop colour that elegantly complements the presenter shown in the attached reference photo — coordinated with their skin tone, hair colour, and styling — refined and premium, not a busy pattern and not pure white.';
+
+function buildPrompt({ assetType, template, presenter }) {
+  const metalColor = metalColorForAssetType(assetType);
+  const metalNote = ` The metal colour is ${metalColor.toLowerCase()} gold — preserve it exactly.`;
+  const backgroundNote = metalColor === 'ROSE' ? ROSE_GOLD_BACKGROUND_NOTE : YELLOW_GOLD_BACKGROUND_NOTE;
+  switch (assetType) {
+    case 'YELLOW_FRONT':
+    case 'ROSE_FRONT':
+      return `${CATALOGUE_SIZE_NOTE} ${template.front_prompt}${metalNote}${backgroundNote}${CATALOGUE_LIGHTING_NOTE} ${FIDELITY_BLOCK}`;
+    case 'YELLOW_HERO_45':
+    case 'ROSE_HERO_45':
+      return `${CATALOGUE_SIZE_NOTE} ${template.hero_45_prompt}${metalNote}${backgroundNote}${CATALOGUE_LIGHTING_NOTE} ${FIDELITY_BLOCK}`;
+    case 'PRESENTER_YELLOW_1':
+    case 'PRESENTER_YELLOW_2':
+    case 'PRESENTER_ROSE': {
+      const descriptor = presenter.prompt_descriptor || `a presenter styled as "${presenter.style_label}"`;
+      return `Show the exact jewellery worn naturally by ${descriptor}, matching the attached presenter reference photo, framed as a ${template.presenter_placement} (${template.presenter_crop} crop).${metalNote}${PRESENTER_BACKGROUND_NOTE} ${FIDELITY_BLOCK}`;
+    }
     default:
-      throw new Error(`Unknown shot type "${shotType}"`);
+      throw new Error(`Unknown asset type "${assetType}"`);
   }
 }
 
-// One images.edit() call per shot, always against the ORIGINAL reference
-// buffer — never a previously-generated shot (plan §4 correction: "Every
-// generated image must use the original reference image"). No resize here;
-// full-res output is stored as-is, variant derivation happens once on import.
-export async function generateShot({ referenceBuffer, mimetype, template, shotType, metalColor, presenterStyle }) {
+function extensionFor(mimetype) {
+  return mimetype === 'image/png' ? 'png' : mimetype === 'image/webp' ? 'webp' : 'jpg';
+}
+
+// One images.edit() call per asset, always against the ORIGINAL jewellery
+// reference buffer — never a previously-generated shot (plan §4 correction:
+// "Every generated image must use the original reference image"). Presenter
+// asset types additionally pass the presenter's own reference photo as a
+// second input image — gpt-image-2 accepts an array of images per edit call
+// — so the model composites the real jewellery onto a real presenter photo
+// rather than only working from a text description. No resize here; full-res
+// output is stored as-is, variant derivation happens once on import.
+export async function generateShot({
+  referenceBuffer,
+  mimetype,
+  template,
+  assetType,
+  presenter,
+  presenterReferenceBuffer,
+}) {
   const openai = getClient();
-  const extension = mimetype === 'image/png' ? 'png' : mimetype === 'image/webp' ? 'webp' : 'jpg';
-  const prompt = buildPrompt({ shotType, template, metalColor, presenterStyle });
+  const extension = extensionFor(mimetype);
+  const prompt = buildPrompt({ assetType, template, presenter });
 
   try {
+    const referenceFile = await toFile(referenceBuffer, `reference.${extension}`, { type: mimetype });
+    const image = presenterReferenceBuffer
+      ? [referenceFile, await toFile(presenterReferenceBuffer, `presenter.jpeg`, { type: 'image/jpeg' })]
+      : referenceFile;
+
     const response = await openai.images.edit({
       model: env.openaiImageModel,
-      image: await toFile(referenceBuffer, `reference.${extension}`, { type: mimetype }),
+      image,
       prompt,
       size: '1024x1024',
       quality: 'high',
@@ -158,4 +263,8 @@ export async function generateShot({ referenceBuffer, mimetype, template, shotTy
     if (err instanceof AppError) throw err;
     throw mapOpenAiError(err);
   }
+}
+
+export function presenterReferenceKeyFor(assetType) {
+  return PRESENTER_POSE_REFERENCE[assetType] ?? null;
 }
