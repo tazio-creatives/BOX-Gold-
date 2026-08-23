@@ -60,6 +60,14 @@ const SECTION_TYPE_LABELS: Record<HomepageSectionType, string> = {
   CATEGORY_PRODUCTS: 'Category Products',
 };
 
+// The item's own image takes priority over whatever it's linked to — mirrors
+// the same fallback order the storefront itself uses to render a tile
+// (CategoryShowcase's imageFor), so what the admin sees here previewing an
+// item matches what actually renders publicly.
+function imageForItem(item: HomepageItem): string | null {
+  return item.imageUrl ?? item.category?.imageUrl ?? item.product?.imageUrl ?? null;
+}
+
 function SectionHeadingInput({ value, onCommit }: { value: string; onCommit: (value: string) => void }) {
   const [draft, setDraft] = useState(value);
   return (
@@ -79,7 +87,6 @@ export function HomepagePage() {
   const queryClient = useQueryClient();
   const { data, isLoading } = useQuery({ queryKey: ['admin-homepage'], queryFn: fetchHomepageSections });
 
-  const [expandedId, setExpandedId] = useState<string | null>(null);
   const [addingItemTo, setAddingItemTo] = useState<string | null>(null);
   const [editingItem, setEditingItem] = useState<HomepageItem | null>(null);
   const [newSectionType, setNewSectionType] = useState<HomepageSectionType>('HERO');
@@ -212,19 +219,6 @@ export function HomepagePage() {
                 <button
                   type="button"
                   className={sharedStyles.buttonLink}
-                  onClick={() => setExpandedId(expandedId === section.id ? null : section.id)}
-                >
-                  {expandedId === section.id
-                    ? 'Hide Items'
-                    : section.type === 'BENTO_CATEGORIES'
-                      ? 'Auto-synced from Categories'
-                      : section.type === 'NEW_ARRIVALS' || section.type === 'FEATURED_PRODUCT'
-                        ? 'Auto-synced from Products'
-                        : `Items (${section.items.length})`}
-                </button>
-                <button
-                  type="button"
-                  className={sharedStyles.buttonLink}
                   onClick={() => setPendingDeleteSection(section)}
                 >
                   Delete
@@ -232,7 +226,7 @@ export function HomepagePage() {
               </div>
             </div>
 
-            {expandedId === section.id && section.type === 'BENTO_CATEGORIES' && (
+            {section.type === 'BENTO_CATEGORIES' && (
               <div className={styles.itemsPanel}>
                 <p className={sharedStyles.empty}>
                   Tiles for this section are generated automatically from your active top-level categories (manage
@@ -242,7 +236,7 @@ export function HomepagePage() {
               </div>
             )}
 
-            {expandedId === section.id && section.type === 'NEW_ARRIVALS' && (
+            {section.type === 'NEW_ARRIVALS' && (
               <div className={styles.itemsPanel}>
                 <p className={sharedStyles.empty}>
                   Tiles for this section are generated automatically from your 8 most recently published products
@@ -252,7 +246,7 @@ export function HomepagePage() {
               </div>
             )}
 
-            {expandedId === section.id && section.type === 'FEATURED_PRODUCT' && (
+            {section.type === 'FEATURED_PRODUCT' && (
               <div className={styles.itemsPanel}>
                 <p className={sharedStyles.empty}>
                   This section shows whichever products you've marked "Featured" on the Products page (use the star
@@ -261,7 +255,7 @@ export function HomepagePage() {
               </div>
             )}
 
-            {expandedId === section.id && !AUTO_SYNCED_TYPES.includes(section.type) && (
+            {!AUTO_SYNCED_TYPES.includes(section.type) && (
               <div className={styles.itemsPanel}>
                 {section.type === 'CATEGORY_PRODUCTS' && (
                   <p className={sharedStyles.empty}>
@@ -280,6 +274,11 @@ export function HomepagePage() {
                     />
                   ) : (
                     <div key={item.id} className={styles.itemRow}>
+                      {imageForItem(item) ? (
+                        <img src={imageForItem(item) as string} alt="" className={styles.itemThumb} />
+                      ) : (
+                        <span className={styles.itemThumbPlaceholder} />
+                      )}
                       <div className={styles.moveButtons}>
                         <button type="button" onClick={() => moveItem(section, itemIndex, -1)} disabled={itemIndex === 0}>
                           ↑

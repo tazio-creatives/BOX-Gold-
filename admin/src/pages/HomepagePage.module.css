@@ -97,6 +97,23 @@
   border-radius: var(--radius-sm);
 }
 
+.itemThumb {
+  width: 36px;
+  height: 36px;
+  border-radius: var(--radius-sm);
+  object-fit: cover;
+  flex: none;
+}
+
+.itemThumbPlaceholder {
+  width: 36px;
+  height: 36px;
+  border-radius: var(--radius-sm);
+  background: var(--color-bg);
+  border: 1px dashed var(--color-border);
+  flex: none;
+}
+
 .itemHeading {
   font-size: var(--text-sm);
   min-width: 160px;

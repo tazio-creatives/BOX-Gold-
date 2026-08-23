@@ -98,7 +98,7 @@ export function ProductFormPage() {
   // Making Charge is entered as a % of gold value, not a flat rupee amount —
   // form.makingCharge (the flat figure the API actually stores/uses) is kept
   // in sync below whenever this percent or the live gold value changes.
-  const [makingChargePercent, setMakingChargePercent] = useState(0);
+  const [makingChargePercent, setMakingChargePercent] = useState<number | ''>(0);
 
   useEffect(() => {
     if (productData) {
@@ -214,7 +214,7 @@ export function ProductFormPage() {
   // with the % the admin enters, recomputed off the live gold value exactly
   // like the auto-preview effect below keeps goldValue itself current.
   useEffect(() => {
-    const computed = Math.round(((form.goldValue ?? 0) * makingChargePercent) / 100 * 100) / 100;
+    const computed = Math.round(((form.goldValue ?? 0) * (makingChargePercent || 0)) / 100 * 100) / 100;
     setForm((f) => (f.makingCharge === computed ? f : { ...f, makingCharge: computed }));
   }, [makingChargePercent, form.goldValue]);
 
@@ -451,8 +451,8 @@ export function ProductFormPage() {
               Stock Quantity
               <input
                 type="number"
-                value={form.stockQuantity ?? 0}
-                onChange={(e) => set('stockQuantity', Number(e.target.value))}
+                value={form.stockQuantity ?? ''}
+                onChange={(e) => set('stockQuantity', e.target.value ? Number(e.target.value) : undefined)}
               />
             </label>
           </div>
@@ -627,10 +627,6 @@ export function ProductFormPage() {
               Certification
               <input value={form.certification ?? ''} onChange={(e) => set('certification', e.target.value)} />
             </label>
-            <label className={sharedStyles.field}>
-              Size
-              <input value={form.productSize ?? ''} onChange={(e) => set('productSize', e.target.value)} />
-            </label>
           </div>
 
           <div className={`${sharedStyles.formGrid} ${sharedStyles.formSection}`}>
@@ -640,7 +636,7 @@ export function ProductFormPage() {
                 type="number"
                 step="0.01"
                 value={makingChargePercent}
-                onChange={(e) => setMakingChargePercent(Number(e.target.value))}
+                onChange={(e) => setMakingChargePercent(e.target.value === '' ? '' : Number(e.target.value))}
               />
               <span className={styles.sectionHint}>≈ {formatPrice(form.makingCharge ?? 0)}</span>
             </label>
@@ -649,13 +645,17 @@ export function ProductFormPage() {
               <input
                 type="number"
                 step="0.01"
-                value={form.gstPercent ?? 3}
-                onChange={(e) => set('gstPercent', Number(e.target.value))}
+                value={form.gstPercent ?? ''}
+                onChange={(e) => set('gstPercent', e.target.value ? Number(e.target.value) : undefined)}
               />
             </label>
             <label className={sharedStyles.field}>
               MRP (₹)
-              <input type="number" value={form.mrp ?? 0} onChange={(e) => set('mrp', Number(e.target.value))} />
+              <input
+                type="number"
+                value={form.mrp ?? ''}
+                onChange={(e) => set('mrp', e.target.value ? Number(e.target.value) : undefined)}
+              />
             </label>
           </div>
 
@@ -701,8 +701,7 @@ export function ProductFormPage() {
           <p className={styles.sectionHint}>
             Optional — leave empty for products that don't need a size choice. When set, shoppers must
             pick one of these before adding to cart, each size tracks its own stock, and can optionally
-            override the product's gold weight and/or diamond weight for that size's price (e.g. a bigger
-            size uses more gold, more diamonds, or both).
+            override the product's gold weight for that size's price (e.g. a bigger size uses more gold).
           </p>
           <div className={styles.sizeRows}>
             {(form.sizes ?? []).map((size, i) => (
@@ -727,8 +726,10 @@ export function ProductFormPage() {
                     <input
                       type="number"
                       min="0"
-                      value={size.stockQuantity}
-                      onChange={(e) => updateSizeRow(i, { stockQuantity: Number(e.target.value) })}
+                      value={size.stockQuantity === 0 ? '' : size.stockQuantity}
+                      onChange={(e) =>
+                        updateSizeRow(i, { stockQuantity: e.target.value === '' ? 0 : Number(e.target.value) })
+                      }
                     />
                   </label>
                   <label className={sharedStyles.field}>
@@ -741,21 +742,6 @@ export function ProductFormPage() {
                       value={size.weightGrams ?? ''}
                       onChange={(e) =>
                         updateSizeRow(i, { weightGrams: e.target.value ? Number(e.target.value) : null })
-                      }
-                    />
-                  </label>
-                  <label className={sharedStyles.field}>
-                    Diamond Weight (ct) — optional
-                    <input
-                      type="number"
-                      step="0.001"
-                      min="0"
-                      placeholder="Uses product diamond weight"
-                      value={size.diamondWeightCarats ?? ''}
-                      onChange={(e) =>
-                        updateSizeRow(i, {
-                          diamondWeightCarats: e.target.value ? Number(e.target.value) : null,
-                        })
                       }
                     />
                   </label>
