@@ -184,6 +184,22 @@ const ROSE_GOLD_BACKGROUND_NOTE =
 const CATALOGUE_LIGHTING_NOTE =
   ' Use diffused premium studio lighting from the upper left, realistic metal reflections, controlled diamond sparkle and a soft natural shadow beneath the jewellery. Keep the product centred and occupying approximately 70-78% of the frame. Do not add props, text, hands, packaging, flowers, fabric or decorative elements.';
 
+// 45° Hero Angle — exact spec supplied by the client, replacing the generic
+// per-category template.hero_45_prompt entirely for this one asset type
+// (its own rotation/elevation/framing geometry, background, and exclusion
+// list — self-contained, not layered with CATALOGUE_SIZE_NOTE/backgroundNote/
+// CATALOGUE_LIGHTING_NOTE above, which would just contradict its numbers).
+// FRONT and presenter prompts are untouched.
+const HERO_45_PROMPT =
+  'Create a premium square jewellery catalogue image at 816 × 816px using the uploaded jewellery as the exact product reference. ' +
+  'Position the jewellery in a three-quarter hero view: rotate the product approximately 40 degrees horizontally from the straight front position, use approximately 15-20 degree camera elevation, keep the main decorative face directed toward the camera, and clearly show the front design, setting height, band thickness and one side profile. ' +
+  'Do not rotate the product so far that the primary design becomes hidden. ' +
+  'Centre the jewellery precisely, make the product occupy approximately 70-75% of the frame width, and minimise unnecessary empty background space. ' +
+  'Add a subtle natural grounding shadow directly below the jewellery. Do not make the jewellery appear to float. ' +
+  'Preserve the exact original jewellery design, metal colour, stone count, stone positions, stone shapes, prongs, settings, proportions and band structure. Do not add, remove, relocate or redesign any component. ' +
+  'Use a clean seamless warm-ivory studio background with diffused lighting, controlled diamond sparkle, sharp product focus and realistic metal reflections. ' +
+  'Do not include hands, presenters, props, packaging, text, flowers, fabric or decorative elements.';
+
 // Presenter shots stay off pure white on purpose — a plain white backdrop
 // behind a person reads as a passport photo, not premium jewellery
 // presentation. Instead the backdrop colour is chosen to complement whatever
@@ -204,7 +220,7 @@ function buildPrompt({ assetType, template, presenter }) {
       return `${CATALOGUE_SIZE_NOTE} ${template.front_prompt}${metalNote}${backgroundNote}${CATALOGUE_LIGHTING_NOTE} ${FIDELITY_BLOCK}`;
     case 'YELLOW_HERO_45':
     case 'ROSE_HERO_45':
-      return `${CATALOGUE_SIZE_NOTE} ${template.hero_45_prompt}${metalNote}${backgroundNote}${CATALOGUE_LIGHTING_NOTE} ${FIDELITY_BLOCK}`;
+      return `${HERO_45_PROMPT}${metalNote}`;
     case 'PRESENTER_YELLOW_1':
     case 'PRESENTER_YELLOW_2':
     case 'PRESENTER_ROSE': {

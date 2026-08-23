@@ -11,6 +11,7 @@ import { storageProvider } from '../providers/storage/index.js';
 import { processAndStoreImage } from '../services/imageProcessingService.js';
 import { withTransaction } from '../config/db.js';
 import { findProductById, findProductImages } from '../repositories/products.repository.js';
+import { keyFromUrl } from '../utils/storageKey.js';
 import {
   findActiveJobByProduct,
   insertJob,
@@ -48,10 +49,6 @@ const selectionSchema = z.object({
   isFeatured: z.boolean().optional(),
 });
 
-function keyFromUrl(url) {
-  return new URL(url).pathname.replace(/^\/uploads\//, '');
-}
-
 // API responses never include raw storage keys, prompts, or generation
 // internals (plan §11) — only public URLs and safe status fields.
 function assetDto(asset) {
@@ -60,7 +57,7 @@ function assetDto(asset) {
     assetType: asset.asset_type,
     displayOrder: asset.display_order,
     status: asset.status,
-    imageUrl: asset.image_key ? `${env.uploadsPublicBaseUrl}/${asset.image_key}` : null,
+    imageUrl: asset.image_key ? storageProvider.urlFor(asset.image_key) : null,
     qualityAssessment: asset.quality_assessment,
     selected: asset.selected,
     isFeatured: asset.is_featured,

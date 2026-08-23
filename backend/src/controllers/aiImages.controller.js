@@ -1,4 +1,5 @@
 import { AppError, NotFoundError } from '../utils/AppError.js';
+import { keyFromUrl } from '../utils/storageKey.js';
 import { storageProvider } from '../providers/storage/index.js';
 import { processAndStoreImage } from '../services/imageProcessingService.js';
 import { boss } from '../jobs/queue.js';
@@ -44,10 +45,6 @@ export async function getStatus(req, res, next) {
   } catch (err) {
     next(err);
   }
-}
-
-function keyFromUrl(url) {
-  return new URL(url).pathname.replace(/^\/uploads\//, '');
 }
 
 // Promotes one AI candidate into the real product gallery — runs it through

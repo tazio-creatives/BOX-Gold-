@@ -87,6 +87,18 @@ export const env = {
   maxUploadSizeMb: Number(process.env.MAX_UPLOAD_SIZE_MB ?? 10),
   aiImageProvider: process.env.AI_IMAGE_PROVIDER ?? 'stub',
 
+  // S3 storage provider — only read when STORAGE_PROVIDER=s3. Credentials
+  // come from the environment (or, if unset on an EC2 host, the instance's
+  // attached IAM role via the SDK's default credential chain — never
+  // hardcoded). s3PublicBaseUrl defaults to the bucket's virtual-hosted-style
+  // URL but can be overridden to a CloudFront/custom domain later without
+  // any code change.
+  s3Bucket: process.env.S3_BUCKET,
+  s3Region: process.env.S3_REGION ?? 'ap-south-1',
+  s3AccessKeyId: process.env.AWS_ACCESS_KEY_ID,
+  s3SecretAccessKey: process.env.AWS_SECRET_ACCESS_KEY,
+  s3PublicBaseUrl: process.env.S3_PUBLIC_BASE_URL || null,
+
   // Jewellery photo quality enhancement — OpenAI Images Edit API, called
   // directly (not through the aiImage provider registry above, which is a
   // different feature: candidate redesign variants vs. this single

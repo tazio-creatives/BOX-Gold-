@@ -1,6 +1,7 @@
 import { reorderImagesSchema } from '../validators/productImages.validators.js';
 import { processAndStoreImage } from '../services/imageProcessingService.js';
 import { storageProvider } from '../providers/storage/index.js';
+import { keyFromUrl } from '../utils/storageKey.js';
 import { AppError, NotFoundError } from '../utils/AppError.js';
 import { findProductById, findProductImages } from '../repositories/products.repository.js';
 import {
@@ -120,8 +121,7 @@ export async function remove(req, res, next) {
     // the admin actually asked for.
     await Promise.allSettled(
       deleted.map((row) => {
-        const key = new URL(row.url).pathname.replace(/^\/uploads\//, '');
-        return storageProvider.delete(key);
+        return storageProvider.delete(keyFromUrl(row.url));
       }),
     );
     res.status(204).end();

@@ -11,13 +11,10 @@ import {
   findCategoryTemplate,
 } from '../repositories/aiStudio.repository.js';
 import { findPresenterById } from '../repositories/presenters.repository.js';
+import { keyFromUrl } from '../utils/storageKey.js';
 
 export const JOB_AI_STUDIO_ANALYSE = 'ai-studio-analyse';
 export const JOB_AI_STUDIO_GENERATE = 'ai-studio-generate';
-
-function keyFromUrl(url) {
-  return new URL(url).pathname.replace(/^\/uploads\//, '');
-}
 
 // pg-boss v10's work() callback receives an array of jobs (batch fetch) even
 // though boss.send() always enqueues one at a time — same gotcha as every
