@@ -60,12 +60,8 @@ const SECTION_TYPE_LABELS: Record<HomepageSectionType, string> = {
   CATEGORY_PRODUCTS: 'Category Products',
 };
 
-// The item's own image takes priority over whatever it's linked to — mirrors
-// the same fallback order the storefront itself uses to render a tile
-// (CategoryShowcase's imageFor), so what the admin sees here previewing an
-// item matches what actually renders publicly.
 function imageForItem(item: HomepageItem): string | null {
-  return item.imageUrl ?? item.category?.imageUrl ?? item.product?.imageUrl ?? null;
+  return item.imageUrl;
 }
 
 function SectionHeadingInput({ value, onCommit }: { value: string; onCommit: (value: string) => void }) {
