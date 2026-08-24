@@ -95,6 +95,11 @@ export function ProductFormPage() {
   const [preview, setPreview] = useState<{ goldValue: number; diamondValue: number; sellingPrice: number } | null>(null);
   const [isPreviewing, setIsPreviewing] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // Kept separate from the page-level `error` (shown far below, near Save)
+  // so a failed auto-preview — e.g. diamond carat entered before diamond
+  // quality is picked — is visible right where the admin is looking,
+  // instead of silently leaving the price at ₹0 with no explanation.
+  const [pricingError, setPricingError] = useState<string | null>(null);
   // Making Charge is entered as a % of gold value, not a flat rupee amount —
   // form.makingCharge (the flat figure the API actually stores/uses) is kept
   // in sync below whenever this percent or the live gold value changes.
@@ -316,7 +321,7 @@ export function ProductFormPage() {
         gstPercent: form.gstPercent ?? 3,
       });
       setPreview(result);
-      setError(null);
+      setPricingError(null);
       // Auto-apply the computed breakdown so a saved product's Price
       // Breakup is correct immediately — sellingPrice stays admin-set
       // ("Use this price" below applies it explicitly).
@@ -324,7 +329,7 @@ export function ProductFormPage() {
       return true;
     } catch (err) {
       setPreview(null);
-      setError(err instanceof ApiError ? err.message : 'Could not preview pricing.');
+      setPricingError(err instanceof ApiError ? err.message : 'Could not preview pricing.');
       return false;
     } finally {
       setIsPreviewing(false);
@@ -663,6 +668,7 @@ export function ProductFormPage() {
             <button type="button" className={sharedStyles.button} onClick={runPreview} disabled={isPreviewing}>
               {isPreviewing ? 'Calculating…' : 'Preview Live Price'}
             </button>
+            {pricingError && <p className={sharedStyles.error}>{pricingError}</p>}
             {preview && (
               <div className={styles.previewResult}>
                 <span>Gold/Metal: {formatPrice(preview.goldValue)}</span>
