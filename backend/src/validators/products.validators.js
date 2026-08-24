@@ -33,7 +33,6 @@ export const createProductSchema = z.object({
   metalType: z.enum(METAL_TYPES),
   purity: z.enum(PURITIES).nullable().optional(),
   goldColor: z.enum(GOLD_COLORS).nullable().optional(),
-  grossWeightGrams: z.coerce.number().positive().nullable().optional(),
   goldWeightGrams: z.coerce.number().positive().nullable().optional(),
   diamondWeightGrams: z.coerce.number().nonnegative().nullable().optional(),
   diamondWeightCarats: z.coerce.number().nonnegative().nullable().optional(),

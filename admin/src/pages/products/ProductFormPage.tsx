@@ -608,12 +608,13 @@ export function ProductFormPage() {
                 type="number"
                 step="0.001"
                 min="0"
-                placeholder="Added into Net Weight"
+                placeholder="Added into Gross Weight"
                 value={form.diamondWeightGrams ?? ''}
                 onChange={(e) => set('diamondWeightGrams', e.target.value ? Number(e.target.value) : null)}
               />
               <span className={styles.sectionHint}>
-                Net Weight ≈ {(Number(form.goldWeightGrams ?? 0) + Number(form.diamondWeightGrams ?? 0)).toFixed(3)} g
+                Gross Weight ≈ {(Number(form.goldWeightGrams ?? 0) + Number(form.diamondWeightGrams ?? 0)).toFixed(3)} g
+                {' '}(Net Weight = Gold Weight only)
               </span>
             </label>
             <label className={sharedStyles.field}>

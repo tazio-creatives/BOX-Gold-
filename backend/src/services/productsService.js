@@ -27,12 +27,16 @@ import { findDiamondConfigById } from '../repositories/diamondConfigs.repository
 import { computeVariantPricing } from './pricingService.js';
 import { invalidateProductPages } from './pageCacheInvalidation.js';
 
-// net_weight_grams is derived, not admin-entered directly — it's the total
-// finished-piece weight (gold weight + diamond weight) shown to customers,
-// while gold_weight_grams alone is what pricingService.computeGoldValue
-// prices against (pricing a diamond's physical weight as gold would be
-// wrong even though "net weight" here means the combined total).
-function deriveNetWeightGrams(goldWeightGrams, diamondWeightGrams) {
+// Both net_weight_grams and gross_weight_grams are derived, not
+// admin-entered directly. Net weight is the precious-metal-only weight
+// (what pricingService.computeGoldValue actually prices against); gross
+// weight is the total finished-piece weight (gold + diamond) shown to
+// customers alongside it.
+function deriveNetWeightGrams(goldWeightGrams) {
+  return goldWeightGrams ?? null;
+}
+
+function deriveGrossWeightGrams(goldWeightGrams, diamondWeightGrams) {
   if (goldWeightGrams == null && diamondWeightGrams == null) return null;
   return Math.round(((goldWeightGrams ?? 0) + (diamondWeightGrams ?? 0)) * 1000) / 1000;
 }
@@ -115,7 +119,8 @@ export async function adminGetProduct(id) {
 export async function adminCreateProduct(input) {
   const slug = input.slug ? slugify(input.slug) : slugify(input.name);
   const { sizes: sizesInput, goldColors, purities, diamondConfigIds, ...fields } = input;
-  fields.netWeightGrams = deriveNetWeightGrams(fields.goldWeightGrams, fields.diamondWeightGrams);
+  fields.netWeightGrams = deriveNetWeightGrams(fields.goldWeightGrams);
+  fields.grossWeightGrams = deriveGrossWeightGrams(fields.goldWeightGrams, fields.diamondWeightGrams);
   let product = await createProductRow({ ...fields, slug, status: input.status ?? 'DRAFT' });
   if (sizesInput !== undefined) {
     await replaceProductSizes(product.id, sizesInput);
@@ -154,7 +159,8 @@ export async function adminUpdateProduct(id, input) {
       : existing.diamond_weight_grams == null
         ? null
         : Number(existing.diamond_weight_grams);
-    fields.netWeightGrams = deriveNetWeightGrams(goldWeightGrams, diamondWeightGrams);
+    fields.netWeightGrams = deriveNetWeightGrams(goldWeightGrams);
+    fields.grossWeightGrams = deriveGrossWeightGrams(goldWeightGrams, diamondWeightGrams);
   }
   let product = await updateProductRow(id, fields);
   if (sizesInput !== undefined) {
