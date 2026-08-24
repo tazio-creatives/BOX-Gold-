@@ -6,11 +6,15 @@ import styles from './ProductTabs.module.css';
 type TabId = 'description' | 'reviews';
 
 export function ProductTabs({ product }: { product: ProductDetail }) {
+  const hasDescription = !!product.fullDescription || !!product.careInstructions;
+  const hasReviews = product.ratingCount > 0;
+
   const tabs: { id: TabId; label: string }[] = [
-    { id: 'description', label: 'Description' },
-    { id: 'reviews', label: product.ratingCount > 0 ? `Reviews (${product.ratingCount})` : 'Reviews' },
+    ...(hasDescription ? [{ id: 'description' as const, label: 'Description' }] : []),
+    ...(hasReviews ? [{ id: 'reviews' as const, label: `Reviews (${product.ratingCount})` }] : []),
   ];
-  const [active, setActive] = useState<TabId>('description');
+
+  const [active, setActive] = useState<TabId>(tabs[0]?.id ?? 'description');
 
   function handleKeyDown(e: KeyboardEvent<HTMLDivElement>) {
     const currentIndex = tabs.findIndex((t) => t.id === active);
@@ -23,56 +27,63 @@ export function ProductTabs({ product }: { product: ProductDetail }) {
     }
   }
 
+  // Nothing to show at all — skip the card entirely rather than rendering
+  // an empty shell.
+  if (tabs.length === 0) return null;
+
   return (
     <div className={styles.wrap}>
-      <div className={styles.tabListWrap}>
-        <div className={styles.tabList} role="tablist" aria-label="Product information" onKeyDown={handleKeyDown}>
-          {tabs.map((tab) => (
-            <button
-              key={tab.id}
-              type="button"
-              role="tab"
-              id={`pdp-tab-${tab.id}`}
-              aria-selected={active === tab.id}
-              aria-controls={`pdp-panel-${tab.id}`}
-              tabIndex={active === tab.id ? 0 : -1}
-              className={active === tab.id ? styles.tabActive : styles.tab}
-              onClick={() => setActive(tab.id)}
-            >
-              {tab.label}
-            </button>
-          ))}
+      {tabs.length > 1 && (
+        <div className={styles.tabListWrap}>
+          <div className={styles.tabList} role="tablist" aria-label="Product information" onKeyDown={handleKeyDown}>
+            {tabs.map((tab) => (
+              <button
+                key={tab.id}
+                type="button"
+                role="tab"
+                id={`pdp-tab-${tab.id}`}
+                aria-selected={active === tab.id}
+                aria-controls={`pdp-panel-${tab.id}`}
+                tabIndex={active === tab.id ? 0 : -1}
+                className={active === tab.id ? styles.tabActive : styles.tab}
+                onClick={() => setActive(tab.id)}
+              >
+                {tab.label}
+              </button>
+            ))}
+          </div>
         </div>
-      </div>
+      )}
 
-      <div
-        role="tabpanel"
-        id="pdp-panel-description"
-        aria-labelledby="pdp-tab-description"
-        hidden={active !== 'description'}
-        className={styles.panel}
-      >
-        {product.fullDescription && <p className={styles.description}>{product.fullDescription}</p>}
-        {product.careInstructions && (
-          <>
-            <h3 className={styles.subheading}>Care Instructions</h3>
-            <p className={styles.description}>{product.careInstructions}</p>
-          </>
-        )}
-        {!product.fullDescription && !product.careInstructions && (
-          <p className={styles.empty}>No description available for this piece yet.</p>
-        )}
-      </div>
+      {hasDescription && (
+        <div
+          role={tabs.length > 1 ? 'tabpanel' : undefined}
+          id="pdp-panel-description"
+          aria-labelledby={tabs.length > 1 ? 'pdp-tab-description' : undefined}
+          hidden={active !== 'description'}
+          className={styles.panel}
+        >
+          {product.fullDescription && <p className={styles.description}>{product.fullDescription}</p>}
+          {product.careInstructions && (
+            <>
+              <h3 className={styles.subheading}>Care Instructions</h3>
+              <p className={styles.description}>{product.careInstructions}</p>
+            </>
+          )}
+        </div>
+      )}
 
-      <div
-        role="tabpanel"
-        id="pdp-panel-reviews"
-        aria-labelledby="pdp-tab-reviews"
-        hidden={active !== 'reviews'}
-        className={styles.panel}
-      >
-        <ReviewsSection productId={product.id} />
-      </div>
+      {hasReviews && (
+        <div
+          role={tabs.length > 1 ? 'tabpanel' : undefined}
+          id="pdp-panel-reviews"
+          aria-labelledby={tabs.length > 1 ? 'pdp-tab-reviews' : undefined}
+          hidden={active !== 'reviews'}
+          className={styles.panel}
+        >
+          <ReviewsSection productId={product.id} />
+        </div>
+      )}
     </div>
   );
 }

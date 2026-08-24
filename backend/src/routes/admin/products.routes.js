@@ -14,6 +14,8 @@ import {
   setPrimary,
   reorder,
   remove as removeImage,
+  listAllImages,
+  attachExisting,
 } from '../../controllers/productImages.controller.js';
 import { getStatus, approve, reject, regenerate } from '../../controllers/aiImages.controller.js';
 import {
@@ -35,6 +37,8 @@ export const adminProductsRouter = Router();
 
 adminProductsRouter.get('/', adminList);
 adminProductsRouter.post('/', adminCreate);
+// Registered before "/:id" — Express would otherwise treat "images" as an id.
+adminProductsRouter.get('/images/library', listAllImages);
 adminProductsRouter.get('/:id', adminGet);
 adminProductsRouter.patch('/:id', adminUpdate);
 adminProductsRouter.delete('/:id', adminDelete);
@@ -44,6 +48,7 @@ adminProductsRouter.patch('/:id/featured', setFeatured);
 // Product photo gallery (plan §9/§10).
 adminProductsRouter.get('/:id/images', listImages);
 adminProductsRouter.post('/:id/images', upload.single('image'), uploadOriginal);
+adminProductsRouter.post('/:id/images/attach', attachExisting);
 adminProductsRouter.patch('/:id/images/reorder', reorder);
 adminProductsRouter.patch('/:id/images/:sortOrder/primary', setPrimary);
 adminProductsRouter.delete('/:id/images/:sortOrder', removeImage);

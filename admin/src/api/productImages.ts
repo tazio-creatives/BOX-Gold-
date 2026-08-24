@@ -55,3 +55,28 @@ export function reorderImages(productId: string, order: number[]) {
 export function deleteProductImage(productId: string, sortOrder: number) {
   return apiFetch<void>(`/admin/products/${productId}/images/${sortOrder}`, { method: 'DELETE' });
 }
+
+export interface LibraryImage {
+  productId: string;
+  productName: string;
+  sortOrder: number;
+  thumbnailUrl: string | null;
+  isPrimary: boolean;
+}
+
+// Gallery-wide picker — one thumbnail per image group across every product,
+// so an admin can reuse an existing photo instead of re-uploading it.
+export function fetchImageLibrary(params: { search?: string; excludeProductId?: string } = {}) {
+  const qs = new URLSearchParams();
+  if (params.search) qs.set('search', params.search);
+  if (params.excludeProductId) qs.set('excludeProductId', params.excludeProductId);
+  const suffix = qs.toString() ? `?${qs.toString()}` : '';
+  return apiFetch<{ images: LibraryImage[] }>(`/admin/products/images/library${suffix}`);
+}
+
+export function attachExistingImage(productId: string, source: { sourceProductId: string; sourceSortOrder: number }) {
+  return apiFetch<{ images: ImageGroup[] }>(`/admin/products/${productId}/images/attach`, {
+    method: 'POST',
+    body: JSON.stringify(source),
+  });
+}

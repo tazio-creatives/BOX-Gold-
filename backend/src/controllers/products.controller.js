@@ -7,6 +7,20 @@ import {
   variantPricePreviewQuerySchema,
 } from '../validators/products.validators.js';
 import * as productsService from '../services/productsService.js';
+import { AppError } from '../utils/AppError.js';
+
+// The generic "Already exists" the shared error handler falls back to for
+// every 23505 doesn't tell the admin WHICH field collided or what to do
+// about it — both the SKU and the name-derived slug are unique, and a slug
+// clash in particular is easy to hit by accident (two products with the
+// same name).
+function productConflictMessage(err) {
+  if (err.constraint === 'products_sku_key') return 'A product with this SKU already exists.';
+  if (err.constraint === 'products_slug_key') {
+    return 'A product with this name already exists — please use a different name (or add a distinguishing detail like a size or metal color).';
+  }
+  return null;
+}
 
 function discountPercent(mrp, sellingPrice) {
   if (!mrp || mrp <= sellingPrice) return 0;
@@ -244,6 +258,10 @@ export async function adminCreate(req, res, next) {
     const product = await productsService.adminCreateProduct(input);
     res.status(201).json({ product: toDetailDto({ ...product, images: [] }) });
   } catch (err) {
+    if (err.code === '23505') {
+      const message = productConflictMessage(err);
+      if (message) return next(new AppError(409, message));
+    }
     next(err);
   }
 }
@@ -254,6 +272,10 @@ export async function adminUpdate(req, res, next) {
     const product = await productsService.adminUpdateProduct(req.params.id, input);
     res.json({ product: toDetailDto({ ...product, images: [] }) });
   } catch (err) {
+    if (err.code === '23505') {
+      const message = productConflictMessage(err);
+      if (message) return next(new AppError(409, message));
+    }
     next(err);
   }
 }

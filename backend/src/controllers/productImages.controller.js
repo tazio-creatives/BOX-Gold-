@@ -1,4 +1,4 @@
-import { reorderImagesSchema } from '../validators/productImages.validators.js';
+import { reorderImagesSchema, attachExistingImageSchema } from '../validators/productImages.validators.js';
 import { processAndStoreImage } from '../services/imageProcessingService.js';
 import { storageProvider } from '../providers/storage/index.js';
 import { keyFromUrl } from '../utils/storageKey.js';
@@ -12,6 +12,8 @@ import {
   updateSortOrder,
   deleteProductImagesBySortOrder,
   findMaxSortOrder,
+  findAllImageGroups,
+  findProductImageSiblings,
 } from '../repositories/productImages.repository.js';
 function groupImages(rows) {
   const groups = new Map();
@@ -61,6 +63,71 @@ export async function uploadOriginal(req, res, next) {
         variant: v.variant,
         format: v.format,
         url: v.url,
+        sortOrder,
+      });
+    }
+    if (isFirstImage) {
+      await clearPrimaryForProduct(productId);
+      await setPrimaryBySortOrder(productId, sortOrder);
+    }
+
+    const rows = await findProductImages(productId);
+    res.status(201).json({ images: groupImages(rows) });
+  } catch (err) {
+    next(err);
+  }
+}
+
+// Gallery-wide picker (plan: "show gallery all images when product upload,
+// if the image already exists we can select it") — lists one thumbnail per
+// image group across every product so the admin can reuse an existing photo
+// instead of re-uploading the same shot for a second listing.
+export async function listAllImages(req, res, next) {
+  try {
+    const { search, excludeProductId, limit, offset } = req.query;
+    const rows = await findAllImageGroups({
+      search: search || null,
+      excludeProductId: excludeProductId || null,
+      limit: limit ? Math.min(Number(limit), 100) : 60,
+      offset: offset ? Number(offset) : 0,
+    });
+    res.json({
+      images: rows.map((r) => ({
+        productId: r.product_id,
+        productName: r.product_name,
+        sortOrder: r.sort_order,
+        thumbnailUrl: r.thumb_url,
+        isPrimary: r.is_primary,
+      })),
+    });
+  } catch (err) {
+    next(err);
+  }
+}
+
+// Attaches an existing image (all its variants) to this product by copying
+// the product_images rows onto a new sort_order — the underlying files are
+// reused as-is (same URLs), nothing is re-uploaded or re-processed.
+export async function attachExisting(req, res, next) {
+  try {
+    const productId = req.params.id;
+    const product = await findProductById(productId);
+    if (!product) throw new NotFoundError('Product not found');
+
+    const { sourceProductId, sourceSortOrder } = attachExistingImageSchema.parse(req.body);
+    const siblings = await findProductImageSiblings(sourceProductId, sourceSortOrder);
+    if (siblings.length === 0) throw new AppError(404, 'Source image not found');
+
+    const isFirstImage = (await countProductImages(productId, 'ORIGINAL')) === 0;
+    const sortOrder = (await findMaxSortOrder(productId)) + 1;
+
+    for (const s of siblings) {
+      await insertProductImage({
+        productId,
+        type: s.type,
+        variant: s.variant,
+        format: s.format,
+        url: s.url,
         sortOrder,
       });
     }

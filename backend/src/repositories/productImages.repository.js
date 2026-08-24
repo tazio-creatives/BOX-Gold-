@@ -58,6 +58,39 @@ export async function deleteProductImagesBySortOrder(productId, sortOrder) {
   return rows;
 }
 
+// One representative row per (product, image) group — 'thumbnail'+'webp' is
+// generated for every group by processAndStoreImage, so it's always present
+// and cheap, unlike pulling every variant just to list a gallery grid.
+export async function findAllImageGroups({ limit, offset, search, excludeProductId }) {
+  const params = [];
+  const conditions = [`pi.variant = 'thumbnail'`, `pi.format = 'webp'`];
+
+  if (excludeProductId) {
+    params.push(excludeProductId);
+    conditions.push(`pi.product_id != $${params.length}`);
+  }
+  if (search) {
+    params.push(`%${search}%`);
+    conditions.push(`p.name ILIKE $${params.length}`);
+  }
+
+  params.push(limit);
+  const limitParam = `$${params.length}`;
+  params.push(offset);
+  const offsetParam = `$${params.length}`;
+
+  const { rows } = await query(
+    `SELECT pi.product_id, pi.sort_order, pi.url AS thumb_url, pi.is_primary, p.name AS product_name
+     FROM product_images pi
+     JOIN products p ON p.id = pi.product_id
+     WHERE ${conditions.join(' AND ')}
+     ORDER BY pi.created_at DESC
+     LIMIT ${limitParam} OFFSET ${offsetParam}`,
+    params,
+  );
+  return rows;
+}
+
 export async function findMaxSortOrder(productId) {
   const { rows } = await query(
     'SELECT COALESCE(MAX(sort_order), -1) AS max FROM product_images WHERE product_id = $1',

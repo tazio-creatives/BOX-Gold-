@@ -60,7 +60,7 @@ const EMPTY_FORM: ProductInput = {
   sellingPrice: 0,
   stockQuantity: 0,
   status: 'DRAFT',
-  showDeliveryChecker: true,
+  showDeliveryChecker: false,
   metaTitle: '',
   metaDescription: '',
   metaKeywords: '',
@@ -100,6 +100,11 @@ export function ProductFormPage() {
   // quality is picked — is visible right where the admin is looking,
   // instead of silently leaving the price at ₹0 with no explanation.
   const [pricingError, setPricingError] = useState<string | null>(null);
+  // Same reasoning as pricingError — "Start AI Generation" clicked with no
+  // name entered used to fail silently from the admin's point of view (the
+  // error rendered only in the page-level banner at the very bottom, far
+  // from the Product Images section and the button that was just clicked).
+  const [imageSourceError, setImageSourceError] = useState<string | null>(null);
   // Making Charge is entered as a % of gold value, not a flat rupee amount —
   // form.makingCharge (the flat figure the API actually stores/uses) is kept
   // in sync below whenever this percent or the live gold value changes.
@@ -163,8 +168,46 @@ export function ProductFormPage() {
     }
   }, [productData]);
 
+  // A bare "Validation failed" (the generic message for any Zod rejection)
+  // gives no clue which field caused it — append the specific field errors
+  // the API already sends back but this page used to discard.
+  function describeError(err: unknown, fallback: string): string {
+    if (!(err instanceof ApiError)) return fallback;
+    if (err.fields?.length) {
+      return `${err.message}: ${err.fields.map((f) => `${f.path} — ${f.message}`).join('; ')}`;
+    }
+    return err.message;
+  }
+
   function set<K extends keyof ProductInput>(key: K, value: ProductInput[K]) {
     setForm((f) => ({ ...f, [key]: value }));
+  }
+
+  // Shared by every path that sends `form` to the API (Save, and the two
+  // early-create shortcuts below) — without this, a blank size row (e.g.
+  // "+ Add Size" clicked and left empty) passes fine on Save but throws a
+  // raw Zod "Validation failed" from the quicker "Start AI Generation" /
+  // "Start Manual Upload" buttons, which used to send `form` unsanitized.
+  function buildPayload(overrides: Partial<ProductInput> = {}): ProductInput {
+    return {
+      ...form,
+      name: form.name.trim(),
+      sku: form.sku.trim() || `DRAFT-${Date.now()}`,
+      shortDescription: form.shortDescription || null,
+      fullDescription: form.fullDescription || null,
+      diamondType: form.diamondType || null,
+      diamondColour: form.diamondColour || null,
+      diamondClarity: form.diamondClarity || null,
+      gemstone: form.gemstone || null,
+      certification: form.certification || null,
+      productSize: form.productSize || null,
+      careInstructions: form.careInstructions || null,
+      sizes: (form.sizes ?? []).filter((s) => s.label.trim().length > 0),
+      metaTitle: form.metaTitle || null,
+      metaDescription: form.metaDescription || null,
+      metaKeywords: form.metaKeywords || null,
+      ...overrides,
+    };
   }
 
   function addSizeRow() {
@@ -233,9 +276,13 @@ export function ProductFormPage() {
   // press, cluttering the Products list even when nobody follows through
   // with an actual upload.
   const createForStudioMutation = useMutation({
-    mutationFn: (overrides: { name: string; sku: string }) => createProduct({ ...form, ...overrides }),
-    onSuccess: (result) => navigate(`/products/${result.product.id}/ai-image-studio`),
-    onError: (err) => setError(err instanceof ApiError ? err.message : 'Could not create product.'),
+    mutationFn: (overrides: { name: string; sku: string }) => createProduct(buildPayload(overrides)),
+    // replace: true — the blank Add Product page this came from is stale the
+    // instant the product is created (it now exists for real elsewhere), so
+    // the browser Back button shouldn't be able to land the admin back on
+    // it looking like their just-entered details vanished.
+    onSuccess: (result) => navigate(`/products/${result.product.id}/ai-image-studio`, { replace: true }),
+    onError: (err) => setImageSourceError(describeError(err, 'Could not create product.')),
   });
 
   function handleGenerateWithAI() {
@@ -244,10 +291,10 @@ export function ProductFormPage() {
       return;
     }
     if (!form.name.trim()) {
-      setError('Enter a product name before generating images with AI.');
+      setImageSourceError('Enter a product name before generating images with AI.');
       return;
     }
-    setError(null);
+    setImageSourceError(null);
     const name = form.name.trim();
     const sku = form.sku.trim() || `DRAFT-${Date.now()}`;
     setForm((f) => ({ ...f, name, sku }));
@@ -260,18 +307,19 @@ export function ProductFormPage() {
   // attach images to. Mirrors handleGenerateWithAI's create flow, just
   // landing back on the edit page instead of AI Image Studio.
   const createForManualUploadMutation = useMutation({
-    mutationFn: (overrides: { name: string; sku: string }) => createProduct({ ...form, ...overrides }),
-    onSuccess: (result) => navigate(`/products/${result.product.id}/edit`),
-    onError: (err) => setError(err instanceof ApiError ? err.message : 'Could not create product.'),
+    mutationFn: (overrides: { name: string; sku: string }) => createProduct(buildPayload(overrides)),
+    // Same reasoning as the AI-studio create path above.
+    onSuccess: (result) => navigate(`/products/${result.product.id}/edit`, { replace: true }),
+    onError: (err) => setImageSourceError(describeError(err, 'Could not create product.')),
   });
 
   function handleManualUpload() {
     if (isEditing) return;
     if (!form.name.trim()) {
-      setError('Enter a product name before uploading images.');
+      setImageSourceError('Enter a product name before uploading images.');
       return;
     }
-    setError(null);
+    setImageSourceError(null);
     const name = form.name.trim();
     const sku = form.sku.trim() || `DRAFT-${Date.now()}`;
     setForm((f) => ({ ...f, name, sku }));
@@ -280,28 +328,11 @@ export function ProductFormPage() {
 
   const saveMutation = useMutation({
     mutationFn: async () => {
-      const payload: ProductInput = {
-        ...form,
-        name: form.name.trim(),
-        sku: form.sku.trim() || `DRAFT-${Date.now()}`,
-        shortDescription: form.shortDescription || null,
-        fullDescription: form.fullDescription || null,
-        diamondType: form.diamondType || null,
-        diamondColour: form.diamondColour || null,
-        diamondClarity: form.diamondClarity || null,
-        gemstone: form.gemstone || null,
-        certification: form.certification || null,
-        productSize: form.productSize || null,
-        careInstructions: form.careInstructions || null,
-        sizes: (form.sizes ?? []).filter((s) => s.label.trim().length > 0),
-        metaTitle: form.metaTitle || null,
-        metaDescription: form.metaDescription || null,
-        metaKeywords: form.metaKeywords || null,
-      };
+      const payload = buildPayload();
       return isEditing ? updateProduct(id as string, payload) : createProduct(payload);
     },
     onSuccess: () => navigate('/products'),
-    onError: (err) => setError(err instanceof ApiError ? err.message : 'Could not save product.'),
+    onError: (err) => setError(describeError(err, 'Could not save product.')),
   });
 
   const priceLockMutation = useMutation({
@@ -452,14 +483,6 @@ export function ProductFormPage() {
                 ))}
               </select>
             </label>
-            <label className={sharedStyles.field}>
-              Stock Quantity
-              <input
-                type="number"
-                value={form.stockQuantity ?? ''}
-                onChange={(e) => set('stockQuantity', e.target.value ? Number(e.target.value) : undefined)}
-              />
-            </label>
           </div>
           <label className={`${sharedStyles.field} ${sharedStyles.formSection}`}>
             Short Description
@@ -480,7 +503,7 @@ export function ProductFormPage() {
           <label className={`${sharedStyles.field} ${sharedStyles.checkboxField} ${sharedStyles.formSection}`}>
             <input
               type="checkbox"
-              checked={form.showDeliveryChecker ?? true}
+              checked={form.showDeliveryChecker ?? false}
               onChange={(e) => set('showDeliveryChecker', e.target.checked)}
             />
             Show "Check Delivery &amp; Availability" pincode widget on the product page
@@ -489,6 +512,7 @@ export function ProductFormPage() {
 
         <section className={sharedStyles.cardPadded}>
           <h2 className={styles.sectionHeading}>Product Images</h2>
+          {imageSourceError && <p className={sharedStyles.error}>{imageSourceError}</p>}
           <div className={styles.imageSourceGrid}>
             <div className={styles.imageSourceCard}>
               <p className={styles.imageSourceTitle}>Manual Upload</p>

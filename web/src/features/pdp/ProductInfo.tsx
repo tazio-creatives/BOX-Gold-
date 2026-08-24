@@ -84,6 +84,14 @@ export function ProductInfo({
   const diamondRequired = product.diamondOptions.length > 0 && !selectedDiamondConfigId;
   const variantRequired = sizeRequired || colorRequired || purityRequired || diamondRequired;
 
+  // The admin's "Customer-Selectable Variations" (Gold Color / Purity /
+  // Diamond Quality) — tucked behind a "Customize Design" toggle so the PDP
+  // stays uncluttered for the (common) products with a single fixed
+  // configuration, where none of these options exist at all.
+  const hasCustomizations =
+    product.goldColorOptions.length > 0 || product.purityOptions.length > 0 || product.diamondOptions.length > 0;
+  const [customizeOpen, setCustomizeOpen] = useState(false);
+
   // Buttons stay clickable rather than disabled — a missing selection is
   // surfaced as an inline message under the relevant field only once the
   // shopper actually tries to buy, not before.
@@ -99,6 +107,14 @@ export function ProductInfo({
   // button looks broken. Scroll to whichever required field is first in the
   // page so the shopper actually sees why nothing happened.
   function scrollToFirstMissingField() {
+    const needsCustomizePanel = colorRequired || purityRequired || diamondRequired;
+    if (needsCustomizePanel && !customizeOpen) {
+      // The fields aren't in the DOM yet while the panel is collapsed —
+      // open it and wait a frame so the refs below actually resolve.
+      setCustomizeOpen(true);
+      requestAnimationFrame(scrollToFirstMissingField);
+      return;
+    }
     const target = colorRequired
       ? colorFieldRef.current
       : purityRequired
@@ -176,36 +192,68 @@ export function ProductInfo({
         ))}
       </div>
 
-      <div className={styles.variantRow}>
-        <div className={styles.colorCol} ref={colorFieldRef}>
-          <ColorSelector
-            colors={product.goldColorOptions}
-            selectedColor={selectedGoldColor}
-            onSelect={onSelectGoldColor}
-          />
-          {showValidation && colorRequired && <p className={styles.fieldError}>Please select a gold color</p>}
-        </div>
+      {hasCustomizations && (
+        <div className={styles.customizeSection}>
+          <button
+            type="button"
+            className={styles.customizeToggle}
+            aria-expanded={customizeOpen}
+            onClick={() => setCustomizeOpen((open) => !open)}
+          >
+            <span>Customize Design</span>
+            <span className={customizeOpen ? styles.customizeChevronOpen : styles.customizeChevron} aria-hidden="true">
+              ▾
+            </span>
+          </button>
 
-        <div className={styles.variantCol} ref={purityFieldRef}>
-          <PillSelector
-            title={`Purity${selectedPurity ? `: ${selectedPurity}` : ''}`}
-            options={product.purityOptions.map((p) => ({ value: p, label: p }))}
-            selectedValue={selectedPurity}
-            onSelect={onSelectPurity}
-          />
-          {showValidation && purityRequired && <p className={styles.fieldError}>Please select a purity</p>}
-        </div>
-      </div>
+          {customizeOpen && (
+            <div className={styles.customizePanel}>
+              {(product.goldColorOptions.length > 0 || product.purityOptions.length > 0) && (
+                <div className={styles.variantRow}>
+                  {product.goldColorOptions.length > 0 && (
+                    <div className={styles.colorCol} ref={colorFieldRef}>
+                      <ColorSelector
+                        colors={product.goldColorOptions}
+                        selectedColor={selectedGoldColor}
+                        onSelect={onSelectGoldColor}
+                      />
+                      {showValidation && colorRequired && (
+                        <p className={styles.fieldError}>Please select a gold color</p>
+                      )}
+                    </div>
+                  )}
 
-      <div className={styles.fieldGroup} ref={diamondFieldRef}>
-        <PillSelector
-          title="Diamond Quality"
-          options={product.diamondOptions.map((d) => ({ value: d.id, label: d.name }))}
-          selectedValue={selectedDiamondConfigId}
-          onSelect={onSelectDiamondConfigId}
-        />
-        {showValidation && diamondRequired && <p className={styles.fieldError}>Please select a diamond quality</p>}
-      </div>
+                  {product.purityOptions.length > 0 && (
+                    <div className={styles.variantCol} ref={purityFieldRef}>
+                      <PillSelector
+                        title={`Purity${selectedPurity ? `: ${selectedPurity}` : ''}`}
+                        options={product.purityOptions.map((p) => ({ value: p, label: p }))}
+                        selectedValue={selectedPurity}
+                        onSelect={onSelectPurity}
+                      />
+                      {showValidation && purityRequired && <p className={styles.fieldError}>Please select a purity</p>}
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {product.diamondOptions.length > 0 && (
+                <div className={styles.fieldGroup} ref={diamondFieldRef}>
+                  <PillSelector
+                    title="Diamond Quality"
+                    options={product.diamondOptions.map((d) => ({ value: d.id, label: d.name }))}
+                    selectedValue={selectedDiamondConfigId}
+                    onSelect={onSelectDiamondConfigId}
+                  />
+                  {showValidation && diamondRequired && (
+                    <p className={styles.fieldError}>Please select a diamond quality</p>
+                  )}
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+      )}
 
       <div className={styles.fieldGroup} ref={sizeFieldRef}>
         <SizeSelector sizes={product.sizes} selectedSizeId={selectedSizeId} onSelect={onSelectSize} />

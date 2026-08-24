@@ -6,9 +6,11 @@ import {
   setPrimaryImage,
   reorderImages,
   deleteProductImage,
+  attachExistingImage,
   type ImageGroup,
 } from '../../api/productImages';
 import { ApiError } from '../../api/client';
+import { ImageLibraryPicker } from './ImageLibraryPicker';
 import sharedStyles from '../../styles/shared.module.css';
 import styles from './ProductGallery.module.css';
 
@@ -24,6 +26,7 @@ export function ProductGallery({ productId }: { productId: string }) {
   const queryClient = useQueryClient();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [uploadError, setUploadError] = useState<string | null>(null);
+  const [isLibraryOpen, setIsLibraryOpen] = useState(false);
 
   const { data: imagesData, isLoading: isImagesLoading } = useQuery({
     queryKey: ['admin-product-images', productId],
@@ -54,6 +57,17 @@ export function ProductGallery({ productId }: { productId: string }) {
   const reorderMutation = useMutation({
     mutationFn: (order: number[]) => reorderImages(productId, order),
     onSuccess: invalidateImages,
+  });
+
+  const attachMutation = useMutation({
+    mutationFn: (source: { sourceProductId: string; sourceSortOrder: number }) =>
+      attachExistingImage(productId, source),
+    onSuccess: () => {
+      invalidateImages();
+      setUploadError(null);
+      setIsLibraryOpen(false);
+    },
+    onError: (err) => setUploadError(err instanceof ApiError ? err.message : 'Could not attach image.'),
   });
 
   function move(groups: ImageGroup[], index: number, direction: -1 | 1) {
@@ -88,8 +102,20 @@ export function ProductGallery({ productId }: { productId: string }) {
         >
           {uploadMutation.isPending ? 'Uploading…' : 'Upload Photo'}
         </button>
+        <button type="button" className={sharedStyles.button} onClick={() => setIsLibraryOpen(true)}>
+          Choose Existing
+        </button>
       </div>
       {uploadError && <p className={sharedStyles.error}>{uploadError}</p>}
+
+      {isLibraryOpen && (
+        <ImageLibraryPicker
+          excludeProductId={productId}
+          isAttaching={attachMutation.isPending}
+          onSelect={(source) => attachMutation.mutate(source)}
+          onClose={() => setIsLibraryOpen(false)}
+        />
+      )}
 
       {isImagesLoading && <p className={sharedStyles.empty}>Loading gallery…</p>}
 
