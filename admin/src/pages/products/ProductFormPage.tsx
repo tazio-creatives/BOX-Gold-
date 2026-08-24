@@ -593,20 +593,6 @@ export function ProductFormPage() {
               </span>
             </label>
             <label className={sharedStyles.field}>
-              Diamond Carat (in cents) {form.diamondWeightCarats ? `— ${form.diamondWeightCarats} ct` : ''}
-              <input
-                type="number"
-                step="0.1"
-                // Entered/displayed in cents (1 carat = 100 cents) — stored as
-                // carats under the hood so the pricing engine (rate-per-carat)
-                // and everything downstream is untouched.
-                value={form.diamondWeightCarats ? Math.round(form.diamondWeightCarats * 1000) / 10 : ''}
-                onChange={(e) =>
-                  set('diamondWeightCarats', e.target.value ? Number(e.target.value) / 100 : null)
-                }
-              />
-            </label>
-            <label className={sharedStyles.field}>
               Diamond Quality
               <select
                 value={form.diamondConfigId ?? ''}
@@ -619,6 +605,20 @@ export function ProductFormPage() {
                   </option>
                 ))}
               </select>
+            </label>
+            <label className={sharedStyles.field}>
+              Diamond Carat (in cents) {form.diamondWeightCarats ? `— ${form.diamondWeightCarats} ct` : ''}
+              <input
+                type="number"
+                step="0.1"
+                // Entered/displayed in cents (1 carat = 100 cents) — stored as
+                // carats under the hood so the pricing engine (rate-per-carat)
+                // and everything downstream is untouched.
+                value={form.diamondWeightCarats ? Math.round(form.diamondWeightCarats * 1000) / 10 : ''}
+                onChange={(e) =>
+                  set('diamondWeightCarats', e.target.value ? Number(e.target.value) / 100 : null)
+                }
+              />
             </label>
             <label className={sharedStyles.field}>
               Diamond Count
