@@ -216,16 +216,29 @@
 }
 
 @media (max-width: 767px) {
+  /* Breaks the gallery out of the page/card padding (PDPPage.module.css
+     .page + .hero) so the main image spans the full viewport edge to edge
+     on mobile, while the thumbnail row stays inset in line with the rest of
+     the card's content. */
+  .gallery {
+    margin: calc(-1 * var(--space-6)) calc(-1 * (var(--space-4) + var(--space-6))) 0;
+    width: calc(100% + 2 * (var(--space-4) + var(--space-6)));
+  }
+
   .main {
-    /* 4/3 + cover was cropping the top/bottom of portrait-oriented product
-       shots (e.g. a ring's raised setting) on the narrow mobile column.
-       A taller box + contain keeps the whole product visible. */
     aspect-ratio: 1 / 1;
     background: var(--color-bg-alt);
+    border-radius: 0;
+    border-left: none;
+    border-right: none;
   }
 
   .mainImage {
-    object-fit: contain;
+    object-fit: cover;
+  }
+
+  .thumbRow {
+    padding: 0 var(--space-2);
   }
 
   .thumb,

@@ -27,3 +27,9 @@
   background: var(--color-gold);
   display: inline-block;
 }
+
+@media (max-width: 767px) {
+  .strip {
+    display: none;
+  }
+}

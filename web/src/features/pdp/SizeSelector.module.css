@@ -2,10 +2,6 @@
   position: relative;
 }
 
-.selectWidth {
-  max-width: 260px;
-}
-
 .row {
   display: flex;
   align-items: center;
@@ -14,7 +10,7 @@
 }
 
 .label {
-  font-size: calc(var(--text-sm) + 4px);
+  font-size: 16px;
   font-weight: 600;
   color: var(--color-text);
 }

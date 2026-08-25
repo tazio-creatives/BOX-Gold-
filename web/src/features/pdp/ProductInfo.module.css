@@ -2,60 +2,73 @@
   min-width: 0;
   display: flex;
   flex-direction: column;
+  padding: 20px 20px 20px 0;
 }
 
 .badges {
   display: flex;
   gap: var(--space-2);
-  margin-bottom: var(--space-2);
+  margin: 0 0 8px;
 }
 
 .badgeNew {
-  padding: var(--space-1) var(--space-3);
-  border-radius: var(--radius-sm);
-  font-size: var(--text-xs);
-  text-transform: uppercase;
-  letter-spacing: 0.03em;
-  background: #fbe4e8;
-  color: var(--color-burgundy);
+  display: inline-flex;
+  padding: 3px 9px;
+  border-radius: 5px;
+  background: #f8dce2;
+  color: #8e2940;
+  font-size: 10px;
   font-weight: 600;
+  line-height: 14px;
+  text-transform: uppercase;
 }
 
 .name {
   font-family: var(--font-heading);
+  margin: 0 0 6px;
+  color: #173c40;
+  font-size: 26px;
   font-weight: 600;
-  font-size: var(--text-3xl);
-  margin: 0 0 var(--space-2);
+  line-height: 32px;
+  letter-spacing: -0.3px;
 }
 
 .rating {
   display: flex;
   align-items: center;
-  gap: var(--space-2);
-  margin: 0 0 var(--space-3);
+  gap: 7px;
+  min-height: 18px;
+  margin: 0 0 8px;
+  color: #687779;
+  font-size: 12px;
+  font-weight: 400;
+  line-height: 18px;
 }
 
 .stars {
   display: inline-flex;
   gap: 2px;
-  color: var(--color-burgundy);
+  color: #d8a93b;
 }
 
 .ratingValue {
-  font-size: var(--text-sm);
-  font-weight: 600;
-  color: var(--color-text);
+  font-size: 12px;
+  font-weight: 400;
+  color: #687779;
 }
 
 .ratingCount {
-  font-size: var(--text-sm);
-  color: var(--color-text-muted);
+  font-size: 12px;
+  font-weight: 400;
+  color: #687779;
 }
 
 .price {
-  font-size: var(--text-2xl);
-  font-weight: 600;
-  margin: 0 0 var(--space-1);
+  margin: 0 0 2px;
+  color: #173c40;
+  font-size: 28px;
+  font-weight: 700;
+  line-height: 34px;
 }
 
 .mrp {
@@ -77,12 +90,68 @@
 }
 
 .taxNote {
+  margin: 0 0 10px;
+  color: #687779;
+  font-size: 12px;
+  font-weight: 400;
+  line-height: 18px;
+}
+
+.offerCard {
+  width: 100%;
+  min-height: 40px;
+  padding: 10px 12px;
+  border: 1px solid #f4cdd2;
+  border-radius: 6px;
+  background: #fff5f6;
   margin: 0 0 var(--space-4);
-  font-size: var(--text-sm);
-  color: var(--color-text-muted);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.offerLeft {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+
+.offerIcon {
+  display: inline-flex;
+  flex-shrink: 0;
+  width: 14px;
+  height: 14px;
+  color: #ff765f;
+}
+
+.offerIcon svg {
+  width: 14px;
+  height: 14px;
+}
+
+.offerHeadline {
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1;
+  color: #9e1835;
+}
+
+.offerNote {
+  flex-shrink: 0;
+  font-size: 11px;
+  font-weight: 400;
+  line-height: 1;
+  color: #8e4050;
 }
 
 .stockBackorder {
+  color: var(--color-text-muted);
+  font-weight: 600;
+  margin: 0 0 var(--space-3);
+}
+
+.stockInfo {
   color: var(--color-text-muted);
   font-weight: 600;
   margin: 0 0 var(--space-3);
@@ -105,10 +174,13 @@
   display: flex;
   flex-wrap: wrap;
   gap: var(--space-2);
-  margin: 0 0 var(--space-5);
+  margin: 0 0 var(--space-4);
 }
 
 .specChip {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
   padding: var(--space-2) var(--space-4);
   border: 1px solid var(--color-border);
   border-radius: var(--radius-sm);
@@ -119,33 +191,76 @@
   white-space: nowrap;
 }
 
+.specChip svg {
+  color: var(--color-burgundy);
+  flex-shrink: 0;
+}
+
+.specChipDot {
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  border: 1px solid rgba(0, 0, 0, 0.12);
+}
+
 .fieldGroup {
-  margin-bottom: var(--space-5);
+  margin-bottom: var(--space-4);
 }
 
 .customizeSection {
-  margin-bottom: var(--space-5);
+  margin-bottom: var(--space-4);
 }
 
 .customizeToggle {
   display: flex;
   align-items: center;
-  justify-content: space-between;
+  gap: var(--space-3);
   width: 100%;
   padding: var(--space-3) var(--space-4);
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-sm);
-  background: none;
-  font-size: var(--text-sm);
-  font-weight: 600;
-  color: var(--color-text);
+  border: 1px solid #dfe5e3;
+  border-radius: var(--radius-md);
+  background: #ffffff;
   cursor: pointer;
+  text-align: left;
+}
+
+.customizeToggleIcon {
+  display: inline-flex;
+  flex-shrink: 0;
+  color: var(--color-burgundy);
+}
+
+.customizeToggleText {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.customizeTitle {
+  font-size: var(--text-sm);
+  font-weight: 700;
+  color: var(--color-text);
+}
+
+.customizeSubtitle {
+  font-size: var(--text-xs);
+  color: var(--color-text-muted);
 }
 
 .customizeChevron,
 .customizeChevronOpen {
+  display: inline-flex;
+  flex-shrink: 0;
   color: var(--color-text-muted);
   transition: transform 0.15s ease;
+}
+
+.customizeChevron svg,
+.customizeChevronOpen svg {
+  width: 22px;
+  height: 22px;
 }
 
 .customizeChevronOpen {
@@ -153,33 +268,15 @@
 }
 
 .customizePanel {
-  padding: var(--space-4) 0 0;
+  padding: var(--space-4) var(--space-4) 0;
+  border: 1px solid var(--color-border);
+  border-top: none;
+  border-radius: 0 0 var(--radius-md) var(--radius-md);
+  background: #fcfcfb;
 }
 
-.customizePanel .variantRow,
 .customizePanel .fieldGroup {
   margin-bottom: var(--space-4);
-}
-
-.customizePanel .fieldGroup:last-child {
-  margin-bottom: 0;
-}
-
-.variantRow {
-  display: flex;
-  align-items: flex-start;
-  gap: var(--space-4);
-  margin-bottom: var(--space-5);
-}
-
-.variantCol {
-  flex: 1;
-  min-width: 0;
-}
-
-.colorCol {
-  flex: 0 0 auto;
-  width: 160px;
 }
 
 .fieldError {
@@ -188,32 +285,96 @@
   color: #dc2626;
 }
 
-.actions {
+.selectionSummary {
+  margin: 0;
+  padding: var(--space-3) 0;
+  font-size: var(--text-sm);
+  color: var(--color-text);
+  background: #ffffff;
+  border-top: 1px solid #e8ecea;
+}
+
+.selectionSummaryLabel {
+  font-weight: 600;
+  color: var(--color-text-muted);
+}
+
+.selectionSummaryRow {
   display: flex;
+  align-items: center;
+  justify-content: space-between;
   gap: var(--space-3);
-  margin-top: auto;
-  padding-top: var(--space-5);
+  padding: var(--space-3) var(--space-4);
+  border: 1px solid var(--color-border);
+  border-top: 1px solid #e8ecea;
+  border-radius: 0 0 var(--radius-md) var(--radius-md);
+  background: #ffffff;
+}
+
+.selectionSummaryRow .selectionSummary {
+  border-top: none;
+  padding: 0;
+  flex: 1;
+  min-width: 0;
+}
+
+.editLink {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  flex-shrink: 0;
+  padding: 0;
+  border: none;
+  background: none;
+  color: var(--color-burgundy);
+  font-size: var(--text-sm);
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.actions {
+  display: grid;
+  grid-template-columns: 55fr 45fr;
+  gap: 14px;
+  margin-top: 16px;
+  margin-bottom: 16px;
 }
 
 .addToBag,
 .buyNow {
-  flex: 1;
+  width: 100%;
+  height: 52px;
+  border-radius: 8px;
+  font-size: 16px;
+  font-weight: 600;
+  line-height: 1;
+  letter-spacing: 0.2px;
+  text-align: center;
+  text-transform: uppercase;
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: var(--space-2);
-  min-height: 54px;
-  padding: var(--space-4) var(--space-6);
-  border-radius: 15px;
-  font-size: calc(var(--text-sm) + 8px);
-  font-weight: 700;
+  gap: 10px;
   cursor: pointer;
+  transition: all 200ms ease;
+}
+
+.addToBag svg,
+.buyNow svg {
+  width: 18px;
+  height: 18px;
+  flex-shrink: 0;
 }
 
 .addToBag {
-  background: var(--color-burgundy);
-  border: 1px solid var(--color-burgundy);
-  color: var(--color-white);
+  background: #124e57;
+  border: 1px solid #124e57;
+  color: #ffffff;
+}
+
+.addToBag:hover:not(:disabled) {
+  background: #0d4148;
+  border-color: #0d4148;
 }
 
 .addToBag:disabled {
@@ -224,9 +385,13 @@
 }
 
 .buyNow {
-  background: var(--color-surface);
-  border: 1px solid var(--color-burgundy);
-  color: var(--color-burgundy);
+  background: #ffffff;
+  border: 1px solid #124e57;
+  color: #124e57;
+}
+
+.buyNow:hover:not(:disabled) {
+  background: #f2f8f7;
 }
 
 .buyNow:disabled {
@@ -237,32 +402,193 @@
 }
 
 @media (max-width: 767px) {
-  .name {
-    font-size: 22px;
-  }
-
-  /* Gold Color (dropdown) + Purity (pills) side by side in a 160px column
-     forced the pills onto 4 stacked rows on a narrow screen, leaving a
-     wall of empty space next to them. Stacking gives each field the full
-     width it actually needs, same as Diamond Quality/Size below it. */
-  .variantRow {
+  .selectionSummaryRow {
     flex-direction: column;
-    gap: var(--space-4);
-  }
-
-  .colorCol {
-    width: 100%;
-  }
-
-  .actions {
+    align-items: flex-start;
     gap: var(--space-2);
+  }
+
+  /* .info's 0-left/20px-right padding only makes sense in the desktop
+     2-column grid (flush against the gallery gap on the left). On mobile's
+     single-column stack, that made the customize section's right edge sit
+     20px further in than Product Details/Price Breakup (PDPPage.module.css
+     .detailsGrid, which has no extra inset of its own) — align them. */
+  .info {
+    padding-left: 0;
+    padding-right: 0;
+  }
+
+  /* Its own margin-bottom would stack on top of .detailsGrid's margin-top
+     (PDPPage.module.css), making this gap visibly bigger than the one
+     between Product Details and Price Breakup below — let .detailsGrid's
+     margin alone control the spacing here so both gaps actually match. */
+  .customizeSection {
+    margin-bottom: 0;
+  }
+}
+
+@media (max-width: 576px) {
+  .actions {
+    gap: 8px;
   }
 
   .addToBag,
   .buyNow {
-    min-height: 50px;
-    padding: var(--space-2) var(--space-2);
+    height: 50px;
     font-size: 14px;
-    gap: 6px;
+  }
+}
+
+@media (max-width: 767px) {
+  /* Inline Add to Cart/Buy Now are redundant with the sticky mobile bar
+     below — only the sticky version shows on mobile. */
+  .actions {
+    display: none;
+  }
+
+  /* The offer card under pricing is redundant with the one now shown in the
+     sticky bar (.mobileBarOfferCard, which composes this same class) — hide
+     only the inline one, not the composed sticky one. */
+  .offerCard:not(.mobileBarOfferCard) {
+    display: none;
+  }
+
+  .mobileBarOfferCard {
+    min-height: 48px;
+  }
+
+  .specChips {
+    flex-wrap: nowrap;
+    gap: 8px;
+  }
+
+  .specChip {
+    flex: 1 1 0;
+    justify-content: center;
+    min-width: 0;
+    height: 42px;
+    padding: 0 var(--space-2);
+    font-size: 13px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .customizeToggle {
+    min-height: 56px;
+  }
+}
+
+/* Sticky mobile purchase bar — mirrors Add to Cart/Buy Now once the inline
+   buttons above scroll out of view. See ProductInfo.tsx for the
+   IntersectionObserver that mounts/unmounts it (never both at once). */
+.mobileBar {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 1000;
+  width: 100%;
+  background: #ffffff;
+  border-top: 1px solid #dfe5e3;
+  box-shadow: 0 -4px 16px rgba(18, 78, 87, 0.08);
+  padding: 10px 16px calc(10px + env(safe-area-inset-bottom));
+}
+
+.mobileBarInner {
+  width: 100%;
+  max-width: 600px;
+  margin: 0 auto;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.mobileBarPrice {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 2px 8px;
+}
+
+.mobileBarPriceCurrent {
+  font-size: 22px;
+  font-weight: 700;
+  color: #173c40;
+  white-space: nowrap;
+}
+
+.mobileBarPriceOld {
+  font-size: 14px;
+  font-weight: 400;
+  color: var(--color-text-muted);
+  text-decoration: line-through;
+  white-space: nowrap;
+}
+
+.mobileBarTax {
+  flex-basis: 100%;
+  font-size: 10px;
+  color: var(--color-text-muted);
+}
+
+.mobileBarOfferCard {
+  composes: offerCard;
+  margin: 0;
+}
+
+.mobileBarActions {
+  display: grid;
+  grid-template-columns: 1.1fr 0.9fr;
+  gap: 8px;
+}
+
+.mobileBarAddToBag,
+.mobileBarBuyNow {
+  width: 100%;
+  height: 50px;
+  border-radius: 8px;
+  font-size: 14px;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  cursor: pointer;
+}
+
+.mobileBarAddToBag svg,
+.mobileBarBuyNow svg {
+  width: 18px;
+  height: 18px;
+  flex-shrink: 0;
+}
+
+.mobileBarAddToBag {
+  background: #124e57;
+  border: 1px solid #124e57;
+  color: #ffffff;
+}
+
+.mobileBarAddToBag:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.mobileBarBuyNow {
+  background: #ffffff;
+  border: 1px solid #124e57;
+  color: #124e57;
+}
+
+@media (min-width: 768px) {
+  .mobileBar {
+    display: none;
+  }
+}
+
+@media (max-width: 379px) {
+  .mobileBarPrice {
+    display: none;
   }
 }

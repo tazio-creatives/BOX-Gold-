@@ -22,13 +22,40 @@ export function DetailsCard({ title, children, className }: DetailsCardProps) {
     if (el) setOverflowing(el.scrollHeight > COLLAPSED_HEIGHT + 1);
   }, [children]);
 
+  // Mobile's accordion (DetailsCard.module.css) starts fully collapsed by
+  // default like any other accordion — but on the product detail page these
+  // two cards are the actual product data, worth showing open by default.
+  // Client-only (matchMedia isn't available during SSR) so this can't cause
+  // a hydration mismatch; it just flips open right after mount on mobile.
+  useEffect(() => {
+    if (window.matchMedia('(max-width: 767px)').matches) setExpanded(true);
+  }, []);
+
   return (
     <section className={className ? `${styles.card} ${className}` : styles.card}>
-      <h2 className={styles.heading}>{title}</h2>
+      <button
+        type="button"
+        className={styles.heading}
+        aria-expanded={expanded}
+        onClick={() => setExpanded((v) => !v)}
+      >
+        {title}
+        <svg
+          className={expanded ? styles.headingChevronOpen : styles.headingChevron}
+          width="18"
+          height="18"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="2"
+          aria-hidden="true"
+        >
+          <path d="M6 9l6 6 6-6" strokeLinecap="round" strokeLinejoin="round" />
+        </svg>
+      </button>
       <div
         ref={contentRef}
-        className={`${styles.content} ${!expanded && overflowing ? styles.fade : ''}`}
-        style={expanded ? undefined : { maxHeight: COLLAPSED_HEIGHT }}
+        className={`${styles.content} ${expanded ? styles.contentExpanded : ''} ${!expanded && overflowing ? styles.fade : ''}`}
       >
         {children}
       </div>

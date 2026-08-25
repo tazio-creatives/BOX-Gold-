@@ -1,12 +1,12 @@
 .sidebar {
   display: flex;
   flex-direction: column;
-  gap: 20px;
-  width: 240px;
-  background: var(--color-surface);
-  border: 1px solid var(--color-border);
-  border-radius: 12px;
-  padding: 20px;
+  gap: 0;
+  width: 100%;
+  background: #ffffff;
+  border: 1px solid #dfe5e3;
+  border-radius: 10px;
+  padding: 16px;
   position: sticky;
   top: 112px;
 }
@@ -15,8 +15,26 @@
   display: none;
 }
 
-.drawerHeader {
-  display: none;
+.filterHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  padding-bottom: 16px;
+  margin-bottom: 16px;
+  border-bottom: 1px solid #e8ecea;
+}
+
+.filterHeaderTitle {
+  font-size: 16px;
+  font-weight: 600;
+  color: #173c40;
+}
+
+.filterHeaderActions {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
 }
 
 .closeButton {
@@ -24,8 +42,12 @@
 }
 
 .group {
-  border-bottom: 1px solid #e8ece9;
-  padding-bottom: 20px;
+  border-bottom: 1px solid #e8ecea;
+  padding: 16px 0;
+}
+
+.group:first-of-type {
+  padding-top: 0;
 }
 
 .group:last-of-type {
@@ -40,14 +62,15 @@
   width: 100%;
   background: none;
   border: none;
-  padding: 0 0 var(--space-3);
+  padding: 0;
   cursor: pointer;
   color: var(--color-text);
 }
 
 .groupHeading {
-  font-size: var(--text-base);
+  font-size: 14px;
   font-weight: 600;
+  color: #173c40;
 }
 
 .chevron {
@@ -57,7 +80,7 @@
 }
 
 .groupBody {
-  padding-top: var(--space-1);
+  padding-top: var(--space-3);
 }
 
 .checkList {
@@ -66,18 +89,18 @@
   padding: 0;
   display: flex;
   flex-direction: column;
-  gap: var(--space-3);
 }
 
 .checkItem {
   display: flex;
+  min-height: 36px;
 }
 
 .checkItemLink,
 .checkItemButton {
   display: flex;
   align-items: center;
-  gap: var(--space-2);
+  gap: 10px;
   width: 100%;
   background: none;
   border: none;
@@ -92,8 +115,8 @@
 
 .checkbox {
   flex-shrink: 0;
-  width: 16px;
-  height: 16px;
+  width: 20px;
+  height: 20px;
   border-radius: 4px;
   border: 1.5px solid var(--color-border);
   background: var(--color-surface);
@@ -102,24 +125,24 @@
 }
 
 .checkboxChecked {
-  background: var(--color-burgundy);
-  border-color: var(--color-burgundy);
+  background: #124e57;
+  border-color: #124e57;
 }
 
 .checkboxChecked::after {
   content: '';
   position: absolute;
-  left: 4px;
-  top: 1px;
-  width: 4px;
-  height: 8px;
+  left: 6px;
+  top: 3px;
+  width: 5px;
+  height: 10px;
   border: solid var(--color-surface);
   border-width: 0 2px 2px 0;
   transform: rotate(45deg);
 }
 
 .checkLabel {
-  font-size: var(--text-sm);
+  font-size: 14px;
   flex: 1;
 }
 
@@ -129,17 +152,16 @@
 }
 
 .clearButton {
-  align-self: flex-start;
   background: none;
   border: none;
   padding: 0;
-  color: var(--color-burgundy);
-  font-size: var(--text-sm);
-  text-decoration: underline;
+  color: #124e57;
+  font-size: 13px;
+  font-weight: 600;
   cursor: pointer;
 }
 
-@media (max-width: 900px) {
+@media (max-width: 992px) {
   .backdrop {
     display: block;
     position: fixed;
@@ -166,20 +188,6 @@
 
   .sidebarOpen {
     transform: translateX(0);
-  }
-
-  .drawerHeader {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    padding-bottom: var(--space-3);
-    border-bottom: 1px solid #e8ece9;
-  }
-
-  .drawerTitle {
-    font-size: var(--text-lg);
-    font-weight: 700;
-    color: var(--color-text);
   }
 
   .closeButton {

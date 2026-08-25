@@ -1,12 +1,6 @@
 import type { GoldColor } from '../../api/types';
-import { SelectDropdown } from '../../components/SelectDropdown';
+import { COLOR_SWATCH } from './goldColorSwatch';
 import styles from './ColorSelector.module.css';
-
-const COLOR_LABEL: Record<GoldColor, string> = {
-  YELLOW: 'Yellow Gold',
-  ROSE: 'Rose Gold',
-  WHITE: 'White Gold',
-};
 
 interface ColorSelectorProps {
   colors: GoldColor[];
@@ -19,16 +13,25 @@ export function ColorSelector({ colors, selectedColor, onSelect }: ColorSelector
 
   return (
     <div className={styles.wrap}>
-      <label className={styles.label} htmlFor="pdp-color-select">
-        Gold Color
-      </label>
-      <SelectDropdown
-        id="pdp-color-select"
-        value={selectedColor ?? ''}
-        placeholder="Choose a color"
-        options={colors.map((color) => ({ value: color, label: COLOR_LABEL[color] }))}
-        onChange={(value) => onSelect(value as GoldColor)}
-      />
+      <span className={styles.label}>Gold Colour</span>
+      <div className={styles.row}>
+        {colors.map((color) => {
+          const swatch = COLOR_SWATCH[color];
+          const active = selectedColor === color;
+          return (
+            <button
+              key={color}
+              type="button"
+              className={active ? styles.cardActive : styles.card}
+              aria-pressed={active}
+              onClick={() => onSelect(color)}
+            >
+              <span className={styles.swatch} style={{ background: swatch.hex }} aria-hidden="true" />
+              {swatch.label}
+            </button>
+          );
+        })}
+      </div>
     </div>
   );
 }

@@ -1,12 +1,55 @@
 .wrap {
-  flex: 1;
   min-width: 0;
 }
 
 .label {
   display: block;
-  font-size: calc(var(--text-sm) + 4px);
+  font-size: 16px;
   font-weight: 600;
   color: var(--color-text);
   margin-bottom: var(--space-2);
+}
+
+.row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+.card,
+.cardActive {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-4);
+  border: 1.5px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-surface);
+  color: var(--color-text);
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.cardActive {
+  border-color: var(--color-burgundy);
+  background: rgba(0, 81, 90, 0.07);
+  color: var(--color-burgundy);
+  font-weight: 600;
+}
+
+.swatch {
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  border: 1px solid rgba(0, 0, 0, 0.12);
+}
+
+@media (max-width: 767px) {
+  .card,
+  .cardActive {
+    flex: 1 1 calc(50% - var(--space-2));
+    justify-content: center;
+  }
 }

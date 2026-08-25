@@ -33,13 +33,14 @@
     display: flex;
     overflow-x: auto;
     scroll-snap-type: x mandatory;
-    gap: var(--space-4);
+    gap: 12px;
     padding-bottom: var(--space-2);
     -webkit-overflow-scrolling: touch;
   }
 
   .gridItem {
-    flex: 0 0 70%;
+    flex: 0 0 75vw;
+    max-width: 280px;
     scroll-snap-align: start;
   }
 }

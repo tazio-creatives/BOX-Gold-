@@ -4,7 +4,7 @@
 
 .label {
   display: block;
-  font-size: calc(var(--text-sm) + 4px);
+  font-size: 16px;
   font-weight: 600;
   color: var(--color-text);
   margin-bottom: var(--space-2);
@@ -18,12 +18,12 @@
 
 .pill,
 .pillActive {
-  padding: var(--space-2) var(--space-4);
-  border-radius: 999px;
-  border: 1px solid var(--color-border);
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius-md);
+  border: 1.5px solid var(--color-border);
   background: var(--color-surface);
   color: var(--color-text);
-  font-size: var(--text-sm);
+  font-size: 12px;
   cursor: pointer;
 }
 

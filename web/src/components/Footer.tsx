@@ -1,6 +1,23 @@
-import type { ReactNode } from 'react';
+import { useState, type ReactNode } from 'react';
 import { Link } from 'react-router-dom';
 import styles from './Footer.module.css';
+
+function ChevronIcon({ open }: { open: boolean }) {
+  return (
+    <svg
+      className={open ? styles.colChevronOpen : styles.colChevron}
+      width="16"
+      height="16"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      aria-hidden="true"
+    >
+      <path d="M6 9l6 6 6-6" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
+}
 
 const COLUMNS: { title: string; links: { label: string; to: string }[] }[] = [
   {
@@ -51,6 +68,19 @@ const COLUMNS: { title: string; links: { label: string; to: string }[] }[] = [
 ];
 
 export function Footer() {
+  // Collapsed by default — only matters below 767px (Footer.module.css
+  // forces every group open above that, ignoring this state entirely), so
+  // desktop keeps showing all links at once as before.
+  const [openSections, setOpenSections] = useState<Set<string>>(new Set());
+  function toggleSection(title: string) {
+    setOpenSections((prev) => {
+      const next = new Set(prev);
+      if (next.has(title)) next.delete(title);
+      else next.add(title);
+      return next;
+    });
+  }
+
   return (
     <footer className={styles.footer}>
       <div className={styles.top}>
@@ -77,20 +107,31 @@ export function Footer() {
           </div>
         </div>
 
-        {COLUMNS.map((col) => (
-          <div key={col.title} className={styles.col}>
-            <p className={styles.colTitle}>{col.title}</p>
-            <ul className={styles.linkList}>
-              {col.links.map((link) => (
-                <li key={link.label}>
-                  <Link to={link.to} className={styles.link}>
-                    {link.label}
-                  </Link>
-                </li>
-              ))}
-            </ul>
-          </div>
-        ))}
+        {COLUMNS.map((col) => {
+          const isOpen = openSections.has(col.title);
+          return (
+            <div key={col.title} className={styles.col}>
+              <button
+                type="button"
+                className={styles.colTitleButton}
+                aria-expanded={isOpen}
+                onClick={() => toggleSection(col.title)}
+              >
+                <span className={styles.colTitle}>{col.title}</span>
+                <ChevronIcon open={isOpen} />
+              </button>
+              <ul className={isOpen ? `${styles.linkList} ${styles.linkListOpen}` : styles.linkList}>
+                {col.links.map((link) => (
+                  <li key={link.label}>
+                    <Link to={link.to} className={styles.link}>
+                      {link.label}
+                    </Link>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          );
+        })}
       </div>
 
       <div className={styles.bottom}>

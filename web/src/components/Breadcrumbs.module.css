@@ -31,3 +31,9 @@
 .sep {
   margin: 0 var(--space-2);
 }
+
+@media (max-width: 767px) {
+  .nav {
+    display: none;
+  }
+}

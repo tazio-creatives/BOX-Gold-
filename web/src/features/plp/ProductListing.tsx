@@ -95,8 +95,27 @@ export function ProductListing({
     <div className={styles.page}>
       <div className={styles.top}>
         <Breadcrumbs items={breadcrumbs} />
-        <h1 className={styles.heading}>{heading}</h1>
-        {description && <p className={styles.description}>{description}</p>}
+        <div className={styles.headerRow}>
+          <div className={styles.headerLeft}>
+            <h1 className={styles.heading}>{heading}</h1>
+            {description && <p className={styles.description}>{description}</p>}
+            <p className={styles.count} aria-live="polite">
+              {data ? `${data.total} ${data.total === 1 ? 'Product' : 'Products'}` : ' '}
+            </p>
+          </div>
+          <div className={styles.headerRight}>
+            <button
+              type="button"
+              className={styles.filtersButton}
+              onClick={() => setIsFilterDrawerOpen(true)}
+            >
+              Filters
+              {activeFilterCount > 0 && <span className={styles.filtersButtonCount}>{activeFilterCount}</span>}
+            </button>
+            <SortSelect value={sort} onChange={updateSort} />
+            <ViewToggle value={viewMode} onChange={setViewMode} />
+          </div>
+        </div>
       </div>
 
       <div className={styles.layout}>
@@ -110,26 +129,6 @@ export function ProductListing({
         />
 
         <div className={styles.results}>
-          <div className={styles.toolbar}>
-            <div className={styles.toolbarLeft}>
-              <button
-                type="button"
-                className={styles.filtersButton}
-                onClick={() => setIsFilterDrawerOpen(true)}
-              >
-                Filters
-                {activeFilterCount > 0 && <span className={styles.filtersButtonCount}>{activeFilterCount}</span>}
-              </button>
-              <p className={styles.count} aria-live="polite">
-                {data ? `${data.total} ${data.total === 1 ? 'Product' : 'Products'}` : ' '}
-              </p>
-            </div>
-            <div className={styles.toolbarActions}>
-              <SortSelect value={sort} onChange={updateSort} />
-              <ViewToggle value={viewMode} onChange={setViewMode} />
-            </div>
-          </div>
-
           {isLoading && (
             <div className={styles.grid} aria-busy="true">
               {Array.from({ length: 8 }).map((_, i) => (
@@ -153,7 +152,6 @@ export function ProductListing({
                   index={i}
                   layout={viewMode}
                   imageFit="contain"
-                  imageHeight="260px"
                 />
               ))}
             </div>

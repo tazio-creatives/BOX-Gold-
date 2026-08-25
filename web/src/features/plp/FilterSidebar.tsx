@@ -100,11 +100,18 @@ export function FilterSidebar({ values, onChange, onClear, categoryFilter, isOpe
     <>
       {isOpen && <div className={styles.backdrop} onClick={onClose} />}
       <aside className={`${styles.sidebar} ${isOpen ? styles.sidebarOpen : ''}`}>
-        <div className={styles.drawerHeader}>
-          <span className={styles.drawerTitle}>Filters</span>
-          <button type="button" className={styles.closeButton} aria-label="Close filters" onClick={onClose}>
-            <CloseIcon />
-          </button>
+        <div className={styles.filterHeader}>
+          <span className={styles.filterHeaderTitle}>Filters</span>
+          <div className={styles.filterHeaderActions}>
+            {hasActiveFilters && (
+              <button type="button" className={styles.clearButton} onClick={onClear}>
+                Clear all
+              </button>
+            )}
+            <button type="button" className={styles.closeButton} aria-label="Close filters" onClick={onClose}>
+              <CloseIcon />
+            </button>
+          </div>
         </div>
         {categoryFilter && (
         <FilterGroup title="Category">
@@ -180,12 +187,6 @@ export function FilterSidebar({ values, onChange, onClear, categoryFilter, isOpe
           })}
         </ul>
       </FilterGroup>
-
-        {hasActiveFilters && (
-          <button type="button" className={styles.clearButton} onClick={onClear}>
-            Clear all filters
-          </button>
-        )}
       </aside>
     </>
   );
