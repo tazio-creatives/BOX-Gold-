@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import type { HomepageItem } from '../../api/types';
 import { WishlistButton } from '../../components/WishlistButton';
 import { formatPrice } from '../../utils/formatPrice';
+import { effectiveMrp } from '../../utils/effectiveMrp';
 import { placeholderGradient } from '../../utils/placeholderGradient';
 import styles from './ProductCarousel.module.css';
 
@@ -98,6 +99,11 @@ export function ProductCarousel({ items, heading, viewAllHref, cardsPerViewDeskt
             const product = item.product;
             if (!product) return null;
             const material = materialFor(product);
+            const { strikePrice, discountPercent } = effectiveMrp(
+              product.sellingPrice,
+              product.mrp,
+              product.sellingPriceOriginal,
+            );
             return (
               <Link key={item.id} to={item.ctaUrl ?? `/${product.slug}`} className={styles.productCard}>
                 <div className={styles.productImageWrapper}>
@@ -111,7 +117,12 @@ export function ProductCarousel({ items, heading, viewAllHref, cardsPerViewDeskt
                 <div className={styles.productInfo}>
                   <h3 className={styles.productName}>{product.name}</h3>
                   {material && <p className={styles.productMaterial}>{material}</p>}
-                  <p className={styles.productPrice}>{formatPrice(product.sellingPrice)}</p>
+                  <p className={styles.productPrice}>
+                    {formatPrice(product.sellingPrice)}
+                    {discountPercent > 0 && (
+                      <span className={styles.productMrp}>{formatPrice(strikePrice)}</span>
+                    )}
+                  </p>
                 </div>
               </Link>
             );

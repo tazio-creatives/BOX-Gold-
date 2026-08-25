@@ -1,6 +1,7 @@
 import { Link } from 'react-router-dom';
 import type { HomepageItem } from '../../api/types';
 import { formatPrice } from '../../utils/formatPrice';
+import { effectiveMrp } from '../../utils/effectiveMrp';
 import { placeholderGradient } from '../../utils/placeholderGradient';
 import styles from './CategoryProductRow.module.css';
 
@@ -33,6 +34,11 @@ function CategoryBlock({ item, index }: { item: HomepageItem; index: number }) {
 
         {item.products.slice(0, 5).map((product, i) => {
           const material = materialFor(product);
+          const { strikePrice, discountPercent } = effectiveMrp(
+            product.sellingPrice,
+            product.mrp,
+            product.sellingPriceOriginal,
+          );
           return (
             <Link
               key={product.id}
@@ -49,7 +55,10 @@ function CategoryBlock({ item, index }: { item: HomepageItem; index: number }) {
               <div className={styles.productInfo}>
                 <h4 className={styles.productName}>{product.name}</h4>
                 {material && <p className={styles.productMaterial}>{material}</p>}
-                <p className={styles.productPrice}>{formatPrice(product.sellingPrice)}</p>
+                <p className={styles.productPrice}>
+                  {formatPrice(product.sellingPrice)}
+                  {discountPercent > 0 && <span className={styles.productMrp}>{formatPrice(strikePrice)}</span>}
+                </p>
               </div>
             </Link>
           );

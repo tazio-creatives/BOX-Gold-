@@ -145,11 +145,18 @@ export function ProductFormPage() {
         purities: p.purityOptions,
         diamondConfigIds: p.diamondOptions.map((d) => d.id),
         goldValue: p.priceBreakup.goldValue,
-        diamondValue: p.priceBreakup.diamondValue,
-        makingCharge: p.priceBreakup.makingCharge,
+        // Load the pre-offer originals, not the (possibly discounted)
+        // priceBreakup.diamondValue/makingCharge/sellingPrice — otherwise
+        // re-saving a product with an active offer would bake the
+        // discounted figures in as the new base and compound the discount
+        // further on the next read.
+        diamondValue: p.priceBreakup.diamondValueOriginal,
+        makingCharge: p.priceBreakup.makingChargeOriginal,
         gstPercent: undefined,
         mrp: p.mrp,
-        sellingPrice: p.sellingPrice,
+        sellingPrice: p.sellingPriceOriginal,
+        makingChargeDiscountPercent: p.priceBreakup.makingChargeDiscountPercent || undefined,
+        diamondDiscountPercent: p.priceBreakup.diamondDiscountPercent || undefined,
         stockQuantity: p.stockQuantity,
         status: p.status,
         showDeliveryChecker: p.showDeliveryChecker,
@@ -162,7 +169,7 @@ export function ProductFormPage() {
       // equivalent, not a persisted value in its own right.
       setMakingChargePercent(
         p.priceBreakup.goldValue > 0
-          ? Math.round((p.priceBreakup.makingCharge / p.priceBreakup.goldValue) * 100 * 100) / 100
+          ? Math.round((p.priceBreakup.makingChargeOriginal / p.priceBreakup.goldValue) * 100 * 100) / 100
           : 0,
       );
     }
@@ -687,6 +694,39 @@ export function ProductFormPage() {
                 onChange={(e) => set('mrp', e.target.value ? Number(e.target.value) : undefined)}
               />
             </label>
+          </div>
+
+          <div className={`${sharedStyles.formGrid} ${sharedStyles.formSection}`}>
+            <label className={sharedStyles.field}>
+              Making Charge Offer (%)
+              <input
+                type="number"
+                step="0.01"
+                min="0"
+                max="100"
+                placeholder="0"
+                value={form.makingChargeDiscountPercent ?? ''}
+                onChange={(e) =>
+                  set('makingChargeDiscountPercent', e.target.value ? Number(e.target.value) : undefined)
+                }
+              />
+            </label>
+            <label className={sharedStyles.field}>
+              Diamond Offer (%)
+              <input
+                type="number"
+                step="0.01"
+                min="0"
+                max="100"
+                placeholder="0"
+                value={form.diamondDiscountPercent ?? ''}
+                onChange={(e) => set('diamondDiscountPercent', e.target.value ? Number(e.target.value) : undefined)}
+              />
+            </label>
+            <span className={styles.sectionHint}>
+              Leave blank/0 for no offer. When set, this recalculates and lowers the Selling Price shown to
+              shoppers — it's a real discount, not just a label.
+            </span>
           </div>
 
           <div className={styles.previewBox}>

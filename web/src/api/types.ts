@@ -7,8 +7,10 @@ export interface ProductCard {
   purity: string | null;
   goldColor: GoldColor | null;
   sellingPrice: number;
+  sellingPriceOriginal: number;
   mrp: number;
   discountPercent: number;
+  offerLabel: string | null;
   primaryImageUrl: string | null;
   availableStock: number;
   ratingAvg: number;
@@ -45,6 +47,10 @@ export interface HomepageItem {
         name: string;
         slug: string;
         sellingPrice: number;
+        sellingPriceOriginal: number;
+        mrp: number;
+        discountPercent: number;
+        offerLabel: string | null;
         imageUrl: string | null;
         metalType: MetalType | null;
         purity: Purity | null;
@@ -91,6 +97,7 @@ export interface Category {
   name: string;
   slug: string;
   description: string | null;
+  imageUrl: string | null;
   isActive: boolean;
   sortOrder: number;
 }
@@ -116,7 +123,11 @@ export interface ProductImage {
 export interface PriceBreakup {
   goldValue: number;
   diamondValue: number;
+  diamondValueOriginal: number;
   makingCharge: number;
+  makingChargeOriginal: number;
+  makingChargeDiscountPercent: number;
+  diamondDiscountPercent: number;
   gstAmount: number;
   total: number;
 }
@@ -147,6 +158,7 @@ export interface ProductDetail {
   goldWeightGrams: number | null;
   diamondWeightGrams: number | null;
   diamondWeightCarats: number | null;
+  diamondConfigId: string | null;
   diamondConfigName: string | null;
   diamondCount: number | null;
   diamondType: string | null;
@@ -160,7 +172,9 @@ export interface ProductDetail {
   priceBreakup: PriceBreakup;
   mrp: number;
   sellingPrice: number;
+  sellingPriceOriginal: number;
   discountPercent: number;
+  offerLabel: string | null;
 
   stockQuantity: number;
   availableStock: number;
@@ -193,11 +207,17 @@ export interface VariantPricePreview {
   diamondConfigId: string | null;
   goldValue: number;
   diamondValue: number;
+  diamondValueOriginal: number;
   makingCharge: number;
+  makingChargeOriginal: number;
+  makingChargeDiscountPercent: number;
+  diamondDiscountPercent: number;
   gstAmount: number;
   sellingPrice: number;
+  sellingPriceOriginal: number;
   mrp: number;
   discountPercent: number;
+  offerLabel: string | null;
 }
 
 export type SortOption = 'featured' | 'newest' | 'price_asc' | 'price_desc';

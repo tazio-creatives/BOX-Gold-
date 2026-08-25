@@ -6,6 +6,7 @@ import { fetchCategories } from '../api/categories';
 import { addCartItem } from '../api/cart';
 import type { Cart, GoldColor, VariantPricePreview } from '../api/types';
 import { getAncestorChain } from '../utils/categoryTree';
+import { effectiveMrp } from '../utils/effectiveMrp';
 import { Breadcrumbs } from '../components/Breadcrumbs';
 import { useHead, defaultHead } from '../seo/head';
 import { breadcrumbJsonLd, organizationJsonLd, productJsonLd } from '../seo/jsonLd';
@@ -90,28 +91,38 @@ export function PDPPage() {
     };
   }, [productData?.product, selectedPurity, selectedDiamondConfigId, selectedSizeId]);
 
-  // Price should always show the lowest available option first, so default
-  // Purity/Diamond Quality to their cheapest configured value the moment a
-  // product with those axes loads. Gold Color defaults to Yellow when
-  // offered (falls back to whatever's first otherwise — no price impact
-  // either way), and Size defaults to the smallest available size. Keyed on
-  // the product id (not on the selections themselves) so this only runs
-  // once per product load and never clobbers a shopper's own later choice.
+  // Purity/Diamond Quality/Gold Color default to whichever value the admin
+  // themselves set as the product's own base configuration — not
+  // automatically the cheapest configured option on that axis. Falls back
+  // to cheapest-first only when the admin's own value isn't actually among
+  // the configured options (data inconsistency, shouldn't normally happen).
+  // Size has no equivalent "admin default" (sizes are just a stock catalog),
+  // so it keeps defaulting to the smallest available size. Keyed on the
+  // product id (not on the selections themselves) so this only runs once
+  // per product load and never clobbers a shopper's own later choice.
   useEffect(() => {
     const p = productData?.product;
     if (!p) return;
     if (p.purityOptions.length > 0) {
-      const cheapestPurity = [...p.purityOptions].sort(
-        (a, b) => parseInt(a, 10) - parseInt(b, 10),
-      )[0];
-      setSelectedPurity(cheapestPurity);
+      const defaultPurity =
+        p.purity && p.purityOptions.includes(p.purity)
+          ? p.purity
+          : [...p.purityOptions].sort((a, b) => parseInt(a, 10) - parseInt(b, 10))[0];
+      setSelectedPurity(defaultPurity);
     }
     if (p.diamondOptions.length > 0) {
-      const cheapestDiamond = [...p.diamondOptions].sort((a, b) => a.ratePerCent - b.ratePerCent)[0];
-      setSelectedDiamondConfigId(cheapestDiamond.id);
+      const adminDefault = p.diamondConfigId ? p.diamondOptions.find((d) => d.id === p.diamondConfigId) : undefined;
+      const defaultDiamond = adminDefault ?? [...p.diamondOptions].sort((a, b) => a.ratePerCent - b.ratePerCent)[0];
+      setSelectedDiamondConfigId(defaultDiamond.id);
     }
     if (p.goldColorOptions.length > 0) {
-      setSelectedGoldColor(p.goldColorOptions.includes('YELLOW') ? 'YELLOW' : p.goldColorOptions[0]);
+      const defaultColor =
+        p.goldColor && p.goldColorOptions.includes(p.goldColor)
+          ? p.goldColor
+          : p.goldColorOptions.includes('YELLOW')
+            ? 'YELLOW'
+            : p.goldColorOptions[0];
+      setSelectedGoldColor(defaultColor);
     }
     if (p.sizes.length > 0) {
       const smallestSize = [...p.sizes].sort((a, b) => {
@@ -227,9 +238,14 @@ export function PDPPage() {
 
   const selectedDiamondOption = product.diamondOptions.find((d) => d.id === selectedDiamondConfigId) ?? null;
   const displayPrice = pricePreview?.sellingPrice ?? product.sellingPrice;
-  const displayMrp = pricePreview?.mrp ?? product.mrp;
-  const displayDiscount = pricePreview?.discountPercent ?? product.discountPercent;
+  const displaySellingPriceOriginal = pricePreview?.sellingPriceOriginal ?? product.sellingPriceOriginal;
+  const { strikePrice: displayMrp, discountPercent: displayDiscount } = effectiveMrp(
+    displayPrice,
+    pricePreview?.mrp ?? product.mrp,
+    displaySellingPriceOriginal,
+  );
   const displayGstAmount = pricePreview?.gstAmount ?? product.priceBreakup.gstAmount;
+  const displayOfferLabel = pricePreview?.offerLabel ?? product.offerLabel;
   // Pre-existing gap, not new to size pricing: this table always showed the
   // static base breakup regardless of purity/diamond selection too — fixed
   // here since size selection makes the mismatch much more visible (a
@@ -238,7 +254,11 @@ export function PDPPage() {
     ? {
         goldValue: pricePreview.goldValue,
         diamondValue: pricePreview.diamondValue,
+        diamondValueOriginal: pricePreview.diamondValueOriginal,
         makingCharge: pricePreview.makingCharge,
+        makingChargeOriginal: pricePreview.makingChargeOriginal,
+        makingChargeDiscountPercent: pricePreview.makingChargeDiscountPercent,
+        diamondDiscountPercent: pricePreview.diamondDiscountPercent,
         gstAmount: pricePreview.gstAmount,
         total: pricePreview.sellingPrice,
       }
@@ -274,6 +294,7 @@ export function PDPPage() {
             displayPrice={displayPrice}
             displayMrp={displayMrp}
             displayDiscount={displayDiscount}
+            offerLabel={displayOfferLabel}
             onAddToCart={() =>
               addToCartMutation.mutate({
                 productId: product.id,

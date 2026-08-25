@@ -2,11 +2,21 @@ import { Link } from 'react-router-dom';
 import type { ProductCard as ProductCardType } from '../api/types';
 import { productUrl } from '../utils/productUrl';
 import { formatPrice } from '../utils/formatPrice';
+import { effectiveMrp } from '../utils/effectiveMrp';
 import { placeholderGradient } from '../utils/placeholderGradient';
 import { WishlistButton } from './WishlistButton';
 import styles from './ProductCard.module.css';
 
 const LOW_STOCK_THRESHOLD = 3;
+
+function TagIcon() {
+  return (
+    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" aria-hidden="true">
+      <path d="M20.5 12.5L12.5 20.5a1.5 1.5 0 0 1-2.1 0l-7-7a1.5 1.5 0 0 1 0-2.1L11.4 3.4a2 2 0 0 1 1.4-.6H19a2 2 0 0 1 2 2v6.6a2 2 0 0 1-.5 1.5z" strokeLinejoin="round" />
+      <circle cx="16" cy="7" r="1.5" />
+    </svg>
+  );
+}
 
 export function ProductCard({
   product,
@@ -25,6 +35,11 @@ export function ProductCard({
 }) {
   const isOutOfStock = product.availableStock <= 0;
   const isLowStock = !isOutOfStock && product.availableStock <= LOW_STOCK_THRESHOLD;
+  const { strikePrice, discountPercent } = effectiveMrp(
+    product.sellingPrice,
+    product.mrp,
+    product.sellingPriceOriginal,
+  );
 
   return (
     <Link to={productUrl(product)} className={`${styles.card} ${layout === 'list' ? styles.cardList : ''}`}>
@@ -66,13 +81,19 @@ export function ProductCard({
         )}
         <p className={styles.price}>
           {formatPrice(product.sellingPrice)}
-          {product.discountPercent > 0 && (
-            <>
-              <span className={styles.mrp}>{formatPrice(product.mrp)}</span>
-              <span className={styles.discountPill}>{product.discountPercent}% off</span>
-            </>
-          )}
+          {discountPercent > 0 && <span className={styles.mrp}>{formatPrice(strikePrice)}</span>}
         </p>
+        {product.offerLabel && (
+          <div className={styles.offerBanner}>
+            <span className={styles.offerBannerLeft}>
+              <span className={styles.offerBannerIcon}>
+                <TagIcon />
+              </span>
+              <span className={styles.offerBannerHeadline}>{product.offerLabel}</span>
+            </span>
+            <span className={styles.offerBannerNote}>Limited-period offer</span>
+          </div>
+        )}
       </div>
     </Link>
   );

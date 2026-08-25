@@ -31,8 +31,17 @@ async function recalculateGoldPricesHandler() {
     const rate = await getCurrentGoldRate(product.purity);
     if (!rate) continue;
 
-    const goldValue =
-      Math.round(Number(product.gold_weight_grams) * Number(rate.rate_per_gram) * 100) / 100;
+    // pricing_weight_grams (from findGoldProductsForRecalculation) already
+    // resolves to whichever weight is actually the cheapest purchasable
+    // configuration — the base weight only when it's genuinely achievable,
+    // otherwise the lightest size. Falls back to the raw base weight when
+    // null (no sizes at all — unaffected, pre-existing behavior).
+    const pricingWeightGrams =
+      product.pricing_weight_grams != null
+        ? Number(product.pricing_weight_grams)
+        : Number(product.gold_weight_grams);
+
+    const goldValue = Math.round(pricingWeightGrams * Number(rate.rate_per_gram) * 100) / 100;
     const diamondValue = Number(product.diamond_value);
     const sellingPrice = computeSellingPrice({
       goldValue,

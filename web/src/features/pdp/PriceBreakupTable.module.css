@@ -1,7 +1,7 @@
 .table {
   width: 100%;
   border-collapse: collapse;
-  font-size: calc(var(--text-sm) + 4px);
+  font-size: var(--text-sm);
 }
 
 .table td {
@@ -29,4 +29,30 @@
   font-weight: 700;
   font-size: var(--text-sm);
   color: var(--color-text-muted);
+}
+
+.original {
+  color: var(--color-text-muted);
+  text-decoration: line-through;
+  margin-right: var(--space-2);
+  font-size: var(--text-sm);
+}
+
+.offerBadge {
+  margin-left: var(--space-2);
+  padding: 1px var(--space-2);
+  border-radius: 999px;
+  background: #fbe4e8;
+  color: var(--color-burgundy);
+  font-weight: 600;
+  font-size: var(--text-xs);
+  white-space: nowrap;
+}
+
+.offerNote {
+  padding-top: var(--space-2);
+  text-align: left !important;
+  font-size: var(--text-sm);
+  font-weight: 600;
+  color: var(--color-burgundy);
 }

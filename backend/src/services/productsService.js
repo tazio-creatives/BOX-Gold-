@@ -24,7 +24,7 @@ import {
 } from '../repositories/categories.repository.js';
 import { findCollectionBySlug } from '../repositories/collections.repository.js';
 import { findDiamondConfigById } from '../repositories/diamondConfigs.repository.js';
-import { computeVariantPricing } from './pricingService.js';
+import { computeVariantPricing, computeGoldValue, computeDiamondValue, computeSellingPrice } from './pricingService.js';
 import { invalidateProductPages } from './pageCacheInvalidation.js';
 
 // Both net_weight_grams and gross_weight_grams are derived, not
@@ -39,6 +39,102 @@ function deriveNetWeightGrams(goldWeightGrams) {
 function deriveGrossWeightGrams(goldWeightGrams, diamondWeightGrams) {
   if (goldWeightGrams == null && diamondWeightGrams == null) return null;
   return Math.round(((goldWeightGrams ?? 0) + (diamondWeightGrams ?? 0)) * 1000) / 1000;
+}
+
+// A product's listing/base price — and the PDP's price before the shopper
+// touches anything — must reflect what a shopper can actually buy for the
+// least money. Without this, an admin-entered base Gold Weight that doesn't
+// match any real size (e.g. lighter than every size, so never actually
+// purchasable as-is) makes the listing card quote a price nobody can pay —
+// the PDP then jumps to a different number the moment a size is
+// auto-selected. Recomputes goldValue/diamondValue/sellingPrice off the
+// cheapest size's own weight (and diamond weight, if that size overrides it)
+// so the two always agree.
+//
+// Purity and Diamond Quality have no equivalent fix here: unlike sizes
+// (which have no "admin default" — every size is just stock, and any of
+// them might be lighter than the base weight), the PDP defaults Purity and
+// Diamond Quality to whichever value the admin themselves set as the
+// product's own base configuration (see web/src/pages/PDPPage.tsx) — so the
+// stored base price already matches what's shown by default, with no
+// reconciliation needed on those two axes.
+async function applyCheapestSizePricing(fields, sizesInput, existing) {
+  const isPriceLocked = Object.hasOwn(fields, 'isPriceLocked') ? fields.isPriceLocked : existing?.is_price_locked;
+  if (isPriceLocked) return;
+
+  const metalType = Object.hasOwn(fields, 'metalType') ? fields.metalType : existing?.metal_type;
+  const effectivePurity = Object.hasOwn(fields, 'purity') ? fields.purity : existing?.purity;
+  if (metalType !== 'GOLD' || !effectivePurity) return;
+
+  // A price-only edit that doesn't touch sizes shouldn't skip reconciling
+  // against sizes that already exist in the DB from an earlier save.
+  const sizes =
+    sizesInput !== undefined
+      ? sizesInput
+      : existing
+        ? (await findProductSizes(existing.id)).map((s) => ({
+            weightGrams: s.weight_grams == null ? null : Number(s.weight_grams),
+            diamondWeightCarats: s.diamond_weight_carats == null ? null : Number(s.diamond_weight_carats),
+          }))
+        : [];
+  if (!sizes.length) return;
+
+  const baseWeightGrams = Object.hasOwn(fields, 'goldWeightGrams')
+    ? fields.goldWeightGrams
+    : existing?.gold_weight_grams == null
+      ? null
+      : Number(existing.gold_weight_grams);
+  const baseDiamondWeightCarats = Object.hasOwn(fields, 'diamondWeightCarats')
+    ? fields.diamondWeightCarats
+    : existing?.diamond_weight_carats == null
+      ? null
+      : Number(existing.diamond_weight_carats);
+
+  // Base weight is only a legitimate standalone price when there are no
+  // sizes at all — once sizes exist, a shopper always has to pick one, so
+  // the real floor is the minimum across every size's own effective weight
+  // (its override, or the base weight for a size that has none), never the
+  // base weight compared in isolation.
+  let effectiveWeightGrams = baseWeightGrams;
+  let effectiveDiamondWeightCarats = baseDiamondWeightCarats;
+  if (sizes.length) {
+    effectiveWeightGrams = null;
+    for (const s of sizes) {
+      const weightGrams = s.weightGrams ?? baseWeightGrams;
+      if (weightGrams != null && (effectiveWeightGrams == null || weightGrams < effectiveWeightGrams)) {
+        effectiveWeightGrams = weightGrams;
+        effectiveDiamondWeightCarats = s.diamondWeightCarats ?? baseDiamondWeightCarats;
+      }
+    }
+  }
+  if (effectiveWeightGrams == null) return;
+  if (baseWeightGrams != null && Math.abs(effectiveWeightGrams - baseWeightGrams) < 1e-9) return;
+
+  const { goldValue } = await computeGoldValue(effectiveWeightGrams, effectivePurity);
+
+  const effectiveDiamondConfigId = Object.hasOwn(fields, 'diamondConfigId')
+    ? fields.diamondConfigId
+    : existing?.diamond_config_id;
+
+  let diamondValue = 0;
+  if (effectiveDiamondWeightCarats && effectiveDiamondConfigId) {
+    diamondValue = (await computeDiamondValue(effectiveDiamondWeightCarats, effectiveDiamondConfigId)).diamondValue;
+  }
+
+  const makingCharge = Object.hasOwn(fields, 'makingCharge')
+    ? fields.makingCharge
+    : existing?.making_charge == null
+      ? 0
+      : Number(existing.making_charge);
+  const gstPercent = Object.hasOwn(fields, 'gstPercent')
+    ? fields.gstPercent
+    : existing?.gst_percent == null
+      ? 3
+      : Number(existing.gst_percent);
+
+  fields.goldValue = goldValue;
+  fields.diamondValue = diamondValue;
+  fields.sellingPrice = computeSellingPrice({ goldValue, diamondValue, makingCharge, gstPercent });
 }
 
 export async function resolveCategoryIds(categorySlug) {
@@ -121,6 +217,7 @@ export async function adminCreateProduct(input) {
   const { sizes: sizesInput, goldColors, purities, diamondConfigIds, ...fields } = input;
   fields.netWeightGrams = deriveNetWeightGrams(fields.goldWeightGrams);
   fields.grossWeightGrams = deriveGrossWeightGrams(fields.goldWeightGrams, fields.diamondWeightGrams);
+  await applyCheapestSizePricing(fields, sizesInput, null);
   let product = await createProductRow({ ...fields, slug, status: input.status ?? 'DRAFT' });
   if (sizesInput !== undefined) {
     await replaceProductSizes(product.id, sizesInput);
@@ -162,6 +259,7 @@ export async function adminUpdateProduct(id, input) {
     fields.netWeightGrams = deriveNetWeightGrams(goldWeightGrams);
     fields.grossWeightGrams = deriveGrossWeightGrams(goldWeightGrams, diamondWeightGrams);
   }
+  await applyCheapestSizePricing(fields, sizesInput, existing);
   let product = await updateProductRow(id, fields);
   if (sizesInput !== undefined) {
     await replaceProductSizes(id, sizesInput);

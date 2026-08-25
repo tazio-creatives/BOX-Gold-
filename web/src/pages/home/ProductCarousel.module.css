@@ -133,6 +133,14 @@
   color: #211915;
 }
 
+.productMrp {
+  margin-left: 6px;
+  font-weight: 400;
+  font-size: 16px;
+  color: #8a8078;
+  text-decoration: line-through;
+}
+
 .carouselDots {
   display: flex;
   justify-content: center;

@@ -45,6 +45,60 @@ export function computeSellingPrice({ goldValue, diamondValue, makingCharge, gst
   return round2(subtotal + gstAmount);
 }
 
+// A per-product promotional offer — a live % discount on Making Charge
+// and/or Diamond Value, recomputed through the same formula as everything
+// else (so it's never out of sync with the actual gold rate). Deliberately a
+// no-op when no discount is configured (the overwhelming common case): a
+// product's admin-set sellingPrice stays exactly as entered, "final,
+// admin-overridable", untouched — only once an offer is actually set does
+// the total recompute from the discounted components, becoming the real
+// charged price everywhere this flows (PDP, listing cards, cart, checkout).
+export function applyProductOffer({
+  goldValue,
+  diamondValue,
+  makingCharge,
+  gstPercent,
+  sellingPrice,
+  makingChargeDiscountPercent,
+  diamondDiscountPercent,
+}) {
+  const hasOffer = (makingChargeDiscountPercent ?? 0) > 0 || (diamondDiscountPercent ?? 0) > 0;
+  if (!hasOffer) {
+    return {
+      goldValue,
+      diamondValue,
+      diamondValueOriginal: diamondValue,
+      makingCharge,
+      makingChargeOriginal: makingCharge,
+      makingChargeDiscountPercent: 0,
+      diamondDiscountPercent: 0,
+      sellingPrice,
+      sellingPriceOriginal: sellingPrice,
+    };
+  }
+
+  const discountedMakingCharge = round2(makingCharge * (1 - (makingChargeDiscountPercent ?? 0) / 100));
+  const discountedDiamondValue = round2(diamondValue * (1 - (diamondDiscountPercent ?? 0) / 100));
+  const discountedSellingPrice = computeSellingPrice({
+    goldValue,
+    diamondValue: discountedDiamondValue,
+    makingCharge: discountedMakingCharge,
+    gstPercent,
+  });
+
+  return {
+    goldValue,
+    diamondValue: discountedDiamondValue,
+    diamondValueOriginal: diamondValue,
+    makingCharge: discountedMakingCharge,
+    makingChargeOriginal: makingCharge,
+    makingChargeDiscountPercent: makingChargeDiscountPercent ?? 0,
+    diamondDiscountPercent: diamondDiscountPercent ?? 0,
+    sellingPrice: discountedSellingPrice,
+    sellingPriceOriginal: sellingPrice,
+  };
+}
+
 export async function previewPricing({
   metalType,
   purity,
@@ -124,16 +178,31 @@ export async function computeVariantPricing(
 
   const makingCharge = Number(product.making_charge);
   const gstPercent = Number(product.gst_percent);
-  const sellingPrice = computeSellingPrice({ goldValue, diamondValue, makingCharge, gstPercent });
-  const gstAmount = round2(sellingPrice - goldValue - diamondValue - makingCharge);
+  const baseSellingPrice = computeSellingPrice({ goldValue, diamondValue, makingCharge, gstPercent });
+
+  const offer = applyProductOffer({
+    goldValue,
+    diamondValue,
+    makingCharge,
+    gstPercent,
+    sellingPrice: baseSellingPrice,
+    makingChargeDiscountPercent: Number(product.making_charge_discount_percent ?? 0),
+    diamondDiscountPercent: Number(product.diamond_discount_percent ?? 0),
+  });
+  const gstAmount = round2(offer.sellingPrice - offer.goldValue - offer.diamondValue - offer.makingCharge);
 
   return {
     purity: effectivePurity,
     diamondConfigId: effectiveDiamondConfigId,
-    goldValue,
-    diamondValue,
-    makingCharge,
+    goldValue: offer.goldValue,
+    diamondValue: offer.diamondValue,
+    diamondValueOriginal: offer.diamondValueOriginal,
+    makingCharge: offer.makingCharge,
+    makingChargeOriginal: offer.makingChargeOriginal,
+    makingChargeDiscountPercent: offer.makingChargeDiscountPercent,
+    diamondDiscountPercent: offer.diamondDiscountPercent,
     gstAmount,
-    sellingPrice,
+    sellingPrice: offer.sellingPrice,
+    sellingPriceOriginal: offer.sellingPriceOriginal,
   };
 }

@@ -57,6 +57,7 @@ const LIST_COLUMNS = `
   p.gst_percent, p.product_size, p.mrp, p.selling_price, p.status, p.stock_quantity,
   p.rating_avg, p.rating_count, p.created_at, p.is_featured,
   p.net_weight_grams, p.gold_weight_grams, p.diamond_weight_grams, p.diamond_weight_carats, p.diamond_config_id,
+  p.making_charge_discount_percent, p.diamond_discount_percent,
   primary_image.url AS primary_image_url,
   cat.slug AS category_slug,
   ${AVAILABLE_STOCK_SELECT}
@@ -294,6 +295,8 @@ const INSERT_COLUMNS = [
   'gst_percent',
   'mrp',
   'selling_price',
+  'making_charge_discount_percent',
+  'diamond_discount_percent',
   'is_price_locked',
   'is_featured',
   'show_delivery_checker',
@@ -356,11 +359,26 @@ export async function deleteProduct(id) {
 // category_id/slug are pulled through here (not just pricing fields) so the
 // recalculation jobs can invalidate the right page_cache rows per product
 // without an extra query per row (plan §1a invalidation hooks).
+// A size with no weight_grams override still prices at the base Gold
+// Weight once selected (see computeVariantPricing's fallback) — so the base
+// weight is only a valid "cheapest achievable" candidate when at least one
+// size actually has no override (or there are no sizes at all). If every
+// size carries its own (heavier) override, the base weight alone is never
+// actually purchasable and MIN(weight_grams) across the sizes is the real
+// floor instead.
 export async function findGoldProductsForRecalculation() {
   const { rows } = await query(
-    `SELECT id, slug, category_id, gold_weight_grams, purity, diamond_value, making_charge,
-            gst_percent, selling_price
-     FROM products
+    `SELECT p.id, p.slug, p.category_id, p.gold_weight_grams, p.purity, p.diamond_value, p.making_charge,
+            p.gst_percent, p.selling_price,
+            (SELECT
+               CASE
+                 WHEN NOT EXISTS (SELECT 1 FROM product_sizes WHERE product_id = p.id) THEN NULL
+                 WHEN EXISTS (SELECT 1 FROM product_sizes WHERE product_id = p.id AND weight_grams IS NULL)
+                   THEN p.gold_weight_grams
+                 ELSE (SELECT MIN(weight_grams) FROM product_sizes WHERE product_id = p.id)
+               END
+            ) AS pricing_weight_grams
+     FROM products p
      WHERE metal_type = 'GOLD' AND purity IS NOT NULL AND gold_weight_grams IS NOT NULL
        AND is_price_locked = false`,
   );

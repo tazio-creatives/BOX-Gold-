@@ -7,6 +7,7 @@ import {
   variantPricePreviewQuerySchema,
 } from '../validators/products.validators.js';
 import * as productsService from '../services/productsService.js';
+import { applyProductOffer } from '../services/pricingService.js';
 import { AppError } from '../utils/AppError.js';
 
 // The generic "Already exists" the shared error handler falls back to for
@@ -22,9 +23,32 @@ function productConflictMessage(err) {
   return null;
 }
 
-function discountPercent(mrp, sellingPrice) {
+export function discountPercent(mrp, sellingPrice) {
   if (!mrp || mrp <= sellingPrice) return 0;
   return Math.round(((mrp - sellingPrice) / mrp) * 100);
+}
+
+// Distinct from the MRP-vs-sellingPrice discount badge — this is the
+// specific "X% off Making Charge / Diamond" promotional offer an admin can
+// set per product (plan: "give offer making charge and diamonds"), shown on
+// both the listing card and the detail page.
+export function offerLabel(makingChargeDiscountPercent, diamondDiscountPercent) {
+  const parts = [];
+  if (makingChargeDiscountPercent > 0) parts.push(`${makingChargeDiscountPercent}% off Making Charge`);
+  if (diamondDiscountPercent > 0) parts.push(`${diamondDiscountPercent}% off Diamond`);
+  return parts.length ? parts.join(' + ') : null;
+}
+
+export function rowOffer(row) {
+  return applyProductOffer({
+    goldValue: Number(row.gold_value),
+    diamondValue: Number(row.diamond_value),
+    makingCharge: Number(row.making_charge),
+    gstPercent: Number(row.gst_percent),
+    sellingPrice: Number(row.selling_price),
+    makingChargeDiscountPercent: Number(row.making_charge_discount_percent ?? 0),
+    diamondDiscountPercent: Number(row.diamond_discount_percent ?? 0),
+  });
 }
 
 // "NEW" badge window for the PLP — no bestseller/trending signal exists yet
@@ -39,6 +63,7 @@ function isRecentlyPublished(createdAt) {
 // jewellery attributes, etc. (plan §13: "server sends only fields each
 // screen needs").
 export function toListDto(row) {
+  const offer = rowOffer(row);
   return {
     id: row.id,
     slug: row.slug,
@@ -47,9 +72,11 @@ export function toListDto(row) {
     metalType: row.metal_type,
     purity: row.purity,
     goldColor: row.gold_color,
-    sellingPrice: Number(row.selling_price),
+    sellingPrice: offer.sellingPrice,
+    sellingPriceOriginal: offer.sellingPriceOriginal,
     mrp: Number(row.mrp),
-    discountPercent: discountPercent(Number(row.mrp), Number(row.selling_price)),
+    discountPercent: discountPercent(Number(row.mrp), offer.sellingPrice),
+    offerLabel: offerLabel(offer.makingChargeDiscountPercent, offer.diamondDiscountPercent),
     primaryImageUrl: row.primary_image_url,
     availableStock: row.available_stock,
     ratingAvg: Number(row.rating_avg),
@@ -61,11 +88,9 @@ export function toListDto(row) {
 }
 
 function toDetailDto(row) {
+  const offer = rowOffer(row);
   const gstAmount =
-    Number(row.selling_price) -
-    Number(row.gold_value) -
-    Number(row.diamond_value) -
-    Number(row.making_charge);
+    Math.round((offer.sellingPrice - offer.goldValue - offer.diamondValue - offer.makingCharge) * 100) / 100;
 
   return {
     id: row.id,
@@ -98,15 +123,25 @@ function toDetailDto(row) {
     careInstructions: row.care_instructions,
 
     priceBreakup: {
-      goldValue: Number(row.gold_value),
-      diamondValue: Number(row.diamond_value),
-      makingCharge: Number(row.making_charge),
-      gstAmount: Math.round(gstAmount * 100) / 100,
-      total: Number(row.selling_price),
+      goldValue: offer.goldValue,
+      diamondValue: offer.diamondValue,
+      diamondValueOriginal: offer.diamondValueOriginal,
+      makingCharge: offer.makingCharge,
+      makingChargeOriginal: offer.makingChargeOriginal,
+      makingChargeDiscountPercent: offer.makingChargeDiscountPercent,
+      diamondDiscountPercent: offer.diamondDiscountPercent,
+      gstAmount,
+      total: offer.sellingPrice,
     },
     mrp: Number(row.mrp),
-    sellingPrice: Number(row.selling_price),
-    discountPercent: discountPercent(Number(row.mrp), Number(row.selling_price)),
+    sellingPrice: offer.sellingPrice,
+    // The admin-set base price before this offer's discount — the admin
+    // edit form loads FROM this (not the discounted `sellingPrice` above),
+    // so re-saving a discounted product doesn't bake the discount in as the
+    // new base and compound it further on the next read.
+    sellingPriceOriginal: offer.sellingPriceOriginal,
+    discountPercent: discountPercent(Number(row.mrp), offer.sellingPrice),
+    offerLabel: offerLabel(offer.makingChargeDiscountPercent, offer.diamondDiscountPercent),
 
     stockQuantity: row.stock_quantity,
     availableStock: row.available_stock,
@@ -196,7 +231,10 @@ export async function pricePreview(req, res, next) {
       diamondConfigId,
       sizeId,
     });
-    res.json(result);
+    res.json({
+      ...result,
+      offerLabel: offerLabel(result.makingChargeDiscountPercent, result.diamondDiscountPercent),
+    });
   } catch (err) {
     next(err);
   }

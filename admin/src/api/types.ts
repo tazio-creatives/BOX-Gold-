@@ -80,10 +80,22 @@ export interface ProductDetail {
   certification: string | null;
   productSize: string | null;
   careInstructions: string | null;
-  priceBreakup: { goldValue: number; diamondValue: number; makingCharge: number; gstAmount: number; total: number };
+  priceBreakup: {
+    goldValue: number;
+    diamondValue: number;
+    diamondValueOriginal: number;
+    makingCharge: number;
+    makingChargeOriginal: number;
+    makingChargeDiscountPercent: number;
+    diamondDiscountPercent: number;
+    gstAmount: number;
+    total: number;
+  };
   mrp: number;
   sellingPrice: number;
+  sellingPriceOriginal: number;
   discountPercent: number;
+  offerLabel: string | null;
   stockQuantity: number;
   availableStock: number;
   status: ProductStatus;
@@ -132,6 +144,8 @@ export interface ProductInput {
   gstPercent?: number;
   mrp?: number;
   sellingPrice?: number;
+  makingChargeDiscountPercent?: number;
+  diamondDiscountPercent?: number;
   stockQuantity?: number;
   status?: ProductStatus;
   showDeliveryChecker?: boolean;
