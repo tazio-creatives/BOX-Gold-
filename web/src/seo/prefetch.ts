@@ -18,6 +18,11 @@ export async function prefetchForRoute(
 ): Promise<{ notFound: boolean }> {
   const { pathname, searchParams } = new URL(url, 'http://internal');
 
+  // The header's mega menu needs the category tree on every route, not just
+  // PLP/PDP (which already prefetched it for their own breadcrumbs/grid) —
+  // safePrefetch is a no-op if a route below prefetches the same key again.
+  await safePrefetch(queryClient, ['categories'], fetchCategories);
+
   if (pathname === '/') {
     await safePrefetch(queryClient, ['homepage'], fetchHomepage);
     return { notFound: false };

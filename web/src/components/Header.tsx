@@ -4,11 +4,11 @@ import { useQuery } from '@tanstack/react-query';
 import { SearchBar } from '../features/search/SearchBar';
 import { fetchCart } from '../api/cart';
 import { fetchWishlist } from '../api/wishlist';
+import { fetchCategories } from '../api/categories';
 import { useCustomer } from '../features/auth/useCustomer';
+import { MegaMenu, MobileCategoryList } from './MegaMenu';
 import styles from './Header.module.css';
 
-// No traditional category nav menu (plan §2) — logo, search, wishlist,
-// account, cart only. Becomes compact/sticky on scroll.
 export function Header() {
   const [isScrolled, setIsScrolled] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
@@ -26,6 +26,9 @@ export function Header() {
   });
   const cartCount = cart?.itemCount ?? 0;
   const wishlistCount = wishlist?.items.length ?? 0;
+
+  const { data: categoriesData } = useQuery({ queryKey: ['categories'], queryFn: fetchCategories });
+  const categories = categoriesData?.categories ?? [];
 
   useEffect(() => {
     const onScroll = () => setIsScrolled(window.scrollY > 8);
@@ -71,6 +74,7 @@ export function Header() {
           </button>
           {isMobileMenuOpen && (
             <div id="mobile-menu-panel" className={styles.mobileMenuPanel} role="menu">
+              <MobileCategoryList categories={categories} onNavigate={() => setIsMobileMenuOpen(false)} />
               <Link
                 to="/wishlist"
                 className={styles.mobileMenuLink}
@@ -126,6 +130,8 @@ export function Header() {
           </Link>
         </nav>
       </div>
+
+      <MegaMenu categories={categories} />
     </header>
   );
 }
