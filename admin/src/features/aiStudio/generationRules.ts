@@ -18,6 +18,7 @@ export function inferJewelleryTypeFromCategory(categoryName: string | null): Jew
     ['PENDANT', ['PENDANT']],
     ['CHAIN', ['CHAIN']],
     ['ANKLET', ['ANKLET']],
+    ['BROOCH', ['BROOCH']],
     ['RING', ['RING']],
   ];
   for (const [type, keywords] of candidates) {

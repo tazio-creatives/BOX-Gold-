@@ -2,7 +2,13 @@ import crypto from 'node:crypto';
 import { boss } from './queue.js';
 import { env } from '../config/env.js';
 import { storageProvider } from '../providers/storage/index.js';
-import { analyseJewellery, generateShot, presenterReferenceKeyFor } from '../services/aiStudioService.js';
+import {
+  analyseJewellery,
+  generateShot,
+  presenterReferenceKeyFor,
+  validateGeneratedImage,
+  metalColorForAssetType,
+} from '../services/aiStudioService.js';
 import {
   findJobById,
   updateJob,
@@ -30,6 +36,7 @@ async function analyseHandler(jobs) {
       status: 'awaiting_confirmation',
       analysis: JSON.stringify(analysis),
       analysis_confidence: analysis.jewelleryTypeConfidence,
+      ai_detected_category: analysis.jewelleryType,
     });
   } catch (err) {
     await updateJob(jobId, { status: 'failed', error: err.message });
@@ -69,7 +76,7 @@ async function ensureDefaultFeatured(jobId, assets) {
   if (front) await updateAsset(front.id, { is_featured: true });
 }
 
-async function generateOneAsset({ jobId, asset, referenceBuffer, mimetype, template, presenter, imageModel }) {
+async function generateOneAsset({ jobId, asset, referenceBuffer, mimetype, template, confirmedType, presenter, imageModel }) {
   // A cancelled job's late-arriving results are discarded, never written
   // back (plan §12) — checked immediately before each write, not just once
   // up front, since cancellation can land mid-flight.
@@ -85,13 +92,26 @@ async function generateOneAsset({ jobId, asset, referenceBuffer, mimetype, templ
       presenterReferenceBuffer = await storageProvider.read(keyFromUrl(presenter[poseKey]));
     }
 
+    // A retry after a failed/warning validation gets a fresh prompt with the
+    // prior failure folded in as a correction instruction, instead of
+    // reusing the originally-confirmed assembled_final_prompt verbatim for
+    // that one attempt — otherwise the same mistake just repeats.
+    const priorFailure =
+      asset.validation_status && asset.validation_status !== 'passed' && asset.validation_result
+        ? (asset.validation_result.validationMessages ?? []).join('; ')
+        : null;
+
     const { buffer, prompt } = await generateShot({
       referenceBuffer,
       mimetype,
       template,
       assetType: asset.asset_type,
+      confirmedType,
       presenter,
       presenterReferenceBuffer,
+      creative: asset.custom_creative_instructions ?? undefined,
+      priorFailure,
+      promptOverride: priorFailure ? undefined : (asset.assembled_final_prompt ?? undefined),
     });
 
     const stillActive = await findJobById(jobId);
@@ -101,6 +121,28 @@ async function generateOneAsset({ jobId, asset, referenceBuffer, mimetype, templ
       `products/ai-studio/${jobId}/${crypto.randomUUID()}.png`,
       buffer,
     );
+
+    // Post-generation validation (Problems 1 & 2) — never lets a failure
+    // here take down an otherwise-successful generation; the image is real
+    // and viewable either way, it just goes unvalidated (validation_status
+    // stays null, which the frontend treats the same as "needs review").
+    let validationStatus = null;
+    let validationResult = null;
+    try {
+      const result = await validateGeneratedImage({
+        generatedBuffer: buffer,
+        referenceBuffer,
+        referenceMimetype: mimetype,
+        confirmedType,
+        metalColor: metalColorForAssetType(asset.asset_type),
+        assetType: asset.asset_type,
+      });
+      validationStatus = result.validationStatus;
+      validationResult = result;
+    } catch (validationErr) {
+      console.error('AI Image Studio post-generation validation failed:', validationErr.message);
+    }
+
     // is_featured is deliberately NOT set here — see ensureDefaultFeatured,
     // called once per generation run in generateHandler below. Setting it
     // per-asset would re-stomp an admin's later "Set as Featured" choice
@@ -110,6 +152,11 @@ async function generateOneAsset({ jobId, asset, referenceBuffer, mimetype, templ
       image_key: saved.key,
       generation_metadata: JSON.stringify({ prompt, imageModel }),
       generation_completed_at: new Date(),
+      validation_status: validationStatus,
+      validation_result: validationResult ? JSON.stringify(validationResult) : null,
+      // A fresh image always needs a fresh accept — a prior "Accept Anyway"
+      // never carries over from the image it was actually about.
+      validation_accepted: false,
     });
   } catch (err) {
     const stillActive = await findJobById(jobId);
@@ -151,6 +198,7 @@ async function generateHandler(jobs) {
         referenceBuffer,
         mimetype,
         template,
+        confirmedType: aiStudioJob.jewellery_type,
         presenter,
         imageModel: env.openaiImageModel,
       }),

@@ -9,19 +9,24 @@ const STEPS = [
   { label: 'Review & Import', statuses: ['review_ready', 'partially_failed', 'importing', 'completed'] },
 ] as const;
 
-// 'awaiting_confirmation' covers both step 1 (Analyse & Confirm) and step 2
-// (Choose Presenter) on the backend — confirmSubStep disambiguates which
-// screen the wizard is actually showing right now.
-function stepIndexForStatus(status: StudioJobStatus | null, confirmSubStep: 'analyse' | 'presenter'): number {
+// 'awaiting_confirmation' covers all three of step 1 (Analyse & Confirm) and
+// step 2 (Choose Presenter, which also hosts the Review Prompts screen —
+// deliberately not its own stepper dot, see AiImageStudioPage.tsx) on the
+// backend — confirmSubStep disambiguates which screen the wizard is
+// actually showing right now.
+function stepIndexForStatus(
+  status: StudioJobStatus | null,
+  confirmSubStep: 'analyse' | 'presenter' | 'prompts',
+): number {
   if (!status) return 0;
   if (status === 'failed' || status === 'cancelled') return -1;
-  if (status === 'awaiting_confirmation') return confirmSubStep === 'presenter' ? 2 : 1;
+  if (status === 'awaiting_confirmation') return confirmSubStep === 'analyse' ? 1 : 2;
   return STEPS.findIndex((s) => (s.statuses as readonly string[]).includes(status));
 }
 
 interface StudioStepperProps {
   status: StudioJobStatus | null;
-  confirmSubStep: 'analyse' | 'presenter';
+  confirmSubStep: 'analyse' | 'presenter' | 'prompts';
   generateCount: number;
 }
 

@@ -12,6 +12,8 @@ export type JewelleryType =
   | 'ANKLET'
   | 'NOSE_PIN'
   | 'MANGALSUTRA'
+  | 'BROOCH'
+  | 'OTHER'
   | 'UNKNOWN';
 
 export const REAL_JEWELLERY_TYPES: Exclude<JewelleryType, 'UNKNOWN'>[] = [
@@ -25,6 +27,8 @@ export const REAL_JEWELLERY_TYPES: Exclude<JewelleryType, 'UNKNOWN'>[] = [
   'ANKLET',
   'NOSE_PIN',
   'MANGALSUTRA',
+  'BROOCH',
+  'OTHER',
 ];
 
 // Metal color is now encoded directly in the asset type (e.g. ROSE_FRONT)
@@ -65,6 +69,51 @@ export interface StudioAnalysis {
   suggestedCategorySlug: string | null;
 }
 
+// The only fields a "Customise Prompt" admin can edit on the Review Prompts
+// panel — everything else stays locked/computed. Mirrors the backend's
+// creativeOverrideSchema exactly.
+export interface PromptCreativeOverride {
+  background?: string;
+  lighting?: string;
+  composition?: string;
+  presenterPose?: string;
+  cameraAngle?: string;
+  additionalInstructions?: string;
+}
+
+export type PromptOverrides = Record<string, PromptCreativeOverride>;
+
+export interface PromptPreview {
+  assetType: AssetType;
+  metalColor: 'YELLOW' | 'ROSE';
+  mode: 'recommended' | 'customised';
+  lockedProductRules: string[];
+  categoryPlacementRules: string[];
+  creativeInstructions: {
+    background: string;
+    lighting: string;
+    composition: string;
+    presenterPose: string;
+    cameraAngle: string;
+    additionalInstructions: string;
+  };
+  negativeInstructions: string[];
+  finalPrompt: string;
+}
+
+export type ValidationStatus = 'passed' | 'warning' | 'failed';
+
+export interface ValidationResult {
+  validationStatus: ValidationStatus;
+  detectedJewelleryTypes: JewelleryType[];
+  expectedJewelleryType: JewelleryType;
+  additionalOrnamentsDetected: string[];
+  placementStatus: 'correct' | 'incorrect' | 'partially_obscured' | 'not_applicable';
+  metalColourStatus: 'correct' | 'incorrect';
+  productSimilarityScore: number;
+  validationMessages: string[];
+}
+
 export interface StudioAsset {
   id: string;
   assetType: AssetType;
@@ -72,6 +121,12 @@ export interface StudioAsset {
   status: AssetStatus;
   imageUrl: string | null;
   qualityAssessment: unknown;
+  promptMode: 'recommended' | 'customised';
+  customCreativeInstructions: PromptCreativeOverride | null;
+  assembledFinalPrompt: string | null;
+  validationStatus: ValidationStatus | null;
+  validationResult: ValidationResult | null;
+  validationAccepted: boolean;
   selected: boolean;
   isFeatured: boolean;
   imported: boolean;
@@ -89,6 +144,8 @@ export interface StudioJob {
   analysis: StudioAnalysis | null;
   analysisConfidence: number | null;
   categoryConfidenceThreshold: number;
+  existingProductCategory: string | null;
+  aiDetectedCategory: JewelleryType | null;
   jewelleryType: JewelleryType | null;
   categoryId: string | null;
   presenterId: string | null;
@@ -97,7 +154,9 @@ export interface StudioJob {
   error: string | null;
   createdAt: string;
   confirmedAt: string | null;
+  categoryConfirmedAt: string | null;
   completedAt: string | null;
+  generationVersion: number;
   assets: StudioAsset[];
 }
 
@@ -141,9 +200,29 @@ export function confirmStudioJob(
     categoryId: string | null;
     presenterId: string | null;
     generateRoseGold: boolean;
+    promptOverrides?: PromptOverrides;
   },
 ) {
   return apiFetch<{ jobId: string }>(`/admin/products/${productId}/ai-studio/${jobId}/confirm`, {
+    method: 'POST',
+    body: JSON.stringify(input),
+  });
+}
+
+// Computes every planned asset's prompt without starting the job — powers
+// the Review Prompts panel, callable repeatedly as the admin adjusts the
+// presenter, Rose Gold toggle, or a per-card customisation.
+export function fetchPromptPreview(
+  productId: string,
+  jobId: string,
+  input: {
+    jewelleryType?: Exclude<JewelleryType, 'UNKNOWN'>;
+    presenterId?: string | null;
+    generateRoseGold?: boolean;
+    promptOverrides?: PromptOverrides;
+  },
+) {
+  return apiFetch<{ prompts: PromptPreview[] }>(`/admin/products/${productId}/ai-studio/${jobId}/prompt-preview`, {
     method: 'POST',
     body: JSON.stringify(input),
   });
@@ -159,12 +238,19 @@ export function retryStudioAsset(productId: string, jobId: string, assetId: stri
   );
 }
 
-// Step 5's per-card select/deselect and "Set as Featured" actions.
+// Step 5's per-card select/deselect, "Set as Featured", "Accept Anyway"
+// (validationAccepted), and "Edit Prompt & Regenerate" (customCreativeInstructions
+// — recomputes and persists just this asset's prompt, ahead of a retry) actions.
 export function updateStudioAssetSelection(
   productId: string,
   jobId: string,
   assetId: string,
-  input: { selected?: boolean; isFeatured?: boolean },
+  input: {
+    selected?: boolean;
+    isFeatured?: boolean;
+    validationAccepted?: boolean;
+    customCreativeInstructions?: PromptCreativeOverride;
+  },
 ) {
   return apiFetch<{ asset: StudioAsset }>(
     `/admin/products/${productId}/ai-studio/${jobId}/assets/${assetId}`,

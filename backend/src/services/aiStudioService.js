@@ -60,8 +60,19 @@ export const JEWELLERY_TYPES = [
   'ANKLET',
   'NOSE_PIN',
   'MANGALSUTRA',
+  'BROOCH',
+  'OTHER',
   'UNKNOWN',
 ];
+
+// e.g. "NOSE_PIN" -> "Nose Pin" — used for the human-readable category name
+// embedded in prompts and shown on the Review Prompts panel.
+export function formatJewelleryType(type) {
+  return type
+    .replace(/_/g, ' ')
+    .toLowerCase()
+    .replace(/\b\w/g, (c) => c.toUpperCase());
+}
 
 const AnalysisSchema = z.object({
   jewelleryType: z.enum(JEWELLERY_TYPES),
@@ -210,26 +221,187 @@ const HERO_45_PROMPT =
 const PRESENTER_BACKGROUND_NOTE =
   ' Use a soft, solid studio backdrop colour that elegantly complements the presenter shown in the attached reference photo — coordinated with their skin tone, hair colour, and styling — refined and premium, not a busy pattern and not pure white.';
 
-function buildPrompt({ assetType, template, presenter }) {
+// Category-specific presenter placement/exclusion rules (Problem 2: presenter
+// shots must show only the uploaded product, no unrelated jewellery). The
+// four categories the spec gave exact wording for use it verbatim; every
+// other type — including the two new ones, Brooch/Other — gets a generic
+// rule of the same shape rather than being left unsupported.
+const PLACEMENT_RULES = {
+  RING: {
+    location: "the ring finger",
+    excluded:
+      'No earrings, necklace, pendant, bracelet, bangle, nose pin, anklet, watch or other ring.',
+  },
+  EARRINGS: {
+    location: 'the ears',
+    excluded: 'No necklace, pendant, bracelet, bangle, ring, nose pin or other earrings.',
+  },
+  NECKLACE: {
+    location: 'the neck',
+    excluded: 'No earrings, rings, bracelet, bangle, nose pin or additional necklace.',
+  },
+  PENDANT: {
+    location: 'the neck',
+    excluded: 'No earrings, rings, bracelet, bangle, nose pin or additional necklace.',
+  },
+  BRACELET: {
+    location: 'one visible wrist',
+    excluded: 'No rings, earrings, necklace, watch or additional wrist jewellery.',
+  },
+  BANGLE: {
+    location: 'one visible wrist',
+    excluded: 'No rings, earrings, necklace, watch or additional wrist jewellery.',
+  },
+};
+const GENERIC_PLACEMENT_RULE = {
+  location: 'its natural position',
+  excluded:
+    'No other jewellery of any kind — no rings, earrings, necklaces, pendants, bracelets, bangles, nose pins, anklets, watches, or additional pieces.',
+};
+function placementRuleFor(jewelleryType) {
+  return PLACEMENT_RULES[jewelleryType] ?? GENERIC_PLACEMENT_RULE;
+}
+
+// Builds one asset's prompt as a structured section object — locked
+// (non-editable) sections, an optional category-placement block (presenter
+// shots only), an editable "creative" block (Customise Prompt in the Review
+// Prompts panel overrides these, and only these), and a negative-instruction
+// list. `assemblePrompt` below joins this into the actual string sent to the
+// image API; the sections themselves are also returned as-is to the frontend
+// for the "Locked Product Rules / Category Placement Rules / Creative
+// Instructions / Negative Instructions" preview grouping.
+function buildAssetPromptSections({ assetType, confirmedType, template, presenter, creative, priorFailure }) {
   const metalColor = metalColorForAssetType(assetType);
-  const metalNote = ` The metal colour is ${metalColor.toLowerCase()} gold — preserve it exactly.`;
-  const backgroundNote = metalColor === 'ROSE' ? ROSE_GOLD_BACKGROUND_NOTE : YELLOW_GOLD_BACKGROUND_NOTE;
+  const metalColourNote = `The metal colour is ${metalColor.toLowerCase()} gold — preserve it exactly.`;
+  const backgroundNote = metalColor === 'ROSE' ? ROSE_GOLD_BACKGROUND_NOTE.trim() : YELLOW_GOLD_BACKGROUND_NOTE.trim();
+  const categoryLabel = confirmedType ? formatJewelleryType(confirmedType) : null;
+
+  const locked = {
+    productIdentity: 'Use the uploaded product reference as the only jewellery design.',
+    confirmedCategory: categoryLabel ? `The confirmed product category is ${categoryLabel}.` : '',
+    designPreservation: FIDELITY_BLOCK,
+    metalColour: metalColourNote,
+    outputSpecs: 'Photorealistic, premium e-commerce jewellery photography. No text, logos, or watermarks.',
+  };
+
+  let categoryPlacement = '';
+  let creativeDefaults;
+  const negativeParts = ['Do not redesign, reinterpret or add/remove/resize/reposition any component.'];
+
   switch (assetType) {
     case 'YELLOW_FRONT':
     case 'ROSE_FRONT':
-      return `${CATALOGUE_SIZE_NOTE} ${template.front_prompt}${metalNote}${backgroundNote}${CATALOGUE_LIGHTING_NOTE} ${FIDELITY_BLOCK}`;
+      creativeDefaults = {
+        background: backgroundNote,
+        lighting: CATALOGUE_LIGHTING_NOTE.trim(),
+        composition: `${CATALOGUE_SIZE_NOTE} ${template.front_prompt}`,
+        presenterPose: '',
+        cameraAngle: '',
+        additionalInstructions: '',
+      };
+      negativeParts.push('Do not add props, text, hands, packaging, flowers, fabric or decorative elements.');
+      break;
     case 'YELLOW_HERO_45':
     case 'ROSE_HERO_45':
-      return `${HERO_45_PROMPT}${metalNote}`;
+      creativeDefaults = {
+        background: '',
+        lighting: '',
+        composition: HERO_45_PROMPT,
+        presenterPose: '',
+        cameraAngle: '',
+        additionalInstructions: '',
+      };
+      negativeParts.push(
+        'Do not rotate the product so far that the primary design becomes hidden.',
+        'Do not make the jewellery appear to float.',
+        'Do not include hands, presenters, props, packaging, text, flowers, fabric or decorative elements.',
+      );
+      break;
     case 'PRESENTER_YELLOW_1':
     case 'PRESENTER_YELLOW_2':
     case 'PRESENTER_ROSE': {
-      const descriptor = presenter.prompt_descriptor || `a presenter styled as "${presenter.style_label}"`;
-      return `Show the exact jewellery worn naturally by ${descriptor}, matching the attached presenter reference photo, framed as a ${template.presenter_placement} (${template.presenter_crop} crop).${metalNote}${PRESENTER_BACKGROUND_NOTE} ${FIDELITY_BLOCK}`;
+      const rule = placementRuleFor(confirmedType);
+      const itemLabel = categoryLabel ? categoryLabel.toLowerCase() : 'jewellery';
+      categoryPlacement = `Place only this exact ${itemLabel} on the selected presenter's ${rule.location}. ${rule.excluded} Do not create a similar replacement design. Do not add accessory jewellery for styling. Keep the product clearly visible and unobstructed — do not allow clothing, hair or hands to cover it.`;
+      const descriptor =
+        presenter?.prompt_descriptor || (presenter ? `a presenter styled as "${presenter.style_label}"` : 'the selected presenter');
+      creativeDefaults = {
+        background: PRESENTER_BACKGROUND_NOTE.trim(),
+        lighting: '',
+        composition: `Framed as a ${template.presenter_placement} (${template.presenter_crop} crop). Use realistic product scale and placement.`,
+        presenterPose: `Worn naturally by ${descriptor}, matching the attached presenter reference photo.`,
+        cameraAngle: '',
+        additionalInstructions: '',
+      };
+      negativeParts.push(rule.excluded, 'Do not replace the uploaded product with a similar design.');
+      break;
     }
     default:
       throw new Error(`Unknown asset type "${assetType}"`);
   }
+
+  if (priorFailure) {
+    negativeParts.push(`A previous attempt was rejected: ${priorFailure}. Correct this specific issue.`);
+  }
+
+  return {
+    locked,
+    categoryPlacement,
+    creative: { ...creativeDefaults, ...(creative ?? {}) },
+    negativeInstructions: negativeParts,
+  };
+}
+
+function assemblePrompt({ locked, categoryPlacement, creative, negativeInstructions }) {
+  return [
+    locked.productIdentity,
+    locked.confirmedCategory,
+    locked.designPreservation,
+    locked.metalColour,
+    creative.composition,
+    creative.cameraAngle,
+    creative.presenterPose,
+    categoryPlacement,
+    creative.background,
+    creative.lighting,
+    creative.additionalInstructions,
+    ...negativeInstructions,
+    locked.outputSpecs,
+  ]
+    .filter(Boolean)
+    .join(' ');
+}
+
+function buildPrompt({ assetType, confirmedType, template, presenter, creative, priorFailure }) {
+  return assemblePrompt(buildAssetPromptSections({ assetType, confirmedType, template, presenter, creative, priorFailure }));
+}
+
+// Computes every planned asset's prompt without any DB/API calls — powers
+// both the Review Prompts preview endpoint and what confirmJob persists onto
+// each asset row at confirm time (so what's shown is exactly what's sent).
+export function previewPromptsForJob({ confirmedType, template, presenter, generateRoseGold, overridesByAssetType }) {
+  const hasPresenter = !!presenter;
+  const assetTypes = resolveAssetTypesForJob({ generateRoseGold, hasPresenter });
+  return assetTypes.map((assetType) => {
+    const override = overridesByAssetType?.[assetType];
+    const sections = buildAssetPromptSections({
+      assetType,
+      confirmedType,
+      template,
+      presenter,
+      creative: override,
+    });
+    return {
+      assetType,
+      metalColor: metalColorForAssetType(assetType),
+      mode: override ? 'customised' : 'recommended',
+      lockedProductRules: [sections.locked.productIdentity, sections.locked.confirmedCategory, sections.locked.designPreservation, sections.locked.metalColour, sections.locked.outputSpecs].filter(Boolean),
+      categoryPlacementRules: sections.categoryPlacement ? [sections.categoryPlacement] : [],
+      creativeInstructions: sections.creative,
+      negativeInstructions: sections.negativeInstructions,
+      finalPrompt: assemblePrompt(sections),
+    };
+  });
 }
 
 function extensionFor(mimetype) {
@@ -249,12 +421,21 @@ export async function generateShot({
   mimetype,
   template,
   assetType,
+  confirmedType,
   presenter,
   presenterReferenceBuffer,
+  creative,
+  priorFailure,
+  promptOverride,
 }) {
   const openai = getClient();
   const extension = extensionFor(mimetype);
-  const prompt = buildPrompt({ assetType, template, presenter });
+  // Prefer the prompt already reviewed/confirmed on the Review Prompts panel
+  // and persisted at confirm time (assembled_final_prompt) — guarantees what
+  // the admin saw is exactly what gets sent. Only recomputed when there's a
+  // prior-failure correction to inject (a retry after failed validation) or
+  // for the rare case nothing was persisted yet.
+  const prompt = promptOverride ?? buildPrompt({ assetType, confirmedType, template, presenter, creative, priorFailure });
 
   try {
     const referenceFile = await toFile(referenceBuffer, `reference.${extension}`, { type: mimetype });
@@ -283,4 +464,65 @@ export async function generateShot({
 
 export function presenterReferenceKeyFor(assetType) {
   return PRESENTER_POSE_REFERENCE[assetType] ?? null;
+}
+
+const ValidationSchema = z.object({
+  validationStatus: z.enum(['passed', 'warning', 'failed']),
+  detectedJewelleryTypes: z.array(z.enum(JEWELLERY_TYPES)),
+  expectedJewelleryType: z.enum(JEWELLERY_TYPES),
+  additionalOrnamentsDetected: z.array(z.string()),
+  placementStatus: z.enum(['correct', 'incorrect', 'partially_obscured', 'not_applicable']),
+  metalColourStatus: z.enum(['correct', 'incorrect']),
+  productSimilarityScore: z.number().min(0).max(1),
+  validationMessages: z.array(z.string()),
+});
+
+const VALIDATION_SYSTEM_PROMPT = `You are a jewellery product-photo quality reviewer. You are shown two images: the GENERATED result (first image) and the ORIGINAL product reference photo (second image), plus the expected jewellery category and metal colour as text. Check: (1) the generated image's jewellery category matches what was expected, (2) no additional or unrelated jewellery is visible anywhere in the image beyond the one confirmed product — rings, earrings, necklaces, pendants, bracelets, bangles, nose pins, anklets, watches, or any other piece, (3) the product is correctly placed, fully visible, sharply focused, and not obscured by hands, hair or clothing, (4) the metal colour matches what was requested, (5) the generated jewellery closely matches the original reference's design — same stone count, stone shapes, settings, prongs and proportions, not a similar replacement. Set validationStatus to "failed" for a wrong category or any additional ornament detected, "warning" for a real but minor issue (e.g. partial obstruction, slight colour mismatch), and "passed" only when everything checks out. Always include specific, actionable validationMessages, e.g. "Failed: Expected Ring, but Bracelet was detected." or "Warning: Ring is partially covered by the presenter's finger."`;
+
+// Runs after every successful generation (Problem 1 & 2 downstream): a second
+// vision call comparing the freshly generated image against the original
+// product reference, checking category/ornament/placement/metal/similarity.
+// Never blocks the asset from being READY/viewable — this is an orthogonal
+// gate on *import*, applied by the controller (see importAsset/updateAssetSelection).
+export async function validateGeneratedImage({
+  generatedBuffer,
+  referenceBuffer,
+  referenceMimetype,
+  confirmedType,
+  metalColor,
+  assetType,
+}) {
+  if (!env.openaiVisionModel) {
+    throw new AppError(503, 'AI validation is not configured');
+  }
+  const openai = getClient();
+  const generatedBase64 = generatedBuffer.toString('base64');
+  const referenceBase64 = referenceBuffer.toString('base64');
+
+  try {
+    const completion = await openai.chat.completions.parse({
+      model: env.openaiVisionModel,
+      messages: [
+        { role: 'system', content: VALIDATION_SYSTEM_PROMPT },
+        {
+          role: 'user',
+          content: [
+            {
+              type: 'text',
+              text: `Expected jewellery category: ${confirmedType}. Expected metal colour: ${metalColor}. Asset type: ${assetType}. The first image is the generated result; the second image is the original product reference.`,
+            },
+            { type: 'image_url', image_url: { url: `data:image/png;base64,${generatedBase64}`, detail: 'high' } },
+            {
+              type: 'image_url',
+              image_url: { url: `data:${referenceMimetype};base64,${referenceBase64}`, detail: 'high' },
+            },
+          ],
+        },
+      ],
+      response_format: zodResponseFormat(ValidationSchema, 'generation_validation'),
+    });
+    return completion.choices[0].message.parsed;
+  } catch (err) {
+    throw mapOpenAiError(err);
+  }
 }

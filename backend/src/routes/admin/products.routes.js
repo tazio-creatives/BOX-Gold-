@@ -23,6 +23,7 @@ import {
   getActiveJob as getActiveStudioJob,
   getJob as getStudioJob,
   confirmJob as confirmStudioJob,
+  previewPrompts as previewStudioPrompts,
   retryAsset as retryStudioAsset,
   updateAssetSelection as updateStudioAssetSelection,
   importAsset as importStudioAsset,
@@ -72,6 +73,7 @@ adminProductsRouter.post(
 );
 adminProductsRouter.get('/:id/ai-studio/:jobId', getStudioJob);
 adminProductsRouter.post('/:id/ai-studio/:jobId/confirm', aiStudioRateLimiter, confirmStudioJob);
+adminProductsRouter.post('/:id/ai-studio/:jobId/prompt-preview', aiStudioRateLimiter, previewStudioPrompts);
 adminProductsRouter.post(
   '/:id/ai-studio/:jobId/assets/:assetId/retry',
   aiStudioRateLimiter,

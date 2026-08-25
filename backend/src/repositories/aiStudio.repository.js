@@ -15,11 +15,17 @@ export async function findActiveJobByProduct(productId) {
   return rows[0] ?? null;
 }
 
-export async function insertJob({ productId, referenceImageUrls, analysisModel, imageModel }) {
+export async function insertJob({
+  productId,
+  referenceImageUrls,
+  analysisModel,
+  imageModel,
+  existingProductCategory,
+}) {
   const { rows } = await query(
     `INSERT INTO ai_studio_jobs
-       (product_id, status, reference_image_urls, prompt_version, template_version, analysis_model, image_model)
-     VALUES ($1, 'analysing', $2, $3, $4, $5, $6)
+       (product_id, status, reference_image_urls, prompt_version, template_version, analysis_model, image_model, existing_product_category)
+     VALUES ($1, 'analysing', $2, $3, $4, $5, $6, $7)
      RETURNING *`,
     [
       productId,
@@ -28,6 +34,7 @@ export async function insertJob({ productId, referenceImageUrls, analysisModel, 
       TEMPLATE_VERSION,
       analysisModel ?? null,
       imageModel ?? null,
+      existingProductCategory ?? null,
     ],
   );
   return rows[0];

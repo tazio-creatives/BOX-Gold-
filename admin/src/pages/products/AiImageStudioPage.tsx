@@ -12,14 +12,18 @@ import {
   completeStudioImport,
   cancelStudioJob,
   type JewelleryType,
+  type PromptOverrides,
+  type PromptCreativeOverride,
 } from '../../api/aiStudio';
 import { fetchAdminCategories } from '../../api/categories';
 import { fetchAdminProduct } from '../../api/products';
+import { fetchPresenters } from '../../api/presenters';
 import { ApiError } from '../../api/client';
 import { StudioStepper } from '../../features/aiStudio/StudioStepper';
 import { UploadStep } from '../../features/aiStudio/UploadStep';
 import { AnalyseConfirmStep } from '../../features/aiStudio/AnalyseConfirmStep';
 import { PresenterStep } from '../../features/aiStudio/PresenterStep';
+import { ReviewPromptsStep } from '../../features/aiStudio/ReviewPromptsStep';
 import { GenerateStep } from '../../features/aiStudio/GenerateStep';
 import { ReviewImportStep } from '../../features/aiStudio/ReviewImportStep';
 import { resolveAssetTypesForJob, inferJewelleryTypeFromCategory } from '../../features/aiStudio/generationRules';
@@ -38,12 +42,19 @@ export function AiImageStudioPage() {
 
   const [jobId, setJobId] = useState<string | null>(null);
   const [hasCheckedActiveJob, setHasCheckedActiveJob] = useState(false);
-  const [confirmSubStep, setConfirmSubStep] = useState<'analyse' | 'presenter'>('analyse');
+  const [confirmSubStep, setConfirmSubStep] = useState<'analyse' | 'presenter' | 'prompts'>('analyse');
   const [jewelleryType, setJewelleryType] = useState<JewelleryType | ''>('');
+  // Requires an explicit "Keep Product Category" / "Use AI-Detected
+  // Category" / "Select Another Category" click before Continue unlocks —
+  // even when jewelleryType already defaulted to the right value (Problem 1:
+  // category confirmation must be a real, mandatory gate, not just a
+  // pre-filled default the admin never had to look at).
+  const [categoryConfirmed, setCategoryConfirmed] = useState(false);
   const [generateRoseGold, setGenerateRoseGold] = useState(
     () => localStorage.getItem(ROSE_GOLD_PREF_KEY) !== 'false',
   );
   const [presenterId, setPresenterId] = useState<string | null>(null);
+  const [promptOverrides, setPromptOverrides] = useState<PromptOverrides>({});
   const [regeneratingAssetId, setRegeneratingAssetId] = useState<string | null>(null);
 
   const { data: productData } = useQuery({
@@ -54,6 +65,14 @@ export function AiImageStudioPage() {
   const { data: categoriesData } = useQuery({ queryKey: ['admin-categories'], queryFn: fetchAdminCategories });
   const product = productData?.product ?? null;
   const productCategory = categoriesData?.categories.find((c) => c.id === product?.categoryId) ?? null;
+
+  // Shares its cache with PresenterStep's identical query — only fetched
+  // here for the presenter's display name on the Review Prompts panel.
+  const { data: presentersData } = useQuery({
+    queryKey: ['ai-studio-presenters'],
+    queryFn: () => fetchPresenters(),
+  });
+  const presenters = presentersData?.presenters ?? [];
 
   // Resume an in-progress job for this product instead of always starting at
   // Upload — runs once on mount.
@@ -99,6 +118,8 @@ export function AiImageStudioPage() {
     onSuccess: (res) => {
       setJobId(res.jobId);
       setConfirmSubStep('analyse');
+      setCategoryConfirmed(false);
+      setPromptOverrides({});
     },
   });
 
@@ -109,6 +130,7 @@ export function AiImageStudioPage() {
         categoryId: product?.categoryId ?? null,
         presenterId,
         generateRoseGold,
+        promptOverrides,
       }),
     onSuccess: invalidateJob,
   });
@@ -123,9 +145,28 @@ export function AiImageStudioPage() {
   });
 
   const selectionMutation = useMutation({
-    mutationFn: ({ assetId, input }: { assetId: string; input: { selected?: boolean; isFeatured?: boolean } }) =>
-      updateStudioAssetSelection(productId as string, jobId as string, assetId, input),
+    mutationFn: ({
+      assetId,
+      input,
+    }: {
+      assetId: string;
+      input: { selected?: boolean; isFeatured?: boolean; validationAccepted?: boolean };
+    }) => updateStudioAssetSelection(productId as string, jobId as string, assetId, input),
     onSuccess: invalidateJob,
+  });
+
+  // "Edit Prompt & Regenerate" (Review & Import, on a warning/failed asset):
+  // persist the edited prompt first, then retry that one asset with it.
+  const editPromptMutation = useMutation({
+    mutationFn: async ({ assetId, override }: { assetId: string; override: PromptCreativeOverride }) => {
+      await updateStudioAssetSelection(productId as string, jobId as string, assetId, {
+        customCreativeInstructions: override,
+      });
+      setRegeneratingAssetId(assetId);
+      return retryStudioAsset(productId as string, jobId as string, assetId);
+    },
+    onSuccess: invalidateJob,
+    onSettled: () => setRegeneratingAssetId(null),
   });
 
   const cancelMutation = useMutation({
@@ -174,6 +215,8 @@ export function AiImageStudioPage() {
               productCategoryName={productCategory?.name ?? null}
               jewelleryType={jewelleryType}
               onJewelleryTypeChange={setJewelleryType}
+              categoryConfirmed={categoryConfirmed}
+              onCategoryConfirmedChange={setCategoryConfirmed}
               generateRoseGold={generateRoseGold}
               onGenerateRoseGoldChange={handleGenerateRoseGoldChange}
             />
@@ -181,7 +224,7 @@ export function AiImageStudioPage() {
               <button
                 type="button"
                 className={sharedStyles.buttonPrimary}
-                disabled={!jewelleryType}
+                disabled={!jewelleryType || !categoryConfirmed}
                 onClick={() => setConfirmSubStep('presenter')}
               >
                 Continue
@@ -198,9 +241,36 @@ export function AiImageStudioPage() {
               onChange={setPresenterId}
               generateRoseGold={generateRoseGold}
             />
-            {confirmError && <p className={sharedStyles.error}>{confirmError}</p>}
             <div className={styles.actions}>
               <button type="button" className={sharedStyles.button} onClick={() => setConfirmSubStep('analyse')}>
+                Back
+              </button>
+              <button
+                type="button"
+                className={sharedStyles.buttonPrimary}
+                onClick={() => setConfirmSubStep('prompts')}
+              >
+                Continue to Review Prompts
+              </button>
+            </div>
+          </>
+        )}
+
+        {job && job.status === 'awaiting_confirmation' && confirmSubStep === 'prompts' && jewelleryType && (
+          <>
+            <ReviewPromptsStep
+              productId={productId as string}
+              jobId={jobId as string}
+              jewelleryType={jewelleryType as Exclude<JewelleryType, 'UNKNOWN'>}
+              presenterId={presenterId}
+              presenterName={presenters.find((p) => p.id === presenterId)?.displayName ?? null}
+              generateRoseGold={generateRoseGold}
+              promptOverrides={promptOverrides}
+              onPromptOverridesChange={setPromptOverrides}
+            />
+            {confirmError && <p className={sharedStyles.error}>{confirmError}</p>}
+            <div className={styles.actions}>
+              <button type="button" className={sharedStyles.button} onClick={() => setConfirmSubStep('presenter')}>
                 Back
               </button>
               <button
@@ -209,7 +279,7 @@ export function AiImageStudioPage() {
                 disabled={confirmMutation.isPending}
                 onClick={() => confirmMutation.mutate()}
               >
-                {confirmMutation.isPending ? 'Starting…' : `Generate ${generateCount} Images`}
+                {confirmMutation.isPending ? 'Starting…' : `Confirm & Generate ${generateCount} Images`}
               </button>
             </div>
           </>
@@ -230,6 +300,8 @@ export function AiImageStudioPage() {
             regeneratingAssetId={regeneratingAssetId}
             onToggleSelected={(assetId, selected) => selectionMutation.mutate({ assetId, input: { selected } })}
             onSetFeatured={(assetId) => selectionMutation.mutate({ assetId, input: { isFeatured: true } })}
+            onAcceptValidation={(assetId) => selectionMutation.mutate({ assetId, input: { validationAccepted: true } })}
+            onEditPromptAndRegenerate={(assetId, override) => editPromptMutation.mutate({ assetId, override })}
             importAsset={async (assetId) => {
               await importStudioAsset(productId as string, jobId as string, assetId);
               await invalidateJob();

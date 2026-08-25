@@ -19,32 +19,47 @@ interface AnalyseConfirmStepProps {
   productCategoryName: string | null;
   jewelleryType: JewelleryType | '';
   onJewelleryTypeChange: (_v: JewelleryType) => void;
+  categoryConfirmed: boolean;
+  onCategoryConfirmedChange: (_v: boolean) => void;
   generateRoseGold: boolean;
   onGenerateRoseGoldChange: (_v: boolean) => void;
 }
 
 // AI-detected attributes are suggestions only — nothing here is ever applied
-// to the product without the admin explicitly confirming it below (plan §5).
-// Jewellery Type/Category/Metal Colour dropdowns are gone — the studio is
-// always opened from an existing product, so that information is read from
-// the product record, only overridable via "Update Product Category" if the
-// AI disagrees with it.
+// to the product without the admin explicitly confirming it below. The
+// confirmed jewellery type becomes authoritative for every prompt, and the
+// AI never silently changes it afterwards (Problem 1 in the approved plan).
+// The studio is always opened from an existing product, so the "existing
+// product category" is read from the product record, not re-entered.
 export function AnalyseConfirmStep({
   job,
   productName,
   productCategoryName,
   jewelleryType,
   onJewelleryTypeChange,
+  categoryConfirmed,
+  onCategoryConfirmedChange,
   generateRoseGold,
   onGenerateRoseGoldChange,
 }: AnalyseConfirmStepProps) {
-  const [isEditingType, setIsEditingType] = useState(false);
+  const [isPickingCategory, setIsPickingCategory] = useState(false);
+  const [categoryFilter, setCategoryFilter] = useState('');
   const analysis = job.analysis;
 
   const inferredType = inferJewelleryTypeFromCategory(productCategoryName);
   const hasComparableCategory = inferredType != null;
-  const matches = hasComparableCategory && analysis && analysis.jewelleryType === inferredType;
-  const mismatches = hasComparableCategory && analysis && analysis.jewelleryType !== 'UNKNOWN' && !matches;
+  const matches = hasComparableCategory && !!analysis && analysis.jewelleryType === inferredType;
+  const mismatches = hasComparableCategory && !!analysis && analysis.jewelleryType !== 'UNKNOWN' && !matches;
+
+  function confirmWith(type: JewelleryType) {
+    onJewelleryTypeChange(type);
+    onCategoryConfirmedChange(true);
+    setIsPickingCategory(false);
+  }
+
+  const filteredTypes = REAL_JEWELLERY_TYPES.filter((t) =>
+    formatType(t).toLowerCase().includes(categoryFilter.trim().toLowerCase()),
+  );
 
   return (
     <div>
@@ -60,7 +75,7 @@ export function AnalyseConfirmStep({
           <p className={styles.productInfoValue}>{productName}</p>
         </div>
         <div>
-          <p className={styles.productInfoLabel}>Product Category</p>
+          <p className={styles.productInfoLabel}>Existing Product Category</p>
           <p className={styles.productInfoValue}>{productCategoryName ?? '—'}</p>
         </div>
       </div>
@@ -83,47 +98,84 @@ export function AnalyseConfirmStep({
             <span className={styles.confidence}>Confidence: {pct(analysis.shapeConfidence)}</span>
           </div>
           <div className={styles.attrCard}>
-            <p className={styles.attrLabel}>Detection Confidence</p>
+            <p className={styles.attrLabel}>AI Confidence</p>
             <p className={styles.attrValue}>{pct(analysis.jewelleryTypeConfidence)}</p>
           </div>
         </div>
       )}
 
       {matches && (
-        <p className={styles.matchNotice}>Product information matches the uploaded jewellery.</p>
+        <p className={styles.matchNotice}>Product category confirmed: {formatType(inferredType as JewelleryType)}</p>
       )}
       {mismatches && analysis && (
         <p className={styles.mismatchNotice}>
-          The existing product category is {productCategoryName}, but AI detected {formatType(analysis.jewelleryType)}.
+          Category mismatch: This product is saved as {formatType(inferredType as JewelleryType)}, but AI detected{' '}
+          {formatType(analysis.jewelleryType)}.
+        </p>
+      )}
+      {!hasComparableCategory && (
+        <p className={styles.neutralNotice}>
+          The existing product category doesn&apos;t map to a known jewellery type — pick one below.
         </p>
       )}
 
-      {(mismatches || isEditingType) && (
-        <div className={styles.mismatchActions}>
-          {!isEditingType && (
-            <>
-              <button type="button" className={sharedStyles.button} onClick={() => onJewelleryTypeChange(inferredType as JewelleryType)}>
-                Use Product Information
+      <div className={styles.categoryActions}>
+        <button
+          type="button"
+          className={sharedStyles.button}
+          disabled={!hasComparableCategory}
+          onClick={() => confirmWith(inferredType as JewelleryType)}
+        >
+          Keep Product Category
+        </button>
+        <button
+          type="button"
+          className={sharedStyles.button}
+          disabled={!analysis || analysis.jewelleryType === 'UNKNOWN'}
+          onClick={() => confirmWith(analysis!.jewelleryType)}
+        >
+          Use AI-Detected Category
+        </button>
+        <button
+          type="button"
+          className={sharedStyles.button}
+          onClick={() => {
+            onCategoryConfirmedChange(false);
+            setIsPickingCategory((v) => !v);
+          }}
+        >
+          Select Another Category
+        </button>
+      </div>
+
+      {isPickingCategory && (
+        <div className={styles.categoryPicker}>
+          <input
+            type="text"
+            className={styles.categorySearch}
+            placeholder="Search jewellery types…"
+            value={categoryFilter}
+            onChange={(e) => setCategoryFilter(e.target.value)}
+          />
+          <div className={styles.categoryGrid}>
+            {filteredTypes.map((t) => (
+              <button
+                key={t}
+                type="button"
+                className={jewelleryType === t ? styles.categoryCardSelected : styles.categoryCard}
+                onClick={() => confirmWith(t)}
+              >
+                {formatType(t)}
               </button>
-              <button type="button" className={sharedStyles.button} onClick={() => setIsEditingType(true)}>
-                Update Product Category
-              </button>
-            </>
-          )}
-          {isEditingType && (
-            <label className={sharedStyles.field}>
-              Jewellery Type for this generation (does not change the product's category)
-              <select value={jewelleryType} onChange={(e) => onJewelleryTypeChange(e.target.value as JewelleryType)}>
-                <option value="">— Select —</option>
-                {REAL_JEWELLERY_TYPES.map((t) => (
-                  <option key={t} value={t}>
-                    {formatType(t)}
-                  </option>
-                ))}
-              </select>
-            </label>
-          )}
+            ))}
+          </div>
         </div>
+      )}
+
+      {categoryConfirmed && jewelleryType && (
+        <p className={styles.confirmedNotice}>
+          ✓ Confirmed for this generation: <strong>{formatType(jewelleryType)}</strong>
+        </p>
       )}
 
       <section className={styles.generationPlan}>

@@ -2,7 +2,7 @@ import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
 import { deriveJobStatus } from '../../src/jobs/aiStudioJob.js';
 import { confirmSchema } from '../../src/controllers/aiStudio.controller.js';
-import { JEWELLERY_TYPES, resolveAssetTypesForJob } from '../../src/services/aiStudioService.js';
+import { JEWELLERY_TYPES, resolveAssetTypesForJob, previewPromptsForJob } from '../../src/services/aiStudioService.js';
 import { query } from '../../src/config/db.js';
 import { insertJob, findCategoryTemplate } from '../../src/repositories/aiStudio.repository.js';
 
@@ -98,7 +98,7 @@ describe('resolveAssetTypesForJob (rose gold toggle x presenter selection)', () 
   });
 });
 
-describe('category templates (plan §9 — table-driven, all 10 categories)', () => {
+describe('category templates (plan §9 — table-driven, all 12 categories)', () => {
   test('every jewellery type except UNKNOWN has a complete, active template', async () => {
     const realTypes = JEWELLERY_TYPES.filter((t) => t !== 'UNKNOWN');
     for (const type of realTypes) {
@@ -110,7 +110,114 @@ describe('category templates (plan §9 — table-driven, all 10 categories)', ()
       assert.ok(template.presenter_crop);
       assert.ok(template.lifestyle_prompt);
     }
-    assert.equal(realTypes.length, 10);
+    // 10 original types + BROOCH + OTHER (added for mandatory category
+    // confirmation — see .claude/plans/sprightly-watching-mccarthy.md).
+    assert.equal(realTypes.length, 12);
+  });
+});
+
+const FAKE_TEMPLATE = {
+  front_prompt: 'FRONT_PROMPT_TEXT',
+  hero_45_prompt: 'HERO_PROMPT_TEXT',
+  presenter_placement: 'hand-focused presenter shot',
+  presenter_crop: 'portrait 4:5',
+};
+const FAKE_PRESENTER = { prompt_descriptor: 'a friendly presenter', style_label: 'Contemporary' };
+
+describe('previewPromptsForJob (Review Prompts panel — pure, no DB/API calls)', () => {
+  test('recommended mode: no presenter, rose gold off -> 2 catalogue prompts, no placement rules', () => {
+    const previews = previewPromptsForJob({
+      confirmedType: 'RING',
+      template: FAKE_TEMPLATE,
+      presenter: null,
+      generateRoseGold: false,
+      overridesByAssetType: undefined,
+    });
+    assert.deepEqual(previews.map((p) => p.assetType), ['YELLOW_FRONT', 'YELLOW_HERO_45']);
+    for (const p of previews) {
+      assert.equal(p.mode, 'recommended');
+      assert.equal(p.categoryPlacementRules.length, 0);
+      assert.ok(p.lockedProductRules.some((s) => s.includes('confirmed product category is Ring')));
+    }
+  });
+
+  test('presenter shots include the exact spec-mandated Ring placement/exclusion wording (Problem 2)', () => {
+    const previews = previewPromptsForJob({
+      confirmedType: 'RING',
+      template: FAKE_TEMPLATE,
+      presenter: FAKE_PRESENTER,
+      generateRoseGold: false,
+      overridesByAssetType: undefined,
+    });
+    const presenterShot = previews.find((p) => p.assetType === 'PRESENTER_YELLOW_1');
+    assert.equal(presenterShot.categoryPlacementRules.length, 1);
+    assert.match(presenterShot.categoryPlacementRules[0], /ring finger/i);
+    assert.match(
+      presenterShot.categoryPlacementRules[0],
+      /No earrings, necklace, pendant, bracelet, bangle, nose pin, anklet, watch or other ring/,
+    );
+  });
+
+  test('every real jewellery type gets a non-empty presenter placement rule, including the generic-fallback types', () => {
+    for (const type of JEWELLERY_TYPES.filter((t) => t !== 'UNKNOWN')) {
+      const previews = previewPromptsForJob({
+        confirmedType: type,
+        template: FAKE_TEMPLATE,
+        presenter: FAKE_PRESENTER,
+        generateRoseGold: false,
+        overridesByAssetType: undefined,
+      });
+      const presenterShot = previews.find((p) => p.assetType.startsWith('PRESENTER_'));
+      assert.ok(presenterShot, `no presenter asset planned for ${type}`);
+      assert.equal(presenterShot.categoryPlacementRules.length, 1, `missing placement rule for ${type}`);
+      assert.ok(presenterShot.categoryPlacementRules[0].length > 20, `placement rule too short for ${type}`);
+    }
+  });
+
+  test('customising one card only changes its own creative fields — locked rules and placement rules are identical to the recommended version, and other cards are untouched', () => {
+    const recommended = previewPromptsForJob({
+      confirmedType: 'NECKLACE',
+      template: FAKE_TEMPLATE,
+      presenter: FAKE_PRESENTER,
+      generateRoseGold: false,
+      overridesByAssetType: undefined,
+    });
+    const customised = previewPromptsForJob({
+      confirmedType: 'NECKLACE',
+      template: FAKE_TEMPLATE,
+      presenter: FAKE_PRESENTER,
+      generateRoseGold: false,
+      overridesByAssetType: { PRESENTER_YELLOW_1: { background: 'a custom studio backdrop' } },
+    });
+
+    for (let i = 0; i < recommended.length; i++) {
+      assert.deepEqual(customised[i].lockedProductRules, recommended[i].lockedProductRules);
+      assert.deepEqual(customised[i].categoryPlacementRules, recommended[i].categoryPlacementRules);
+    }
+
+    const customCard = customised.find((p) => p.assetType === 'PRESENTER_YELLOW_1');
+    assert.equal(customCard.mode, 'customised');
+    assert.equal(customCard.creativeInstructions.background, 'a custom studio backdrop');
+    assert.ok(customCard.finalPrompt.includes('a custom studio backdrop'));
+
+    const untouchedCard = customised.find((p) => p.assetType === 'YELLOW_FRONT');
+    assert.equal(untouchedCard.mode, 'recommended');
+  });
+
+  test('rose gold on + presenter -> 6 assets, matched yellow/rose presenter pair, rose prompt mentions rose gold', () => {
+    const previews = previewPromptsForJob({
+      confirmedType: 'BANGLE',
+      template: FAKE_TEMPLATE,
+      presenter: FAKE_PRESENTER,
+      generateRoseGold: true,
+      overridesByAssetType: undefined,
+    });
+    assert.deepEqual(
+      previews.map((p) => p.assetType),
+      ['YELLOW_FRONT', 'YELLOW_HERO_45', 'ROSE_FRONT', 'ROSE_HERO_45', 'PRESENTER_YELLOW_1', 'PRESENTER_ROSE'],
+    );
+    const rosePresenter = previews.find((p) => p.assetType === 'PRESENTER_ROSE');
+    assert.match(rosePresenter.finalPrompt, /rose gold/i);
   });
 });
 

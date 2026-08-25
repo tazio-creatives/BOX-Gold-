@@ -5,8 +5,9 @@ import { AppError, NotFoundError } from '../utils/AppError.js';
 import { env } from '../config/env.js';
 import { boss } from '../jobs/queue.js';
 import { JOB_AI_STUDIO_ANALYSE, JOB_AI_STUDIO_GENERATE, resetAssetForRetry } from '../jobs/aiStudioJob.js';
-import { JEWELLERY_TYPES, resolveAssetTypesForJob, ASSET_DISPLAY_ORDER } from '../services/aiStudioService.js';
+import { JEWELLERY_TYPES, ASSET_DISPLAY_ORDER, previewPromptsForJob } from '../services/aiStudioService.js';
 import { findPresenterById } from '../repositories/presenters.repository.js';
+import { findCategoryById } from '../repositories/categories.repository.js';
 import { storageProvider } from '../providers/storage/index.js';
 import { processAndStoreImage } from '../services/imageProcessingService.js';
 import { withTransaction } from '../config/db.js';
@@ -37,20 +38,47 @@ const MIN_DIMENSION_PX = 200;
 const MAX_DIMENSION_PX = 8000;
 const CATALOGUE_ASSET_TYPES = ['YELLOW_FRONT', 'YELLOW_HERO_45', 'ROSE_FRONT', 'ROSE_HERO_45'];
 
+// The only fields a "Customise Prompt" admin can edit (Review Prompts panel)
+// — everything else (category, design preservation, metal colour, no
+// additional jewellery, category placement, output dims, safety rules)
+// stays locked/computed, never accepted from the client.
+const creativeOverrideSchema = z.object({
+  background: z.string().max(500).optional(),
+  lighting: z.string().max(500).optional(),
+  composition: z.string().max(500).optional(),
+  presenterPose: z.string().max(500).optional(),
+  cameraAngle: z.string().max(500).optional(),
+  additionalInstructions: z.string().max(500).optional(),
+});
+const promptOverridesSchema = z.record(z.string(), creativeOverrideSchema);
+
 export const confirmSchema = z.object({
   jewelleryType: z.enum(JEWELLERY_TYPES.filter((t) => t !== 'UNKNOWN')),
   categoryId: z.string().uuid().nullable().optional(),
   presenterId: z.string().uuid().nullable().optional(),
   generateRoseGold: z.boolean().optional(),
+  promptOverrides: promptOverridesSchema.optional(),
+});
+
+const promptPreviewSchema = z.object({
+  jewelleryType: z.enum(JEWELLERY_TYPES.filter((t) => t !== 'UNKNOWN')).optional(),
+  presenterId: z.string().uuid().nullable().optional(),
+  generateRoseGold: z.boolean().optional(),
+  promptOverrides: promptOverridesSchema.optional(),
 });
 
 const selectionSchema = z.object({
   selected: z.boolean().optional(),
   isFeatured: z.boolean().optional(),
+  validationAccepted: z.boolean().optional(),
+  customCreativeInstructions: creativeOverrideSchema.optional(),
 });
 
-// API responses never include raw storage keys, prompts, or generation
-// internals (plan §11) — only public URLs and safe status fields.
+// API responses never include raw storage keys or other generation
+// internals — only public URLs and safe status fields. Prompt text/mode and
+// the validation result ARE included (unlike the original plan §11 default)
+// since the Review Prompts and Review & Import screens need to show the
+// admin exactly what was/will be sent and why an image was flagged.
 function assetDto(asset) {
   return {
     id: asset.id,
@@ -59,6 +87,12 @@ function assetDto(asset) {
     status: asset.status,
     imageUrl: asset.image_key ? storageProvider.urlFor(asset.image_key) : null,
     qualityAssessment: asset.quality_assessment,
+    promptMode: asset.prompt_mode,
+    customCreativeInstructions: asset.custom_creative_instructions,
+    assembledFinalPrompt: asset.assembled_final_prompt,
+    validationStatus: asset.validation_status,
+    validationResult: asset.validation_result,
+    validationAccepted: asset.validation_accepted,
     selected: asset.selected,
     isFeatured: asset.is_featured,
     imported: asset.imported,
@@ -78,6 +112,8 @@ function jobDto(job, assets, presenter) {
     analysis: job.analysis,
     analysisConfidence: job.analysis_confidence == null ? null : Number(job.analysis_confidence),
     categoryConfidenceThreshold: env.aiStudioCategoryConfidenceThreshold,
+    existingProductCategory: job.existing_product_category,
+    aiDetectedCategory: job.ai_detected_category,
     jewelleryType: job.jewellery_type,
     categoryId: job.category_id,
     presenterId: job.presenter_id,
@@ -88,7 +124,9 @@ function jobDto(job, assets, presenter) {
     error: job.error,
     createdAt: job.created_at,
     confirmedAt: job.confirmed_at,
+    categoryConfirmedAt: job.category_confirmed_at,
     completedAt: job.completed_at,
+    generationVersion: job.generation_version,
     assets: assets.map(assetDto),
   };
 }
@@ -123,6 +161,17 @@ export async function createJob(req, res, next) {
     const product = await findProductById(productId);
     if (!product) throw new NotFoundError('Product not found');
 
+    // Snapshotted once at job creation — the source of truth Analyse &
+    // Confirm compares the AI's detected type against (Problem 1). Read at
+    // creation, not on every subsequent request, so a category edit made to
+    // the product mid-job doesn't retroactively change what this job's
+    // confirmation screen is comparing against.
+    let existingProductCategory = null;
+    if (product.category_id) {
+      const category = await findCategoryById(product.category_id);
+      existingProductCategory = category?.name ?? null;
+    }
+
     const files = req.files ?? [];
     if (files.length === 0) throw new AppError(400, 'A primary reference image is required');
     if (files.length > 4) throw new AppError(400, 'At most 1 primary + 3 supporting images are allowed');
@@ -152,6 +201,7 @@ export async function createJob(req, res, next) {
         referenceImageUrls,
         analysisModel: env.openaiVisionModel ?? null,
         imageModel: env.openaiImageModel,
+        existingProductCategory,
       });
     } catch (err) {
       // Unique-violation race from the partial index (plan §8) — another
@@ -234,18 +284,81 @@ export async function confirmJob(req, res, next) {
       presenter_id: input.presenterId ?? null,
       generate_rose_gold: generateRoseGold,
       confirmed_at: new Date(),
+      category_confirmed_at: new Date(),
       status: 'generating',
     });
 
-    const assetTypes = resolveAssetTypesForJob({ generateRoseGold, hasPresenter: !!presenter });
-    await insertAssets(
+    // Computed once here and persisted onto each asset row (not recomputed
+    // at generation time) so what the admin reviewed on the Review Prompts
+    // panel is exactly what gets sent — see aiStudioJob.js's generateOneAsset,
+    // which uses asset.assembled_final_prompt as-is.
+    const previews = previewPromptsForJob({
+      confirmedType: input.jewelleryType,
+      template,
+      presenter,
+      generateRoseGold,
+      overridesByAssetType: input.promptOverrides,
+    });
+
+    const insertedAssets = await insertAssets(
       job.id,
-      assetTypes.map((assetType) => ({ assetType, displayOrder: ASSET_DISPLAY_ORDER[assetType] })),
+      previews.map((p) => ({ assetType: p.assetType, displayOrder: ASSET_DISPLAY_ORDER[p.assetType] })),
+    );
+    await Promise.all(
+      insertedAssets.map((asset) => {
+        const preview = previews.find((p) => p.assetType === asset.asset_type);
+        const override = input.promptOverrides?.[asset.asset_type];
+        return updateAsset(asset.id, {
+          prompt_mode: preview.mode,
+          custom_creative_instructions: override ? JSON.stringify(override) : null,
+          assembled_final_prompt: preview.finalPrompt,
+        });
+      }),
     );
 
     await boss.send(JOB_AI_STUDIO_GENERATE, { jobId: job.id });
 
     res.status(202).json({ jobId: job.id });
+  } catch (err) {
+    next(err);
+  }
+}
+
+// Computes every planned asset's prompt without starting a job or writing
+// anything — lets the Review Prompts panel show (and let the admin tweak)
+// the exact prompt before Confirm & Generate is clicked. jewelleryType/
+// presenterId/generateRoseGold default to whatever the job already has (the
+// admin may not have changed them since Analyse & Confirm / Choose Presenter).
+export async function previewPrompts(req, res, next) {
+  try {
+    const job = await findJobById(req.params.jobId);
+    if (!job || job.product_id !== req.params.id) throw new NotFoundError('Job not found');
+
+    const input = promptPreviewSchema.parse(req.body);
+    const jewelleryType = input.jewelleryType ?? job.jewellery_type;
+    if (!jewelleryType) throw new AppError(400, 'jewelleryType is required');
+
+    const template = await findCategoryTemplate(jewelleryType);
+    if (!template) throw new AppError(400, `No generation template for "${jewelleryType}"`);
+
+    const presenterId = input.presenterId !== undefined ? input.presenterId : job.presenter_id;
+    let presenter = null;
+    if (presenterId) {
+      presenter = await findPresenterById(presenterId);
+      if (!presenter || !presenter.is_active) throw new AppError(400, 'Selected presenter is not available');
+    }
+
+    const generateRoseGold = input.generateRoseGold ?? job.generate_rose_gold ?? true;
+
+    const previews = previewPromptsForJob({
+      confirmedType: jewelleryType,
+      template,
+      presenter,
+      generateRoseGold,
+      overridesByAssetType: input.promptOverrides,
+    });
+
+    res.json({ prompts: previews });
   } catch (err) {
     next(err);
   }
@@ -279,10 +392,13 @@ export async function retryAsset(req, res, next) {
   }
 }
 
-// Step 5's per-card select/deselect and "Set as Featured" actions. Setting
-// isFeatured atomically clears every other asset in the job first, so
-// exactly one stays featured — only a READY catalogue-type asset can be
-// featured (mirrors the DB CHECK constraint).
+// Step 5's per-card select/deselect, "Set as Featured", and "Accept Anyway"
+// actions. Setting isFeatured atomically clears every other asset in the job
+// first, so exactly one stays featured — only a READY catalogue-type asset
+// can be featured (mirrors the DB CHECK constraint). An asset that failed or
+// warned validation can't be selected for import until it's been explicitly
+// accepted via validationAccepted — the frontend gates this behind its own
+// confirmation dialog, this is the server-side backstop.
 export async function updateAssetSelection(req, res, next) {
   try {
     const job = await findJobById(req.params.jobId);
@@ -294,8 +410,41 @@ export async function updateAssetSelection(req, res, next) {
     const input = selectionSchema.parse(req.body);
 
     let updated = asset;
+
+    // "Edit Prompt & Regenerate" (Review & Import) — updates just this one
+    // asset's prompt ahead of a retry, using the exact same section-builder
+    // as the Review Prompts panel so it's never a hand-rolled string.
+    // Individual regeneration otherwise keeps everything else about the job
+    // untouched (same reference images, same presenter, same metal colour).
+    if (input.customCreativeInstructions) {
+      const template = await findCategoryTemplate(job.jewellery_type);
+      if (!template) throw new AppError(400, `No generation template for "${job.jewellery_type}"`);
+      const presenter = job.presenter_id ? await findPresenterById(job.presenter_id) : null;
+      const previews = previewPromptsForJob({
+        confirmedType: job.jewellery_type,
+        template,
+        presenter,
+        generateRoseGold: job.generate_rose_gold,
+        overridesByAssetType: { [asset.asset_type]: input.customCreativeInstructions },
+      });
+      const preview = previews.find((p) => p.assetType === asset.asset_type);
+      if (!preview) throw new AppError(400, 'This asset type is not part of the current generation plan');
+      updated = await updateAsset(asset.id, {
+        prompt_mode: 'customised',
+        custom_creative_instructions: JSON.stringify(input.customCreativeInstructions),
+        assembled_final_prompt: preview.finalPrompt,
+      });
+    }
+
+    if (input.validationAccepted) {
+      if (!asset.validation_status || asset.validation_status === 'passed') {
+        throw new AppError(400, 'Only an asset with a warning or failed validation needs to be accepted');
+      }
+      updated = await updateAsset(asset.id, { validation_accepted: true });
+    }
+
     if (input.isFeatured) {
-      if (asset.status !== 'READY' || !CATALOGUE_ASSET_TYPES.includes(asset.asset_type)) {
+      if (updated.status !== 'READY' || !CATALOGUE_ASSET_TYPES.includes(updated.asset_type)) {
         throw new AppError(400, 'Only a completed catalogue image can be set as featured');
       }
       updated = await withTransaction(async (client) => {
@@ -305,7 +454,16 @@ export async function updateAssetSelection(req, res, next) {
     } else if (input.isFeatured === false) {
       updated = await updateAsset(asset.id, { is_featured: false });
     }
+
     if (input.selected !== undefined) {
+      if (
+        input.selected &&
+        updated.validation_status &&
+        updated.validation_status !== 'passed' &&
+        !updated.validation_accepted
+      ) {
+        throw new AppError(400, 'This image failed validation — accept it before selecting it for import');
+      }
       updated = await updateAsset(asset.id, { selected: input.selected });
     }
 
@@ -354,6 +512,12 @@ export async function importAsset(req, res, next) {
       if (asset.imported) return { alreadyImported: true, asset };
       if (!asset.selected) throw new AppError(400, 'Asset is not selected for import');
       if (asset.status !== 'READY') throw new AppError(409, 'Asset is not ready to import');
+      // Belt-and-suspenders with the updateAssetSelection gate above and the
+      // frontend's "Accept Anyway" confirmation dialog — a failed/warning
+      // image can never actually reach product_images unimported.
+      if (asset.validation_status && asset.validation_status !== 'passed' && !asset.validation_accepted) {
+        throw new AppError(400, 'This image failed validation and has not been accepted — accept it before importing');
+      }
 
       if (job.status !== 'importing') await updateJobTx(client, jobId, { status: 'importing' });
       if (asset.is_featured) await clearPrimaryForProductTx(client, productId);
