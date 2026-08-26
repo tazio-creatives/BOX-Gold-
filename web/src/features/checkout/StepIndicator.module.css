@@ -21,8 +21,8 @@
 .circleDone {
   display: grid;
   place-items: center;
-  width: 34px;
-  height: 34px;
+  width: 36px;
+  height: 36px;
   border-radius: 50%;
   font-size: var(--text-sm);
   font-weight: 600;

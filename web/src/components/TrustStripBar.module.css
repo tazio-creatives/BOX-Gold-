@@ -25,8 +25,8 @@
   display: grid;
   place-items: center;
   flex-shrink: 0;
-  width: 44px;
-  height: 44px;
+  width: var(--trust-icon-size, 44px);
+  height: var(--trust-icon-size, 44px);
   border-radius: 50%;
   background: #fbe4e8;
   color: var(--color-burgundy);
@@ -42,6 +42,7 @@
 .subtitle {
   margin: 2px 0 0;
   font-size: var(--trust-subtitle-size, var(--text-xs));
+  line-height: 1.35;
   color: var(--color-text-muted);
 }
 
@@ -58,24 +59,37 @@
   }
 }
 
-/* Boxed variant — each item gets its own outlined card instead of one
-   shared top border across the row (used on the cart page, right below
-   the item list). */
+/* Boxed variant — one compact white card, equal-width columns divided by
+   vertical separators (used on the cart page, right below the item list). */
 .stripBoxed {
   grid-template-columns: repeat(3, 1fr);
   margin-top: 0;
   padding: 0;
   border-top: none;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: 12px;
+  overflow: hidden;
+  --trust-icon-size: 40px;
+  --trust-title-size: 13px;
+  --trust-subtitle-size: 11px;
 }
 
 .itemBoxed {
-  border: 1px solid var(--color-border);
-  border-radius: 10px;
-  padding: var(--space-4);
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  gap: 8px;
+  padding: 16px 12px;
+  border-right: 1px solid var(--color-border);
+  border-radius: 0;
+}
+
+.itemBoxed:last-child {
+  border-right: none;
 }
 
 .itemBoxed:hover {
   background: none;
   transform: none;
-  border-color: var(--color-burgundy);
 }

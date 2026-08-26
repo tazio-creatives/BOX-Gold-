@@ -1,4 +1,4 @@
-import type { ReactNode } from 'react';
+import { useState, type ReactNode } from 'react';
 import { formatPrice } from '../../utils/formatPrice';
 import { placeholderGradient } from '../../utils/placeholderGradient';
 import styles from './OrderSummary.module.css';
@@ -38,6 +38,27 @@ interface OrderSummaryProps {
   primaryAction?: OrderSummaryAction;
   secondaryAction?: OrderSummaryAction;
   showTrustList?: boolean;
+  // Cart page has its own fixed mobile checkout bar — showing primaryAction
+  // there too would duplicate the "Proceed to Checkout" button. Checkout
+  // page never passes primaryAction at all, so this only ever matters here.
+  hidePrimaryOnMobile?: boolean;
+}
+
+function ChevronIcon({ expanded }: { expanded: boolean }) {
+  return (
+    <svg
+      width="16"
+      height="16"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      style={{ transform: expanded ? 'rotate(180deg)' : undefined, transition: 'transform 0.15s ease' }}
+      aria-hidden="true"
+    >
+      <path d="M6 9l6 6 6-6" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
 }
 
 function ShieldIcon() {
@@ -94,12 +115,66 @@ export function OrderSummary({
   primaryAction,
   secondaryAction,
   showTrustList = true,
+  hidePrimaryOnMobile = false,
 }: OrderSummaryProps) {
+  const [itemsExpanded, setItemsExpanded] = useState(false);
+  const PREVIEW_COUNT = 2;
+  const hasMoreThanPreview = (items?.length ?? 0) > PREVIEW_COUNT;
+  const hiddenCount = items ? Math.max(items.length - PREVIEW_COUNT, 0) : 0;
+
   return (
     <aside className={styles.card}>
-      <h2 className={styles.heading}>Order Summary</h2>
+      <div className={styles.headingRow}>
+        <h2 className={styles.heading}>
+          Order Summary
+          {items && items.length > 0 && (
+            <span className={styles.headingCount}>
+              {' '}
+              ({items.length} {items.length === 1 ? 'item' : 'items'})
+            </span>
+          )}
+        </h2>
+        {hasMoreThanPreview && (
+          <button
+            type="button"
+            className={styles.expandToggle}
+            aria-expanded={itemsExpanded}
+            aria-label={itemsExpanded ? 'Collapse order items' : 'Expand order items'}
+            onClick={() => setItemsExpanded((v) => !v)}
+          >
+            <ChevronIcon expanded={itemsExpanded} />
+          </button>
+        )}
+      </div>
 
-      {items && items.length > 0 && (
+      {items && items.length > 0 && !itemsExpanded && (
+        <div className={styles.itemsPreview}>
+          <div className={styles.previewThumbs}>
+            {items.slice(0, PREVIEW_COUNT).map((item, i) => (
+              <div
+                key={item.id}
+                className={styles.previewThumb}
+                style={item.image ? undefined : { background: placeholderGradient(i) }}
+              >
+                {item.image && <img src={item.image} alt="" className={styles.previewThumbImg} />}
+              </div>
+            ))}
+            {hiddenCount > 0 && <div className={styles.previewThumbMore}>+{hiddenCount}</div>}
+          </div>
+          <ul className={styles.previewNames}>
+            {items.slice(0, PREVIEW_COUNT).map((item) => (
+              <li key={item.id} className={styles.previewNameRow}>
+                <span className={styles.previewName}>{item.name}</span>
+                <span className={styles.previewQtyPrice}>
+                  Qty {item.qty} · {formatPrice(item.price * item.qty)}
+                </span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+
+      {items && items.length > 0 && itemsExpanded && (
         <ul className={styles.itemList}>
           {items.map((item, i) => (
             <li key={item.id} className={styles.item}>
@@ -120,6 +195,12 @@ export function OrderSummary({
             </li>
           ))}
         </ul>
+      )}
+
+      {hasMoreThanPreview && (
+        <button type="button" className={styles.viewAllLink} onClick={() => setItemsExpanded((v) => !v)}>
+          {itemsExpanded ? 'Show less' : `View all ${items!.length} items`}
+        </button>
       )}
 
       <div className={styles.priceRows}>
@@ -162,10 +243,15 @@ export function OrderSummary({
           </div>
         ) : (
           <div className={styles.couponInputRow}>
+            <label htmlFor="cart-coupon-code" className={styles.visuallyHidden}>
+              Coupon code
+            </label>
             <input
+              id="cart-coupon-code"
               className={styles.couponInput}
               placeholder="Enter Coupon Code"
               value={couponInput}
+              aria-invalid={couponError ? true : undefined}
               onChange={(e) => onCouponInputChange(e.target.value)}
             />
             <button
@@ -181,12 +267,17 @@ export function OrderSummary({
         {couponError && <p className={styles.error}>{couponError}</p>}
       </div>
 
+      <p className={styles.insuredNote}>
+        <ShieldIcon />
+        Your order is insured and delivered safely.
+      </p>
+
       {errorMessage && <p className={styles.error}>{errorMessage}</p>}
 
       {primaryAction && (
         <button
           type="button"
-          className={styles.primaryAction}
+          className={`${styles.primaryAction} ${hidePrimaryOnMobile ? styles.primaryActionHideMobile : ''}`}
           disabled={primaryAction.disabled}
           onClick={primaryAction.onClick}
         >

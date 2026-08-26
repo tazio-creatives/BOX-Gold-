@@ -22,6 +22,7 @@ export function AddressForm({ initial, onSubmit, onCancel, submitLabel = 'Save A
   const [city, setCity] = useState(initial?.city ?? '');
   const [state, setState] = useState(initial?.state ?? '');
   const [pincode, setPincode] = useState(initial?.pincode ?? '');
+  const [isDefault, setIsDefault] = useState(initial?.isDefault ?? false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -41,6 +42,7 @@ export function AddressForm({ initial, onSubmit, onCancel, submitLabel = 'Save A
         state,
         pincode,
         country: 'India',
+        isDefault,
       });
     } catch (err) {
       setError(err instanceof ApiError ? err.message : 'Could not save address.');
@@ -105,6 +107,11 @@ export function AddressForm({ initial, onSubmit, onCancel, submitLabel = 'Save A
           <input value={pincode} onChange={(e) => setPincode(e.target.value)} required />
         </label>
       </div>
+
+      <label className={styles.defaultCheckboxRow}>
+        <input type="checkbox" checked={isDefault} onChange={(e) => setIsDefault(e.target.checked)} />
+        Set as default address
+      </label>
 
       {error && <p className={styles.error}>{error}</p>}
 

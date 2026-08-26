@@ -35,7 +35,13 @@
     scroll-snap-type: x mandatory;
     gap: 12px;
     padding-bottom: var(--space-2);
+    padding-right: var(--space-4);
     -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+  }
+
+  .grid::-webkit-scrollbar {
+    display: none;
   }
 
   .gridItem {

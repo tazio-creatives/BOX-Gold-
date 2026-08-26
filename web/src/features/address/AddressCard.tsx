@@ -7,6 +7,7 @@ interface AddressCardProps {
   selected?: boolean;
   onSelect?: () => void;
   onEdit?: () => void;
+  onChange?: () => void;
   onDelete?: () => void;
   onSetDefault?: () => void;
 }
@@ -53,7 +54,7 @@ function EditIcon() {
 
 const TYPE_ICON: Record<AddressType, () => JSX.Element> = { HOME: HomeIcon, OFFICE: OfficeIcon, OTHER: PinIcon };
 
-export function AddressCard({ address, selected, onSelect, onEdit, onDelete, onSetDefault }: AddressCardProps) {
+export function AddressCard({ address, selected, onSelect, onEdit, onChange, onDelete, onSetDefault }: AddressCardProps) {
   const TypeIcon = TYPE_ICON[address.type];
   return (
     <div
@@ -71,18 +72,34 @@ export function AddressCard({ address, selected, onSelect, onEdit, onDelete, onS
           <span className={styles.type}>{TYPE_LABEL[address.type]}</span>
           {address.isDefault && <span className={styles.defaultBadge}>Default</span>}
         </span>
-        {onEdit && (
-          <button
-            type="button"
-            className={styles.editLink}
-            onClick={(e) => {
-              e.stopPropagation();
-              onEdit();
-            }}
-          >
-            Edit
-            <EditIcon />
-          </button>
+        {(onEdit || onChange) && (
+          <span className={styles.headerActions}>
+            {onChange && (
+              <button
+                type="button"
+                className={styles.changeLink}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onChange();
+                }}
+              >
+                Change
+              </button>
+            )}
+            {onEdit && (
+              <button
+                type="button"
+                className={styles.editLink}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onEdit();
+                }}
+              >
+                Edit
+                <EditIcon />
+              </button>
+            )}
+          </span>
         )}
       </div>
       <p className={styles.name}>{address.name}</p>

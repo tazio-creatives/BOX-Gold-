@@ -11,6 +11,8 @@
 
 .cardSelected {
   border-color: var(--color-burgundy);
+  /* Visually a 2px border without the 1px layout shift a real border-width
+     change would cause (base .card is already 1px). */
   box-shadow: 0 0 0 1px var(--color-burgundy);
 }
 
@@ -55,13 +57,24 @@
   color: var(--color-text);
 }
 
-.editLink {
+.headerActions {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  flex-shrink: 0;
+}
+
+.editLink,
+.changeLink {
   display: inline-flex;
   align-items: center;
   gap: 4px;
+  /* padding (not min-height) grows the tap target to ~44px without forcing
+     the whole compact header row to that height. */
+  padding: var(--space-3) 2px;
+  margin: calc(var(--space-3) * -1) -2px;
   background: none;
   border: none;
-  padding: 0;
   color: var(--color-burgundy);
   font-size: var(--text-sm);
   font-weight: 600;
