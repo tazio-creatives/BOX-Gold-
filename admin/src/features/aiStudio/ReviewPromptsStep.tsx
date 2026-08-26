@@ -65,13 +65,21 @@ export function ReviewPromptsStep({
   });
   const prompts = data?.prompts ?? [];
 
-  function setOverride(assetType: string, override: PromptCreativeOverride | null) {
+  // Turns customising on for a card even before any field has a value —
+  // must not go through resetToRecommended's "drop empty overrides" logic,
+  // or the card would immediately snap back to Recommended.
+  function startCustomising(assetType: string) {
+    onPromptOverridesChange({ ...promptOverrides, [assetType]: promptOverrides[assetType] ?? {} });
+  }
+
+  function updateOverrideField(assetType: string, key: keyof PromptCreativeOverride, value: string) {
+    const current = promptOverrides[assetType] ?? {};
+    onPromptOverridesChange({ ...promptOverrides, [assetType]: { ...current, [key]: value } });
+  }
+
+  function resetToRecommended(assetType: string) {
     const next = { ...promptOverrides };
-    if (override && Object.values(override).some((v) => v)) {
-      next[assetType] = override;
-    } else {
-      delete next[assetType];
-    }
+    delete next[assetType];
     onPromptOverridesChange(next);
   }
 
@@ -107,14 +115,14 @@ export function ReviewPromptsStep({
                 <button
                   type="button"
                   className={!isCustomising ? sharedStyles.buttonPrimary : sharedStyles.button}
-                  onClick={() => setOverride(p.assetType, null)}
+                  onClick={() => resetToRecommended(p.assetType)}
                 >
                   Use Recommended
                 </button>
                 <button
                   type="button"
                   className={isCustomising ? sharedStyles.buttonPrimary : sharedStyles.button}
-                  onClick={() => setOverride(p.assetType, override ?? {})}
+                  onClick={() => startCustomising(p.assetType)}
                 >
                   Customise Prompt
                 </button>
@@ -129,14 +137,14 @@ export function ReviewPromptsStep({
                         rows={2}
                         placeholder={p.creativeInstructions[key] || undefined}
                         value={override?.[key] ?? ''}
-                        onChange={(e) => setOverride(p.assetType, { ...override, [key]: e.target.value })}
+                        onChange={(e) => updateOverrideField(p.assetType, key, e.target.value)}
                       />
                     </label>
                   ))}
                   <button
                     type="button"
                     className={sharedStyles.buttonLink}
-                    onClick={() => setOverride(p.assetType, null)}
+                    onClick={() => resetToRecommended(p.assetType)}
                   >
                     Reset to Recommended
                   </button>
