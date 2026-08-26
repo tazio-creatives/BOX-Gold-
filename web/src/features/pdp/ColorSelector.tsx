@@ -46,7 +46,7 @@ export function ColorSelector({ colors, selectedColor, onSelect, selectedPurity 
       </div>
       {selectedPurity && unavailableColor && (
         <p className={styles.unavailableNote}>
-          {unavailableColorReason(unavailableColor, selectedPurity, COLOR_SWATCH[unavailableColor].label)}
+          {unavailableColorReason(selectedPurity, COLOR_SWATCH[unavailableColor].label)}
         </p>
       )}
     </div>

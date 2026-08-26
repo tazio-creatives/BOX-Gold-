@@ -15,6 +15,6 @@ export function isColorAvailableAtPurity(color: GoldColor, purity: string | null
   return !blocked?.includes(color);
 }
 
-export function unavailableColorReason(color: GoldColor, purity: string, colorLabel: string): string {
+export function unavailableColorReason(purity: string, colorLabel: string): string {
   return `${colorLabel} isn't available in ${purity} purity.`;
 }
