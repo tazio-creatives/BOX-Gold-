@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
+import { Link, useNavigate, useParams } from 'react-router-dom';
 import { useQuery, useMutation } from '@tanstack/react-query';
 import {
   fetchAdminProduct,
@@ -8,6 +8,7 @@ import {
   setPriceLock,
 } from '../../api/products';
 import { fetchProductImages } from '../../api/productImages';
+import { fetchStudioPendingReview } from '../../api/aiStudio';
 import { fetchAdminCategories } from '../../api/categories';
 import { fetchAdminCollections } from '../../api/collections';
 import { previewPricing } from '../../api/pricing';
@@ -84,6 +85,17 @@ export function ProductFormPage() {
     queryFn: () => fetchProductImages(id as string),
     enabled: isEditing,
   });
+  // Surfaces a finished AI Studio job that still has an image nobody
+  // accepted/imported (most often auto-deselected by validation, then the
+  // admin navigated away from Review & Import before dealing with it) — the
+  // job itself may already be "completed", so it wouldn't otherwise show up
+  // anywhere in the admin once this page is left.
+  const { data: pendingReviewData } = useQuery({
+    queryKey: ['ai-studio-pending-review', id],
+    queryFn: () => fetchStudioPendingReview(id as string),
+    enabled: isEditing,
+  });
+  const pendingReviewJob = pendingReviewData?.job ?? null;
   const { data: categoriesData } = useQuery({ queryKey: ['admin-categories'], queryFn: fetchAdminCategories });
   const { data: collectionsData } = useQuery({ queryKey: ['admin-collections'], queryFn: fetchAdminCollections });
   const { data: diamondConfigsData } = useQuery({
@@ -164,14 +176,7 @@ export function ProductFormPage() {
         metaDescription: p.metaDescription ?? '',
         metaKeywords: p.metaKeywords ?? '',
       });
-      // Reverse-derive a percent for display — the stored figure may
-      // predate this field being percent-based, so this is a best-effort
-      // equivalent, not a persisted value in its own right.
-      setMakingChargePercent(
-        p.priceBreakup.goldValue > 0
-          ? Math.round((p.priceBreakup.makingChargeOriginal / p.priceBreakup.goldValue) * 100 * 100) / 100
-          : 0,
-      );
+      setMakingChargePercent(p.makingChargePercent ?? 0);
     }
   }, [productData]);
 
@@ -200,6 +205,23 @@ export function ProductFormPage() {
       ...form,
       name: form.name.trim(),
       sku: form.sku.trim() || `DRAFT-${Date.now()}`,
+      // A cleared field is `undefined` in form state (keeps the input
+      // visually blank while editing) — but JSON.stringify drops undefined
+      // keys entirely, and updateProduct only writes columns whose key is
+      // actually present in the request body. Left as undefined here,
+      // clearing any of these back to "none" would silently leave the old
+      // value in the database untouched. Default at the save boundary only,
+      // once the admin's editing is done — mrp/discounts fall back to 0
+      // ("no MRP" / "no offer"), gstPercent to the same 3 the form itself
+      // starts a brand-new product at (there's no sensible "no GST").
+      // The % is the source of truth going forward (live-recomputed on the
+      // storefront as gold value moves) — form.makingCharge above is still
+      // sent too, as the cached flat figure at today's gold value/purity.
+      makingChargePercent: makingChargePercent === '' ? 0 : makingChargePercent,
+      makingChargeDiscountPercent: form.makingChargeDiscountPercent ?? 0,
+      diamondDiscountPercent: form.diamondDiscountPercent ?? 0,
+      mrp: form.mrp ?? 0,
+      gstPercent: form.gstPercent ?? 3,
       shortDescription: form.shortDescription || null,
       fullDescription: form.fullDescription || null,
       diamondType: form.diamondType || null,
@@ -520,6 +542,15 @@ export function ProductFormPage() {
         <section className={sharedStyles.cardPadded}>
           <h2 className={styles.sectionHeading}>Product Images</h2>
           {imageSourceError && <p className={sharedStyles.error}>{imageSourceError}</p>}
+          {pendingReviewJob && (
+            <p className={styles.sectionWarning}>
+              {pendingReviewJob.pendingCount} AI-generated image{pendingReviewJob.pendingCount === 1 ? '' : 's'} from a
+              previous generation {pendingReviewJob.pendingCount === 1 ? "wasn't" : "weren't"} imported
+              {pendingReviewJob.needsReview ? ' — flagged by validation and never accepted' : ''}, so it
+              {pendingReviewJob.pendingCount === 1 ? "'s" : "'re"} not showing on the storefront.{' '}
+              <Link to={`/products/${id}/ai-image-studio?jobId=${pendingReviewJob.id}`}>Review now</Link>
+            </p>
+          )}
           <div className={styles.imageSourceGrid}>
             <div className={styles.imageSourceCard}>
               <p className={styles.imageSourceTitle}>Manual Upload</p>
@@ -684,14 +715,6 @@ export function ProductFormPage() {
                 step="0.01"
                 value={form.gstPercent ?? ''}
                 onChange={(e) => set('gstPercent', e.target.value ? Number(e.target.value) : undefined)}
-              />
-            </label>
-            <label className={sharedStyles.field}>
-              MRP (₹)
-              <input
-                type="number"
-                value={form.mrp ?? ''}
-                onChange={(e) => set('mrp', e.target.value ? Number(e.target.value) : undefined)}
               />
             </label>
           </div>
@@ -864,6 +887,13 @@ export function ProductFormPage() {
                 </label>
               ))}
             </div>
+            {(form.goldColors ?? []).includes('ROSE') && (form.purities ?? []).includes('9K') && (
+              <p className={styles.sectionWarning}>
+                Rose Gold isn't available in 9K purity — shoppers won't be able to select that
+                combination on this product; the 9K option will show Rose Gold disabled with an
+                explanation.
+              </p>
+            )}
           </div>
 
           <div className={styles.variantGroup}>

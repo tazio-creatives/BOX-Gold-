@@ -131,7 +131,6 @@ interface ProductInfoProps {
   onSelectDiamondConfigId: (id: string) => void;
   displayPrice: number;
   displayMrp: number;
-  displayDiscount: number;
   offerLabel: string | null;
   onAddToCart: () => void;
   onBuyNow: () => void;
@@ -153,7 +152,6 @@ export function ProductInfo({
   onSelectDiamondConfigId,
   displayPrice,
   displayMrp,
-  displayDiscount,
   offerLabel,
   onAddToCart,
   onBuyNow,
@@ -292,7 +290,7 @@ export function ProductInfo({
 
       <p className={styles.price}>
         {formatPrice(displayPrice)}
-        {displayDiscount > 0 && <span className={styles.mrp}>{formatPrice(displayMrp)}</span>}
+        {displayMrp > 0 && <span className={styles.mrp}>{formatPrice(displayMrp)}</span>}
       </p>
       <p className={styles.taxNote}>Inclusive of all taxes</p>
 
@@ -369,6 +367,7 @@ export function ProductInfo({
                     colors={product.goldColorOptions}
                     selectedColor={selectedGoldColor}
                     onSelect={onSelectGoldColor}
+                    selectedPurity={selectedPurity}
                   />
                   {showValidation && colorRequired && (
                     <p className={styles.fieldError}>Please select a gold color</p>
@@ -440,7 +439,7 @@ export function ProductInfo({
           <div className={styles.mobileBarInner}>
             <div className={styles.mobileBarPrice}>
               <span className={styles.mobileBarPriceCurrent}>{formatPrice(displayPrice)}</span>
-              {displayDiscount > 0 && (
+              {displayMrp > 0 && (
                 <span className={styles.mobileBarPriceOld}>{formatPrice(displayMrp)}</span>
               )}
               <span className={styles.mobileBarTax}>Inclusive of all taxes</span>

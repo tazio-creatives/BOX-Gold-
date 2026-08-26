@@ -7,6 +7,7 @@ import { addCartItem } from '../api/cart';
 import type { Cart, GoldColor, VariantPricePreview } from '../api/types';
 import { getAncestorChain } from '../utils/categoryTree';
 import { effectiveMrp } from '../utils/effectiveMrp';
+import { isColorAvailableAtPurity } from '../utils/goldColorRules';
 import { Breadcrumbs } from '../components/Breadcrumbs';
 import { useHead, defaultHead } from '../seo/head';
 import { breadcrumbJsonLd, organizationJsonLd, productJsonLd } from '../seo/jsonLd';
@@ -136,6 +137,20 @@ export function PDPPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [productData?.product?.id]);
 
+  // Some colors aren't manufactured at some purities (e.g. no Rose Gold at
+  // 9K) — if the current pair ever becomes invalid, whether from the
+  // default-selection effect above landing on a conflicting admin-set
+  // default or the shopper switching purity while an unavailable color was
+  // selected, fall back to another available color rather than leaving an
+  // invalid combination silently selected.
+  useEffect(() => {
+    const p = productData?.product;
+    if (!p || !selectedGoldColor || !selectedPurity) return;
+    if (isColorAvailableAtPurity(selectedGoldColor, selectedPurity)) return;
+    const fallback = p.goldColorOptions.find((c) => isColorAvailableAtPurity(c, selectedPurity));
+    if (fallback) setSelectedGoldColor(fallback);
+  }, [selectedPurity, selectedGoldColor, productData?.product]);
+
   const addToCartMutation = useMutation({
     mutationFn: ({
       productId,
@@ -239,7 +254,7 @@ export function PDPPage() {
   const selectedDiamondOption = product.diamondOptions.find((d) => d.id === selectedDiamondConfigId) ?? null;
   const displayPrice = pricePreview?.sellingPrice ?? product.sellingPrice;
   const displaySellingPriceOriginal = pricePreview?.sellingPriceOriginal ?? product.sellingPriceOriginal;
-  const { strikePrice: displayMrp, discountPercent: displayDiscount } = effectiveMrp(
+  const { strikePrice: displayMrp } = effectiveMrp(
     displayPrice,
     pricePreview?.mrp ?? product.mrp,
     displaySellingPriceOriginal,
@@ -264,6 +279,16 @@ export function PDPPage() {
       }
     : product.priceBreakup;
 
+  // The manually-uploaded thumbnail is only a placeholder until AI Studio
+  // shots exist — once they do, the gallery should show those instead of
+  // the manual original. `product.images` itself stays untouched (Buy Now's
+  // thumbnail lookup and the JSON-LD structured data both rely on it still
+  // containing the primary flag/manual image).
+  const hasAiGeneratedImage = product.images.some((img) => img.type === 'AI_GENERATED');
+  const galleryImages = hasAiGeneratedImage
+    ? product.images.filter((img) => !(img.type === 'ORIGINAL' && img.isPrimary))
+    : product.images;
+
   return (
     <div className={styles.page}>
       <div className={styles.hero}>
@@ -271,7 +296,7 @@ export function PDPPage() {
 
         <div className={styles.layout}>
           <ImageGallery
-            images={product.images}
+            images={galleryImages}
             productName={product.name}
             productId={product.id}
             isNew={product.isNew}
@@ -293,7 +318,6 @@ export function PDPPage() {
             onSelectDiamondConfigId={setSelectedDiamondConfigId}
             displayPrice={displayPrice}
             displayMrp={displayMrp}
-            displayDiscount={displayDiscount}
             offerLabel={displayOfferLabel}
             onAddToCart={() =>
               addToCartMutation.mutate({

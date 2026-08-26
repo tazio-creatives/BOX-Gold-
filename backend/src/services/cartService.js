@@ -8,6 +8,7 @@ import {
 import { findProductVariantOptions } from '../repositories/productVariantOptions.repository.js';
 import { findDiamondConfigsByIds } from '../repositories/diamondConfigs.repository.js';
 import { computeVariantPricing } from './pricingService.js';
+import { isColorAvailableAtPurity } from '../utils/goldColorRules.js';
 import {
   findCartByOwner,
   createCart,
@@ -70,6 +71,11 @@ function toItemDto(item, product, size, pricing, diamondConfigName) {
     cartDiamondConfigId: item.diamond_config_id,
     diamondConfigName: diamondConfigName ?? null,
     sellingPrice,
+    // Display-only — same pre-offer figure PDP/PLP/home already expose
+    // (computeVariantPricing -> applyProductOffer), so the cart row can
+    // show a "was" price without duplicating the discount math here.
+    sellingPriceOriginal: pricing.sellingPriceOriginal,
+    mrp: product.mrp != null ? Number(product.mrp) : 0,
     availableStock,
     quantity: item.quantity,
     lineTotal,
@@ -159,6 +165,9 @@ export async function addItem(owner, { productId, quantity, sizeId, goldColor, p
   }
   if (purity && !options.purities.includes(purity)) {
     throw new AppError(400, 'Selected purity is not available for this product');
+  }
+  if (goldColor && purity && !isColorAvailableAtPurity(goldColor, purity)) {
+    throw new AppError(400, `Selected gold color is not available in ${purity} purity`);
   }
   if (options.diamondOptions.length > 0 && !diamondConfigId) {
     throw new AppError(400, 'Please select a diamond quality');

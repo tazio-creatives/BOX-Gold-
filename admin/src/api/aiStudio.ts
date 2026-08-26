@@ -188,6 +188,23 @@ export function fetchActiveStudioJob(productId: string) {
   return apiFetch<{ jobId: string | null }>(`/admin/products/${productId}/ai-studio/active`);
 }
 
+export interface StudioPendingReview {
+  id: string;
+  status: StudioJobStatus;
+  pendingCount: number;
+  needsReview: boolean;
+}
+
+// Surfaces a finished AI Studio job that still has an unimported image —
+// separate from fetchActiveStudioJob, which only ever finds a job that's
+// still in progress. Used by the product form's "N AI images not imported"
+// banner so this stays discoverable even after the job itself is done.
+export function fetchStudioPendingReview(productId: string) {
+  return apiFetch<{ job: StudioPendingReview | null }>(
+    `/admin/products/${productId}/ai-studio/pending-review`,
+  );
+}
+
 export function fetchStudioJob(productId: string, jobId: string) {
   return apiFetch<{ job: StudioJob }>(`/admin/products/${productId}/ai-studio/${jobId}`);
 }

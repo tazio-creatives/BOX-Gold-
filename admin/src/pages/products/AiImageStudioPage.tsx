@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
+import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   createStudioJob,
@@ -37,11 +37,17 @@ const ROSE_GOLD_PREF_KEY = 'aiStudio.defaultGenerateRoseGold';
 
 export function AiImageStudioPage() {
   const { id: productId } = useParams<{ id: string }>();
+  const [searchParams] = useSearchParams();
+  // Lets the product form's "N AI images not imported" banner deep-link
+  // straight into a specific (possibly no-longer-"active") job — e.g. a
+  // completed job that still has an unimported, validation-flagged asset.
+  // Present only takes effect once; skips the active-job lookup entirely.
+  const requestedJobId = searchParams.get('jobId');
   const navigate = useNavigate();
   const queryClient = useQueryClient();
 
-  const [jobId, setJobId] = useState<string | null>(null);
-  const [hasCheckedActiveJob, setHasCheckedActiveJob] = useState(false);
+  const [jobId, setJobId] = useState<string | null>(requestedJobId);
+  const [hasCheckedActiveJob, setHasCheckedActiveJob] = useState(!!requestedJobId);
   const [confirmSubStep, setConfirmSubStep] = useState<'analyse' | 'presenter' | 'prompts'>('analyse');
   const [jewelleryType, setJewelleryType] = useState<JewelleryType | ''>('');
   // Requires an explicit "Keep Product Category" / "Use AI-Detected
@@ -293,7 +299,7 @@ export function AiImageStudioPage() {
           />
         )}
 
-        {job && ['review_ready', 'partially_failed', 'importing'].includes(job.status) && (
+        {job && ['review_ready', 'partially_failed', 'importing', 'completed'].includes(job.status) && (
           <ReviewImportStep
             job={job}
             onRegenerate={(assetId) => retryMutation.mutate(assetId)}

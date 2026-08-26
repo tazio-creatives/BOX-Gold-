@@ -21,6 +21,7 @@ import { getStatus, approve, reject, regenerate } from '../../controllers/aiImag
 import {
   createJob as createStudioJob,
   getActiveJob as getActiveStudioJob,
+  getPendingReview as getStudioPendingReview,
   getJob as getStudioJob,
   confirmJob as confirmStudioJob,
   previewPrompts as previewStudioPrompts,
@@ -65,6 +66,7 @@ adminProductsRouter.post('/:id/ai-images/:imageId/reject', reject);
 // /active is registered before the /:jobId param route below, or Express
 // would treat "active" as a jobId.
 adminProductsRouter.get('/:id/ai-studio/active', getActiveStudioJob);
+adminProductsRouter.get('/:id/ai-studio/pending-review', getStudioPendingReview);
 adminProductsRouter.post(
   '/:id/ai-studio',
   aiStudioRateLimiter,

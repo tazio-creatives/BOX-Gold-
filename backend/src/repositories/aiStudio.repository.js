@@ -15,6 +15,28 @@ export async function findActiveJobByProduct(productId) {
   return rows[0] ?? null;
 }
 
+// Surfaces a job whose generation finished but that still has a READY,
+// unimported asset — regardless of whether the job itself ever reached
+// 'completed' (completeImport only requires every *selected* asset to be
+// imported, so a job can close out with a validation-flagged asset still
+// sitting unaccepted). findActiveJobByProduct deliberately excludes these
+// statuses since "resume where I left off" and "something was left behind
+// after finishing" are different situations for the UI to surface.
+export async function findLatestJobWithPendingAssets(productId) {
+  const { rows } = await query(
+    `SELECT j.* FROM ai_studio_jobs j
+     WHERE j.product_id = $1
+       AND j.status IN ('review_ready', 'partially_failed', 'importing', 'completed')
+       AND EXISTS (
+         SELECT 1 FROM ai_studio_assets a
+         WHERE a.job_id = j.id AND a.status = 'READY' AND a.imported = false
+       )
+     ORDER BY j.created_at DESC LIMIT 1`,
+    [productId],
+  );
+  return rows[0] ?? null;
+}
+
 export async function insertJob({
   productId,
   referenceImageUrls,

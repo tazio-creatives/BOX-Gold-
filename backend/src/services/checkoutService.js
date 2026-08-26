@@ -15,6 +15,7 @@ import {
 import { getActiveReservedQuantityTx, insertReservationTx } from '../repositories/reservations.repository.js';
 import { computeVariantPricing } from './pricingService.js';
 import { validateCoupon } from './couponService.js';
+import { isColorAvailableAtPurity } from '../utils/goldColorRules.js';
 
 function round2(n) {
   return Math.round(n * 100) / 100;
@@ -103,6 +104,20 @@ export async function createOrder({ userId, contact, addressId, items, couponCod
         diamondConfigName = config?.name ?? null;
       }
 
+      // Buy Now skips cartService.addItem entirely and lands straight here —
+      // that path had no combination gate at all (unlike the cart), which
+      // would otherwise let e.g. 9K Rose Gold through checkout even though
+      // the cart/PDP block it. Checked against the resolved values (not just
+      // whatever the request sent), so an admin-set default that's itself an
+      // invalid combination is caught too.
+      const effectiveGoldColor = goldColor ?? product.gold_color;
+      if (effectiveGoldColor && pricing.purity && !isColorAvailableAtPurity(effectiveGoldColor, pricing.purity)) {
+        throw new AppError(
+          400,
+          `${product.name}: selected gold color is not available in ${pricing.purity} purity`,
+        );
+      }
+
       const lineGoldValue = round2(pricing.goldValue * quantity);
       const lineDiamondValue = round2(pricing.diamondValue * quantity);
       const lineMakingCharge = round2(pricing.makingCharge * quantity);
@@ -127,7 +142,7 @@ export async function createOrder({ userId, contact, addressId, items, couponCod
         unitPrice,
         lineTotal,
         goldRateId,
-        goldColor: goldColor ?? product.gold_color,
+        goldColor: effectiveGoldColor,
         purity: pricing.purity,
         diamondConfigId: pricing.diamondConfigId,
         diamondConfigName,

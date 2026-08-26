@@ -15,6 +15,7 @@ import { findProductById, findProductImages } from '../repositories/products.rep
 import { keyFromUrl } from '../utils/storageKey.js';
 import {
   findActiveJobByProduct,
+  findLatestJobWithPendingAssets,
   insertJob,
   findJobById,
   lockJobById,
@@ -232,6 +233,32 @@ export async function getActiveJob(req, res, next) {
   try {
     const job = await findActiveJobByProduct(req.params.id);
     res.json({ jobId: job?.id ?? null });
+  } catch (err) {
+    next(err);
+  }
+}
+
+// Powers the "N AI images not imported" banner on the product edit page —
+// unlike getActiveJob, this looks past the job that's currently in progress
+// and finds one that finished generating but still has a READY asset that
+// never made it into product_images (most often because AI Studio's
+// validation flagged it and the admin navigated away before accepting it).
+export async function getPendingReview(req, res, next) {
+  try {
+    const job = await findLatestJobWithPendingAssets(req.params.id);
+    if (!job) return res.json({ job: null });
+    const assets = await findAssetsByJobId(job.id);
+    const pending = assets.filter((a) => a.status === 'READY' && !a.imported);
+    res.json({
+      job: {
+        id: job.id,
+        status: job.status,
+        pendingCount: pending.length,
+        needsReview: pending.some(
+          (a) => a.validation_status && a.validation_status !== 'passed' && !a.validation_accepted,
+        ),
+      },
+    });
   } catch (err) {
     next(err);
   }
@@ -503,7 +530,12 @@ export async function importAsset(req, res, next) {
     const result = await withTransaction(async (client) => {
       const job = await lockJobById(client, jobId);
       if (!job || job.product_id !== productId) throw new NotFoundError('Job not found');
-      if (!['review_ready', 'partially_failed', 'importing'].includes(job.status)) {
+      // 'completed' is included so a job the admin left the Review & Import
+      // screen too early on (some assets got auto-deselected by validation
+      // and were never accepted/imported, but completeImport still closed
+      // the job since every *selected* asset had been imported) can still be
+      // reopened later from the "pending review" banner — see getPendingReview.
+      if (!['review_ready', 'partially_failed', 'importing', 'completed'].includes(job.status)) {
         throw new AppError(409, `Job is not ready to import (status: ${job.status})`);
       }
 

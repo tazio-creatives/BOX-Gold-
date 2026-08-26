@@ -1,15 +1,24 @@
 import type { GoldColor } from '../../api/types';
 import { COLOR_SWATCH } from './goldColorSwatch';
+import { isColorAvailableAtPurity, unavailableColorReason } from '../../utils/goldColorRules';
 import styles from './ColorSelector.module.css';
 
 interface ColorSelectorProps {
   colors: GoldColor[];
   selectedColor: GoldColor | null;
   onSelect: (_color: GoldColor) => void;
+  // Purity currently selected elsewhere on the page — some colors aren't
+  // manufactured at some purities (e.g. no Rose Gold at 9K), regardless of
+  // product; disables (rather than hides) the swatch so the shopper can see
+  // the option exists and why it's blocked, instead of a color silently
+  // disappearing.
+  selectedPurity?: string | null;
 }
 
-export function ColorSelector({ colors, selectedColor, onSelect }: ColorSelectorProps) {
+export function ColorSelector({ colors, selectedColor, onSelect, selectedPurity }: ColorSelectorProps) {
   if (colors.length === 0) return null;
+
+  const unavailableColor = colors.find((color) => !isColorAvailableAtPurity(color, selectedPurity));
 
   return (
     <div className={styles.wrap}>
@@ -18,13 +27,16 @@ export function ColorSelector({ colors, selectedColor, onSelect }: ColorSelector
         {colors.map((color) => {
           const swatch = COLOR_SWATCH[color];
           const active = selectedColor === color;
+          const available = isColorAvailableAtPurity(color, selectedPurity);
           return (
             <button
               key={color}
               type="button"
-              className={active ? styles.cardActive : styles.card}
+              className={active ? styles.cardActive : available ? styles.card : styles.cardDisabled}
               aria-pressed={active}
-              onClick={() => onSelect(color)}
+              aria-disabled={!available}
+              disabled={!available}
+              onClick={() => available && onSelect(color)}
             >
               <span className={styles.swatch} style={{ background: swatch.hex }} aria-hidden="true" />
               {swatch.label}
@@ -32,6 +44,11 @@ export function ColorSelector({ colors, selectedColor, onSelect }: ColorSelector
           );
         })}
       </div>
+      {selectedPurity && unavailableColor && (
+        <p className={styles.unavailableNote}>
+          {unavailableColorReason(unavailableColor, selectedPurity, COLOR_SWATCH[unavailableColor].label)}
+        </p>
+      )}
     </div>
   );
 }
