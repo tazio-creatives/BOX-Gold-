@@ -5,6 +5,15 @@ import { effectiveMrp } from '../../utils/effectiveMrp';
 import { placeholderGradient } from '../../utils/placeholderGradient';
 import styles from './CategoryProductRow.module.css';
 
+function TagIcon() {
+  return (
+    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" aria-hidden="true">
+      <path d="M20.5 12.5L12.5 20.5a1.5 1.5 0 0 1-2.1 0l-7-7a1.5 1.5 0 0 1 0-2.1L11.4 3.4a2 2 0 0 1 1.4-.6H19a2 2 0 0 1 2 2v6.6a2 2 0 0 1-.5 1.5z" strokeLinejoin="round" />
+      <circle cx="16" cy="7" r="1.5" />
+    </svg>
+  );
+}
+
 function materialFor(product: { metalType: string | null; purity: string | null }): string | null {
   if (!product.metalType) return null;
   const metalLabel = product.metalType === 'GOLD' ? 'Gold' : 'Platinum';
@@ -59,6 +68,16 @@ function CategoryBlock({ item, index }: { item: HomepageItem; index: number }) {
                   {formatPrice(product.sellingPrice)}
                   {discountPercent > 0 && <span className={styles.productMrp}>{formatPrice(strikePrice)}</span>}
                 </p>
+                {product.offerLabel && (
+                  <div className={styles.offerBanner}>
+                    <span className={styles.offerBannerLeft}>
+                      <span className={styles.offerBannerIcon}>
+                        <TagIcon />
+                      </span>
+                      <span className={styles.offerBannerHeadline}>{product.offerLabel}</span>
+                    </span>
+                  </div>
+                )}
               </div>
             </Link>
           );

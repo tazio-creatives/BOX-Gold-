@@ -9,6 +9,15 @@ import styles from './ProductCarousel.module.css';
 
 const AUTO_ADVANCE_MS = 4500;
 
+function TagIcon() {
+  return (
+    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" aria-hidden="true">
+      <path d="M20.5 12.5L12.5 20.5a1.5 1.5 0 0 1-2.1 0l-7-7a1.5 1.5 0 0 1 0-2.1L11.4 3.4a2 2 0 0 1 1.4-.6H19a2 2 0 0 1 2 2v6.6a2 2 0 0 1-.5 1.5z" strokeLinejoin="round" />
+      <circle cx="16" cy="7" r="1.5" />
+    </svg>
+  );
+}
+
 // Matches the desktop/tablet/mobile breakpoints in the CSS module — mobile
 // falls back to native touch scroll instead of JS paging (see .productSlider
 // in ProductCarousel.module.css), so it isn't one of these states. Desktop
@@ -123,6 +132,16 @@ export function ProductCarousel({ items, heading, viewAllHref, cardsPerViewDeskt
                       <span className={styles.productMrp}>{formatPrice(strikePrice)}</span>
                     )}
                   </p>
+                  {product.offerLabel && (
+                    <div className={styles.offerBanner}>
+                      <span className={styles.offerBannerLeft}>
+                        <span className={styles.offerBannerIcon}>
+                          <TagIcon />
+                        </span>
+                        <span className={styles.offerBannerHeadline}>{product.offerLabel}</span>
+                      </span>
+                    </div>
+                  )}
                 </div>
               </Link>
             );
