@@ -157,6 +157,13 @@ async function generateOneAsset({ jobId, asset, referenceBuffer, mimetype, templ
       // A fresh image always needs a fresh accept — a prior "Accept Anyway"
       // never carries over from the image it was actually about.
       validation_accepted: false,
+      // `selected` defaults to true at row creation (before validation has
+      // even run). A warning/failed result must drop it back out of the
+      // default import batch — otherwise it rides along selected-but-hidden
+      // (Review & Import hides its checkbox behind the review-actions UI)
+      // until the import step hits the server-side validation gate and
+      // 400s, silently aborting the whole batch partway through.
+      selected: validationStatus && validationStatus !== 'passed' ? false : asset.selected,
     });
   } catch (err) {
     const stillActive = await findJobById(jobId);

@@ -293,7 +293,7 @@ export function AiImageStudioPage() {
           />
         )}
 
-        {job && ['review_ready', 'partially_failed'].includes(job.status) && (
+        {job && ['review_ready', 'partially_failed', 'importing'].includes(job.status) && (
           <ReviewImportStep
             job={job}
             onRegenerate={(assetId) => retryMutation.mutate(assetId)}
@@ -315,7 +315,6 @@ export function AiImageStudioPage() {
           />
         )}
 
-        {job && job.status === 'importing' && <p>Importing images into the product…</p>}
         {job && job.status === 'failed' && <p className={sharedStyles.error}>Generation failed: {job.error}</p>}
         {job && job.status === 'cancelled' && <p>This job was cancelled.</p>}
       </section>
