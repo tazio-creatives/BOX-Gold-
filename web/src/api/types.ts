@@ -151,7 +151,7 @@ export interface ProductDetail {
   fullDescription: string | null;
 
   metalType: 'GOLD' | 'PLATINUM';
-  purity: string | null;
+  purity: Purity | null;
   goldColor: GoldColor | null;
   grossWeightGrams: number | null;
   netWeightGrams: number | null;
