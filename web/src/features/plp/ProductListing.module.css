@@ -110,7 +110,12 @@
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 20px;
-  align-items: start;
+  /* Stretch (grid's default, restated for clarity) so every card in a row
+     matches the tallest one — otherwise a card with an offer banner sits
+     taller than its neighbour without one, staggering the row's bottom
+     edge. ProductCard's own flex column layout leaves the extra height as
+     trailing blank space rather than stretching the image or text. */
+  align-items: stretch;
 }
 
 .list {

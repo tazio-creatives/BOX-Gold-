@@ -23,6 +23,7 @@
   .row {
     min-height: 40px;
     align-items: center;
+    padding: 14px 0;
     font-size: 13px;
   }
 

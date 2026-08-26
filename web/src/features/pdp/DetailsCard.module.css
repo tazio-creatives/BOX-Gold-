@@ -73,15 +73,27 @@
    no fade), the header itself is the tap target, and the desktop-only
    "View More" text link is redundant with that so it's hidden here. */
 @media (max-width: 767px) {
+  /* Card itself carries no padding — the heading and content below each
+     apply their own matching 20px horizontal inset instead, so both align
+     to the same left edge rather than nesting one padding inside another. */
   .card {
-    padding: var(--space-4) var(--space-5);
+    padding: 0;
   }
 
   .heading {
     min-height: 56px;
+    padding: 18px 20px;
     font-size: 16px;
     font-weight: 600;
     margin: 0;
+  }
+
+  .content {
+    padding: 0 20px;
+  }
+
+  .contentExpanded {
+    padding-bottom: 20px;
   }
 
   .headingChevron,

@@ -51,7 +51,10 @@
   position: relative;
   flex: 0 0 calc((100% - (var(--cards-per-view, 5) - 1) * 16px) / var(--cards-per-view, 5));
   min-width: 0;
-  height: 340px;
+  /* Tall enough for the image (255px) plus info block including the offer
+     banner row (118px measured) — a fixed card without offerBanner just
+     leaves the trailing whitespace, keeping the carousel row's cards level. */
+  height: 374px;
   background: #ffffff;
   border: 1px solid #e7ded8;
   border-radius: 12px;

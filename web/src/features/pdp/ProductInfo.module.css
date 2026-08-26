@@ -402,20 +402,32 @@
 }
 
 @media (max-width: 767px) {
+  /* Drop the toggle's own bottom border/radius and the summary row's own
+     top border — each used to draw a full border independently, so the
+     two stacked into a visible double line right where they touch. With
+     .customizeToggle rounded on top only and this rounded on bottom only,
+     they now read as one continuous card instead of two nested ones. */
   .selectionSummaryRow {
     flex-direction: column;
     align-items: flex-start;
     gap: var(--space-2);
+    padding: 16px 20px;
+    border-top: none;
+    border-radius: 0 0 12px 12px;
   }
 
   /* .info's 0-left/20px-right padding only makes sense in the desktop
      2-column grid (flush against the gallery gap on the left). On mobile's
      single-column stack, that made the customize section's right edge sit
      20px further in than Product Details/Price Breakup (PDPPage.module.css
-     .detailsGrid, which has no extra inset of its own) — align them. */
+     .detailsGrid, which has no extra inset of its own) — align them. Bottom
+     padding is also dropped so the gap before Product Details is controlled
+     solely by .detailsGrid's own margin-top (PDPPage.module.css), the same
+     reasoning as .customizeSection's margin-bottom below.  */
   .info {
     padding-left: 0;
     padding-right: 0;
+    padding-bottom: 0;
   }
 
   /* Its own margin-bottom would stack on top of .detailsGrid's margin-top
@@ -474,8 +486,20 @@
     text-overflow: ellipsis;
   }
 
+  /* Rounded on top only + no bottom border — always immediately followed
+     by .customizePanel or .selectionSummaryRow (never rendered alone), so
+     dropping its own bottom edge here is what lets the two merge into one
+     visual card instead of two touching, separately-bordered ones. */
   .customizeToggle {
     min-height: 56px;
+    padding: 18px 20px;
+    border-bottom: none;
+    border-radius: 12px 12px 0 0;
+  }
+
+  .customizePanel {
+    padding: 16px 20px 20px;
+    border-radius: 0 0 12px 12px;
   }
 }
 

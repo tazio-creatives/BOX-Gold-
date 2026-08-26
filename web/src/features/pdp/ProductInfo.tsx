@@ -186,41 +186,24 @@ export function ProductInfo({
   const sizeFieldRef = useRef<HTMLDivElement>(null);
 
   // Mobile sticky purchase bar: mirrors Add to Cart/Buy Now once the
-  // original inline buttons scroll out of view, and disappears again once
-  // the footer starts entering the viewport so it never sits on top of it.
-  // Conditionally rendering (rather than just CSS-hiding) it means a
-  // screen reader never sees two "Add to Cart" controls at once.
+  // original inline buttons scroll out of view, and stays visible the rest
+  // of the way down the page — including over the footer — so a shopper
+  // can always buy without scrolling back up. Conditionally rendering
+  // (rather than just CSS-hiding) it means a screen reader never sees two
+  // "Add to Cart" controls at once.
   const actionsRef = useRef<HTMLDivElement>(null);
   const [showStickyBar, setShowStickyBar] = useState(false);
 
   useEffect(() => {
     const actionsEl = actionsRef.current;
     if (!actionsEl) return undefined;
-    const footerEl = document.querySelector('footer');
-
-    let actionsVisible = true;
-    let footerVisible = false;
-    const update = () => setShowStickyBar(!actionsVisible && !footerVisible);
 
     const actionsObserver = new IntersectionObserver(([entry]) => {
-      actionsVisible = entry.isIntersecting;
-      update();
+      setShowStickyBar(!entry.isIntersecting);
     });
     actionsObserver.observe(actionsEl);
 
-    let footerObserver: IntersectionObserver | null = null;
-    if (footerEl) {
-      footerObserver = new IntersectionObserver(([entry]) => {
-        footerVisible = entry.isIntersecting;
-        update();
-      });
-      footerObserver.observe(footerEl);
-    }
-
-    return () => {
-      actionsObserver.disconnect();
-      footerObserver?.disconnect();
-    };
+    return () => actionsObserver.disconnect();
   }, []);
 
   // A click that can't proceed (missing variant selection) still needs to
