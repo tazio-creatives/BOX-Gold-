@@ -35,7 +35,7 @@ export function ProductCard({
 }) {
   const isOutOfStock = product.availableStock <= 0;
   const isLowStock = !isOutOfStock && product.availableStock <= LOW_STOCK_THRESHOLD;
-  const { strikePrice, discountPercent } = effectiveMrp(
+  const { strikePrice } = effectiveMrp(
     product.sellingPrice,
     product.mrp,
     product.sellingPriceOriginal,
@@ -81,7 +81,7 @@ export function ProductCard({
         )}
         <p className={styles.price}>
           {formatPrice(product.sellingPrice)}
-          {discountPercent > 0 && <span className={styles.mrp}>{formatPrice(strikePrice)}</span>}
+          {strikePrice > 0 && <span className={styles.mrp}>{formatPrice(strikePrice)}</span>}
         </p>
         {product.offerLabel && (
           <div className={styles.offerBanner}>

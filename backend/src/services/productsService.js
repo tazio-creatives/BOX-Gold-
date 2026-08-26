@@ -121,11 +121,24 @@ async function applyCheapestSizePricing(fields, sizesInput, existing) {
     diamondValue = (await computeDiamondValue(effectiveDiamondWeightCarats, effectiveDiamondConfigId)).diamondValue;
   }
 
-  const makingCharge = Object.hasOwn(fields, 'makingCharge')
+  const makingChargePercent = Object.hasOwn(fields, 'makingChargePercent')
+    ? fields.makingChargePercent
+    : existing?.making_charge_percent == null
+      ? null
+      : Number(existing.making_charge_percent);
+  const flatMakingCharge = Object.hasOwn(fields, 'makingCharge')
     ? fields.makingCharge
     : existing?.making_charge == null
       ? 0
       : Number(existing.making_charge);
+  // Same live-%-of-gold-value rule as computeVariantPricing — the cheapest
+  // size's own (lighter) gold value, not the base weight's, so the making
+  // charge this recomputes selling_price from actually matches what that
+  // size would show.
+  const makingCharge =
+    makingChargePercent != null && goldValue > 0
+      ? Math.round(goldValue * (makingChargePercent / 100) * 100) / 100
+      : flatMakingCharge;
   const gstPercent = Object.hasOwn(fields, 'gstPercent')
     ? fields.gstPercent
     : existing?.gst_percent == null
@@ -134,6 +147,11 @@ async function applyCheapestSizePricing(fields, sizesInput, existing) {
 
   fields.goldValue = goldValue;
   fields.diamondValue = diamondValue;
+  // Keep the cached flat column in step with the cheapest-size gold value
+  // too, not just selling_price — otherwise the two drift apart the moment
+  // making charge is percent-based (this used to be a no-op change since
+  // making_charge never varied by weight before).
+  fields.makingCharge = makingCharge;
   fields.sellingPrice = computeSellingPrice({ goldValue, diamondValue, makingCharge, gstPercent });
 }
 

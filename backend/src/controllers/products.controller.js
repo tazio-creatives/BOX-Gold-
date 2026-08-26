@@ -133,6 +133,10 @@ function toDetailDto(row) {
       gstAmount,
       total: offer.sellingPrice,
     },
+    // Source of truth for live making-charge recalculation (null = still on
+    // the flat priceBreakup.makingChargeOriginal above — platinum, or never
+    // migrated to percent-based pricing).
+    makingChargePercent: row.making_charge_percent == null ? null : Number(row.making_charge_percent),
     mrp: Number(row.mrp),
     sellingPrice: offer.sellingPrice,
     // The admin-set base price before this offer's discount — the admin

@@ -50,6 +50,7 @@ export const createProductSchema = z.object({
   diamondValue: z.coerce.number().nonnegative().optional(),
   diamondValueIsManual: z.boolean().optional(),
   makingCharge: z.coerce.number().nonnegative().optional(),
+  makingChargePercent: z.coerce.number().min(0).max(100).nullable().optional(),
   gstPercent: z.coerce.number().nonnegative().optional(),
   mrp: z.coerce.number().nonnegative().optional(),
   sellingPrice: z.coerce.number().nonnegative().optional(),

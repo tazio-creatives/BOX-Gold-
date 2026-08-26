@@ -91,6 +91,12 @@ export interface ProductDetail {
     gstAmount: number;
     total: number;
   };
+  // Admin-set % of gold value this product's making charge is computed from
+  // (null for products still on a flat making-charge, e.g. platinum, or
+  // never migrated to percent-based pricing) — the source of truth for live
+  // recalculation; priceBreakup.makingCharge above is just its computed
+  // result at the current gold rate/purity/size.
+  makingChargePercent: number | null;
   mrp: number;
   sellingPrice: number;
   sellingPriceOriginal: number;
@@ -141,6 +147,7 @@ export interface ProductInput {
   diamondValue?: number;
   diamondValueIsManual?: boolean;
   makingCharge?: number;
+  makingChargePercent?: number | null;
   gstPercent?: number;
   mrp?: number;
   sellingPrice?: number;

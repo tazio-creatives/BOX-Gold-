@@ -259,6 +259,8 @@ export interface CartItem {
   cartPurity: string | null;
   cartDiamondConfigId: string | null;
   sellingPrice: number;
+  sellingPriceOriginal: number;
+  mrp: number;
   availableStock: number;
   quantity: number;
   lineTotal: number;

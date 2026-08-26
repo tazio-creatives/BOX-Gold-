@@ -176,7 +176,18 @@ export async function computeVariantPricing(
       .diamondValue;
   }
 
-  const makingCharge = Number(product.making_charge);
+  // Making charge is a live % of gold value when the admin has set one
+  // (making_charge_percent) — scales automatically with goldValue above, so
+  // it's already correct for whatever purity/size was just resolved. Falls
+  // back to the flat making_charge column for products with no % set (not
+  // yet migrated) or with no gold value at all (platinum — a % of $0 is
+  // meaningless, so those stay on an admin-entered flat ₹ amount).
+  const makingChargePercent =
+    product.making_charge_percent == null ? null : Number(product.making_charge_percent);
+  const makingCharge =
+    makingChargePercent != null && goldValue > 0
+      ? round2(goldValue * (makingChargePercent / 100))
+      : Number(product.making_charge);
   const gstPercent = Number(product.gst_percent);
   const baseSellingPrice = computeSellingPrice({ goldValue, diamondValue, makingCharge, gstPercent });
 

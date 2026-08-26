@@ -61,3 +61,49 @@ describe('computeVariantPricing — size weight override (per-size ring pricing)
     assert.equal(result.goldValue, 80000);
   });
 });
+
+describe('computeVariantPricing — making_charge_percent (live making charge)', () => {
+  test('no making_charge_percent set -> unchanged, uses the flat making_charge column', async () => {
+    const result = await computeVariantPricing(baseProduct, {});
+    assert.equal(result.makingCharge, 5000);
+  });
+
+  test('making_charge_percent set -> making charge is that % of goldValue, not the flat column', async () => {
+    const product = { ...baseProduct, making_charge_percent: 10 };
+    const result = await computeVariantPricing(product, {});
+    assert.equal(result.goldValue, 100000);
+    assert.equal(result.makingCharge, 10000); // 10% of 100000, not the flat 5000
+  });
+
+  test('making_charge_percent + a size weight override -> making charge scales with the recomputed goldValue', async () => {
+    const rate = await getCurrentGoldRate('18K');
+    assert.ok(rate, 'test requires a seeded 18K gold rate in the dev DB');
+    const expectedGoldValue = Math.round(15 * Number(rate.rate_per_gram) * 100) / 100;
+    const expectedMakingCharge = Math.round(expectedGoldValue * 0.1 * 100) / 100;
+
+    const product = { ...baseProduct, making_charge_percent: 10 };
+    const result = await computeVariantPricing(product, { sizeWeightGrams: 15 });
+    assert.equal(result.goldValue, expectedGoldValue);
+    assert.equal(result.makingCharge, expectedMakingCharge);
+    assert.notEqual(result.makingCharge, 5000);
+  });
+
+  test('making_charge_percent set but goldValue is 0 (e.g. no weight yet) -> falls back to flat making_charge', async () => {
+    const product = { ...baseProduct, making_charge_percent: 10, gold_value: 0 };
+    const result = await computeVariantPricing(product, {});
+    assert.equal(result.goldValue, 0);
+    assert.equal(result.makingCharge, 5000);
+  });
+
+  test('PLATINUM product with making_charge_percent set -> still flat (percent of gold value is meaningless with no gold)', async () => {
+    const platinumProduct = {
+      ...baseProduct,
+      metal_type: 'PLATINUM',
+      purity: null,
+      gold_value: 0,
+      making_charge_percent: 10,
+    };
+    const result = await computeVariantPricing(platinumProduct, {});
+    assert.equal(result.makingCharge, 5000);
+  });
+});

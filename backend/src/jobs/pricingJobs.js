@@ -43,15 +43,30 @@ async function recalculateGoldPricesHandler() {
 
     const goldValue = Math.round(pricingWeightGrams * Number(rate.rate_per_gram) * 100) / 100;
     const diamondValue = Number(product.diamond_value);
+    // Percent-based products (making_charge_percent set) get making_charge
+    // refreshed alongside gold_value here — otherwise it'd stay frozen at
+    // yesterday's ₹ amount even though today's gold rate (and so the %'s
+    // actual rupee value) moved. Flat-charge products are untouched, exactly
+    // as before.
+    const makingChargePercent = product.making_charge_percent == null ? null : Number(product.making_charge_percent);
+    const makingCharge =
+      makingChargePercent != null
+        ? Math.round(goldValue * (makingChargePercent / 100) * 100) / 100
+        : Number(product.making_charge);
     const sellingPrice = computeSellingPrice({
       goldValue,
       diamondValue,
-      makingCharge: Number(product.making_charge),
+      makingCharge,
       gstPercent: Number(product.gst_percent),
     });
 
     await withTransaction(async (client) => {
-      await updateProductPricingTx(client, product.id, { goldValue, diamondValue, sellingPrice });
+      await updateProductPricingTx(client, product.id, {
+        goldValue,
+        diamondValue,
+        sellingPrice,
+        ...(makingChargePercent != null ? { makingCharge } : {}),
+      });
       await insertPriceHistory(client, {
         productId: product.id,
         oldSellingPrice: product.selling_price,

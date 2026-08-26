@@ -292,6 +292,7 @@ const INSERT_COLUMNS = [
   'diamond_value',
   'diamond_value_is_manual',
   'making_charge',
+  'making_charge_percent',
   'gst_percent',
   'mrp',
   'selling_price',
@@ -369,7 +370,7 @@ export async function deleteProduct(id) {
 export async function findGoldProductsForRecalculation() {
   const { rows } = await query(
     `SELECT p.id, p.slug, p.category_id, p.gold_weight_grams, p.purity, p.diamond_value, p.making_charge,
-            p.gst_percent, p.selling_price,
+            p.making_charge_percent, p.gst_percent, p.selling_price,
             (SELECT
                CASE
                  WHEN NOT EXISTS (SELECT 1 FROM product_sizes WHERE product_id = p.id) THEN NULL
@@ -402,8 +403,20 @@ export async function findDiamondProductsForRecalculation(diamondConfigId) {
 export async function updateProductPricingTx(
   client,
   id,
-  { goldValue, diamondValue, sellingPrice },
+  { goldValue, diamondValue, sellingPrice, makingCharge },
 ) {
+  // makingCharge is only passed when the gold-rate recalculation job also
+  // refreshed it (percent-based products — see recalculateGoldPricesHandler)
+  // — the diamond-rate job never touches gold value, so it never needs to.
+  if (makingCharge != null) {
+    await client.query(
+      `UPDATE products
+       SET gold_value = $2, diamond_value = $3, selling_price = $4, making_charge = $5, updated_at = now()
+       WHERE id = $1`,
+      [id, goldValue, diamondValue, sellingPrice, makingCharge],
+    );
+    return;
+  }
   await client.query(
     `UPDATE products
      SET gold_value = $2, diamond_value = $3, selling_price = $4, updated_at = now()

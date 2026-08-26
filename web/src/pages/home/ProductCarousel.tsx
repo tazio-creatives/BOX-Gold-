@@ -108,7 +108,7 @@ export function ProductCarousel({ items, heading, viewAllHref, cardsPerViewDeskt
             const product = item.product;
             if (!product) return null;
             const material = materialFor(product);
-            const { strikePrice, discountPercent } = effectiveMrp(
+            const { strikePrice } = effectiveMrp(
               product.sellingPrice,
               product.mrp,
               product.sellingPriceOriginal,
@@ -128,7 +128,7 @@ export function ProductCarousel({ items, heading, viewAllHref, cardsPerViewDeskt
                   {material && <p className={styles.productMaterial}>{material}</p>}
                   <p className={styles.productPrice}>
                     {formatPrice(product.sellingPrice)}
-                    {discountPercent > 0 && (
+                    {strikePrice > 0 && (
                       <span className={styles.productMrp}>{formatPrice(strikePrice)}</span>
                     )}
                   </p>

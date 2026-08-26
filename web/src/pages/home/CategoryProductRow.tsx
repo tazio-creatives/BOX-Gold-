@@ -43,7 +43,7 @@ function CategoryBlock({ item, index }: { item: HomepageItem; index: number }) {
 
         {item.products.slice(0, 5).map((product, i) => {
           const material = materialFor(product);
-          const { strikePrice, discountPercent } = effectiveMrp(
+          const { strikePrice } = effectiveMrp(
             product.sellingPrice,
             product.mrp,
             product.sellingPriceOriginal,
@@ -66,7 +66,7 @@ function CategoryBlock({ item, index }: { item: HomepageItem; index: number }) {
                 {material && <p className={styles.productMaterial}>{material}</p>}
                 <p className={styles.productPrice}>
                   {formatPrice(product.sellingPrice)}
-                  {discountPercent > 0 && <span className={styles.productMrp}>{formatPrice(strikePrice)}</span>}
+                  {strikePrice > 0 && <span className={styles.productMrp}>{formatPrice(strikePrice)}</span>}
                 </p>
                 {product.offerLabel && (
                   <div className={styles.offerBanner}>
