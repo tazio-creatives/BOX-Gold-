@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import {
   fetchPromptPreview,
@@ -50,6 +50,16 @@ export function ReviewPromptsStep({
 }: ReviewPromptsStepProps) {
   const [expandedAssetType, setExpandedAssetType] = useState<string | null>(null);
 
+  // promptOverrides changes on every keystroke in a creative field — without
+  // debouncing, each one would refetch immediately, briefly emptying
+  // `prompts` and unmounting/remounting every card (including whichever
+  // textarea the admin is actively typing in), kicking them out mid-word.
+  const [debouncedOverrides, setDebouncedOverrides] = useState(promptOverrides);
+  useEffect(() => {
+    const timer = setTimeout(() => setDebouncedOverrides(promptOverrides), 500);
+    return () => clearTimeout(timer);
+  }, [promptOverrides]);
+
   const { data, isFetching, isError } = useQuery({
     queryKey: [
       'ai-studio-prompt-preview',
@@ -58,10 +68,16 @@ export function ReviewPromptsStep({
       jewelleryType,
       presenterId,
       generateRoseGold,
-      promptOverrides,
+      debouncedOverrides,
     ],
     queryFn: () =>
-      fetchPromptPreview(productId, jobId, { jewelleryType, presenterId, generateRoseGold, promptOverrides }),
+      fetchPromptPreview(productId, jobId, {
+        jewelleryType,
+        presenterId,
+        generateRoseGold,
+        promptOverrides: debouncedOverrides,
+      }),
+    placeholderData: (previousData) => previousData,
   });
   const prompts = data?.prompts ?? [];
 
@@ -134,7 +150,7 @@ export function ReviewPromptsStep({
                     <label key={key} className={sharedStyles.field}>
                       {label}
                       <textarea
-                        rows={2}
+                        rows={4}
                         placeholder={p.creativeInstructions[key] || undefined}
                         value={override?.[key] ?? ''}
                         onChange={(e) => updateOverrideField(p.assetType, key, e.target.value)}
