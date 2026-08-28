@@ -448,7 +448,7 @@ export async function generateShot({
       image,
       prompt,
       size: '1024x1024',
-      quality: 'high',
+      quality: 'medium',
       background: 'opaque',
       output_format: 'png',
       n: 1,
