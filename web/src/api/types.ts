@@ -6,6 +6,8 @@ export interface ProductCard {
   metalType: 'GOLD' | 'PLATINUM';
   purity: string | null;
   goldColor: GoldColor | null;
+  diamondColour: string | null;
+  diamondClarity: string | null;
   sellingPrice: number;
   sellingPriceOriginal: number;
   mrp: number;

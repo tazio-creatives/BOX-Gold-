@@ -1,7 +1,7 @@
 import type { SortOption } from '../../api/types';
 import styles from './SortSelect.module.css';
 
-const OPTIONS: { value: SortOption; label: string }[] = [
+export const SORT_OPTIONS: { value: SortOption; label: string }[] = [
   { value: 'featured', label: 'Featured' },
   { value: 'newest', label: 'Newest' },
   { value: 'price_asc', label: 'Price: Low to High' },
@@ -24,7 +24,7 @@ export function SortSelect({
           value={value}
           onChange={(e) => onChange(e.target.value as SortOption)}
         >
-          {OPTIONS.map((o) => (
+          {SORT_OPTIONS.map((o) => (
             <option key={o.value} value={o.value}>
               {o.label}
             </option>

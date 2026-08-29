@@ -113,27 +113,69 @@
   /* Stretch (grid's default, restated for clarity) so every card in a row
      matches the tallest one — otherwise a card with an offer banner sits
      taller than its neighbour without one, staggering the row's bottom
-     edge. ProductCard's own flex column layout leaves the extra height as
-     trailing blank space rather than stretching the image or text. */
+     edge. PlpProductCard's own flex column layout leaves the extra height
+     as trailing blank space rather than stretching the image or text. */
   align-items: stretch;
 }
 
-.list {
+.skeletonCard {
+  border: 1px solid #e3ddd4;
+  border-radius: 10px;
+  overflow: hidden;
+  padding: 10px;
   display: flex;
   flex-direction: column;
-  gap: var(--space-4);
+  gap: 8px;
 }
 
-.skeletonCard {
+.skeletonImage {
   composes: shimmer from '../../styles/skeleton.module.css';
-  aspect-ratio: 3 / 4.2;
-  border-radius: 10px;
+  aspect-ratio: 1 / 1;
+  margin: -10px -10px 0;
+  border-radius: 0;
+}
+
+.skeletonLine {
+  composes: shimmer from '../../styles/skeleton.module.css';
+  height: 12px;
+  border-radius: 4px;
+}
+
+.skeletonButton {
+  composes: shimmer from '../../styles/skeleton.module.css';
+  height: 40px;
+  border-radius: 7px;
+  margin-top: auto;
+}
+
+.stateBlock {
+  text-align: center;
+  padding: var(--space-10) 0;
+}
+
+.emptyHeading {
+  margin: 0 0 6px;
+  font-size: 18px;
+  font-weight: 600;
+  color: #123f45;
 }
 
 .message {
-  text-align: center;
-  padding: var(--space-10) 0;
+  margin: 0;
   color: var(--color-text-muted);
+}
+
+.retryButton {
+  margin-top: var(--space-4);
+  height: 40px;
+  padding: 0 20px;
+  border: 1.5px solid #075968;
+  border-radius: 7px;
+  background: #fff;
+  color: #075968;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
 }
 
 @media (max-width: 1200px) {
@@ -151,6 +193,8 @@
   }
 }
 
+/* Tablet: sidebar becomes a drawer, grid moves to 3 columns with a slightly
+   tighter gap than the desktop default. */
 @media (max-width: 992px) {
   .page {
     padding-left: 14px;
@@ -162,7 +206,8 @@
   }
 
   .grid {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 16px;
   }
 
   .filtersButton {
@@ -170,10 +215,13 @@
   }
 }
 
-@media (max-width: 576px) {
+/* Mobile: 12px page padding, 2-column grid, 10px gap, bottom padding clears
+   the sticky Sort/Filter bar (56px min-height + safe-area + breathing room),
+   sort control moves into the sticky bar's sheet so the inline SortSelect
+   hides here. */
+@media (max-width: 767px) {
   .page {
-    padding-left: 14px;
-    padding-right: 14px;
+    padding: 12px 12px 88px;
   }
 
   .headerRow {
@@ -186,12 +234,15 @@
   }
 
   .headerRight > label {
-    flex: 1;
-    min-width: 0;
+    display: none;
+  }
+
+  .filtersButton {
+    display: none;
   }
 
   .grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: var(--space-3);
+    gap: 10px;
   }
 }

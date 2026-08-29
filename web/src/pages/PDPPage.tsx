@@ -1,13 +1,12 @@
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useQuery, useQueryClient, useMutation } from '@tanstack/react-query';
-import { fetchProductBySlug, fetchRelatedProducts, fetchVariantPricePreview } from '../api/products';
+import { fetchProductBySlug, fetchRelatedProducts } from '../api/products';
 import { fetchCategories } from '../api/categories';
 import { addCartItem } from '../api/cart';
-import type { Cart, GoldColor, VariantPricePreview } from '../api/types';
+import type { Cart } from '../api/types';
 import { getAncestorChain } from '../utils/categoryTree';
-import { effectiveMrp } from '../utils/effectiveMrp';
-import { isColorAvailableAtPurity } from '../utils/goldColorRules';
+import { useVariantSelection } from '../hooks/useVariantSelection';
 import { Breadcrumbs } from '../components/Breadcrumbs';
 import { useHead, defaultHead } from '../seo/head';
 import { breadcrumbJsonLd, organizationJsonLd, productJsonLd } from '../seo/jsonLd';
@@ -21,18 +20,11 @@ import { RelatedProducts } from '../features/pdp/RelatedProducts';
 import styles from './PDPPage.module.css';
 import placeholderStyles from './PlaceholderPage.module.css';
 
-const LOW_STOCK_THRESHOLD = 3;
-
 export function PDPPage() {
   const { productSlug } = useParams<{ categorySlug: string; productSlug: string }>();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const [justAdded, setJustAdded] = useState(false);
-  const [selectedSizeId, setSelectedSizeId] = useState<string | null>(null);
-  const [selectedGoldColor, setSelectedGoldColor] = useState<GoldColor | null>(null);
-  const [selectedPurity, setSelectedPurity] = useState<string | null>(null);
-  const [selectedDiamondConfigId, setSelectedDiamondConfigId] = useState<string | null>(null);
-  const [pricePreview, setPricePreview] = useState<VariantPricePreview | null>(null);
 
   const {
     data: productData,
@@ -56,100 +48,25 @@ export function PDPPage() {
     enabled: !!productSlug,
   });
 
-  // A different product's variant choices never carry over — reset them
-  // whenever the shopper navigates to a new PDP.
-  useEffect(() => {
-    setSelectedSizeId(null);
-    setSelectedGoldColor(null);
-    setSelectedPurity(null);
-    setSelectedDiamondConfigId(null);
-    setPricePreview(null);
-  }, [productSlug]);
-
-  // Purity, Diamond Quality, and Size change price — live-recomputed from
-  // the same engine cart/checkout use, so what's shown here (and what Buy
-  // Now carries into checkout) always matches what actually gets charged.
-  // Size is always sent once picked; the backend decides whether that size
-  // actually has a weight override — sizes without one return the same
-  // numbers as before, so this is safe for the common case too.
-  useEffect(() => {
-    setPricePreview(null);
-    if (!productData?.product || (!selectedPurity && !selectedDiamondConfigId && !selectedSizeId)) return;
-    let cancelled = false;
-    fetchVariantPricePreview(productData.product.id, {
-      purity: selectedPurity,
-      diamondConfigId: selectedDiamondConfigId,
-      sizeId: selectedSizeId,
-    })
-      .then((result) => {
-        if (!cancelled) setPricePreview(result);
-      })
-      .catch(() => {
-        if (!cancelled) setPricePreview(null);
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [productData?.product, selectedPurity, selectedDiamondConfigId, selectedSizeId]);
-
-  // Purity/Diamond Quality/Gold Color default to whichever value the admin
-  // themselves set as the product's own base configuration — not
-  // automatically the cheapest configured option on that axis. Falls back
-  // to cheapest-first only when the admin's own value isn't actually among
-  // the configured options (data inconsistency, shouldn't normally happen).
-  // Size has no equivalent "admin default" (sizes are just a stock catalog),
-  // so it keeps defaulting to the smallest available size. Keyed on the
-  // product id (not on the selections themselves) so this only runs once
-  // per product load and never clobbers a shopper's own later choice.
-  useEffect(() => {
-    const p = productData?.product;
-    if (!p) return;
-    if (p.purityOptions.length > 0) {
-      const defaultPurity =
-        p.purity && p.purityOptions.includes(p.purity)
-          ? p.purity
-          : [...p.purityOptions].sort((a, b) => parseInt(a, 10) - parseInt(b, 10))[0];
-      setSelectedPurity(defaultPurity);
-    }
-    if (p.diamondOptions.length > 0) {
-      const adminDefault = p.diamondConfigId ? p.diamondOptions.find((d) => d.id === p.diamondConfigId) : undefined;
-      const defaultDiamond = adminDefault ?? [...p.diamondOptions].sort((a, b) => a.ratePerCent - b.ratePerCent)[0];
-      setSelectedDiamondConfigId(defaultDiamond.id);
-    }
-    if (p.goldColorOptions.length > 0) {
-      const defaultColor =
-        p.goldColor && p.goldColorOptions.includes(p.goldColor)
-          ? p.goldColor
-          : p.goldColorOptions.includes('YELLOW')
-            ? 'YELLOW'
-            : p.goldColorOptions[0];
-      setSelectedGoldColor(defaultColor);
-    }
-    if (p.sizes.length > 0) {
-      const smallestSize = [...p.sizes].sort((a, b) => {
-        const na = parseInt(a.label, 10);
-        const nb = parseInt(b.label, 10);
-        if (Number.isNaN(na) || Number.isNaN(nb)) return 0;
-        return na - nb;
-      })[0];
-      setSelectedSizeId(smallestSize.id);
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [productData?.product?.id]);
-
-  // Some colors aren't manufactured at some purities (e.g. no Rose Gold at
-  // 9K) — if the current pair ever becomes invalid, whether from the
-  // default-selection effect above landing on a conflicting admin-set
-  // default or the shopper switching purity while an unavailable color was
-  // selected, fall back to another available color rather than leaving an
-  // invalid combination silently selected.
-  useEffect(() => {
-    const p = productData?.product;
-    if (!p || !selectedGoldColor || !selectedPurity) return;
-    if (isColorAvailableAtPurity(selectedGoldColor, selectedPurity)) return;
-    const fallback = p.goldColorOptions.find((c) => isColorAvailableAtPurity(c, selectedPurity));
-    if (fallback) setSelectedGoldColor(fallback);
-  }, [selectedPurity, selectedGoldColor, productData?.product]);
+  const {
+    selectedSizeId,
+    setSelectedSizeId,
+    selectedGoldColor,
+    setSelectedGoldColor,
+    selectedPurity,
+    setSelectedPurity,
+    selectedDiamondConfigId,
+    setSelectedDiamondConfigId,
+    selectedSize,
+    isOutOfStock,
+    isLowStock,
+    selectedDiamondOption,
+    displayPrice,
+    displayMrp,
+    displayGstAmount,
+    displayOfferLabel,
+    displayBreakup,
+  } = useVariantSelection(productData?.product);
 
   const addToCartMutation = useMutation({
     mutationFn: ({
@@ -243,42 +160,6 @@ export function PDPPage() {
     );
   }
 
-  const selectedSize = product.sizes.find((s) => s.id === selectedSizeId) ?? null;
-  // A product-level rollup is wrong once a specific size is picked — a
-  // product with some in-stock and some out-of-stock sizes must reflect the
-  // *selected* size's own stock, not the whole product's availableStock.
-  const isOutOfStock =
-    product.sizes.length > 0 ? (selectedSize ? selectedSize.availableStock <= 0 : false) : product.availableStock <= 0;
-  const isLowStock = !isOutOfStock && product.availableStock <= LOW_STOCK_THRESHOLD;
-
-  const selectedDiamondOption = product.diamondOptions.find((d) => d.id === selectedDiamondConfigId) ?? null;
-  const displayPrice = pricePreview?.sellingPrice ?? product.sellingPrice;
-  const displaySellingPriceOriginal = pricePreview?.sellingPriceOriginal ?? product.sellingPriceOriginal;
-  const { strikePrice: displayMrp } = effectiveMrp(
-    displayPrice,
-    pricePreview?.mrp ?? product.mrp,
-    displaySellingPriceOriginal,
-  );
-  const displayGstAmount = pricePreview?.gstAmount ?? product.priceBreakup.gstAmount;
-  const displayOfferLabel = pricePreview?.offerLabel ?? product.offerLabel;
-  // Pre-existing gap, not new to size pricing: this table always showed the
-  // static base breakup regardless of purity/diamond selection too — fixed
-  // here since size selection makes the mismatch much more visible (a
-  // bigger ring's weight swings gold value a lot more than most variants).
-  const displayBreakup = pricePreview
-    ? {
-        goldValue: pricePreview.goldValue,
-        diamondValue: pricePreview.diamondValue,
-        diamondValueOriginal: pricePreview.diamondValueOriginal,
-        makingCharge: pricePreview.makingCharge,
-        makingChargeOriginal: pricePreview.makingChargeOriginal,
-        makingChargeDiscountPercent: pricePreview.makingChargeDiscountPercent,
-        diamondDiscountPercent: pricePreview.diamondDiscountPercent,
-        gstAmount: pricePreview.gstAmount,
-        total: pricePreview.sellingPrice,
-      }
-    : product.priceBreakup;
-
   // The manually-uploaded thumbnail is only a placeholder until AI Studio
   // shots exist — once they do, the gallery should show those instead of
   // the manual original. `product.images` itself stays untouched (Buy Now's
@@ -362,7 +243,7 @@ export function PDPPage() {
           </DetailsCard>
 
           <DetailsCard title="Price Breakup" className={styles.detailsCardHeading}>
-            <PriceBreakupTable breakup={displayBreakup} metalType={product.metalType} />
+            <PriceBreakupTable breakup={displayBreakup ?? product.priceBreakup} metalType={product.metalType} />
           </DetailsCard>
         </div>
       </div>

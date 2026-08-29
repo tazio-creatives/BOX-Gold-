@@ -170,7 +170,7 @@
       'menu logo cart'
       'search search search';
     align-items: center;
-    row-gap: 10px;
+    row-gap: 12px;
     column-gap: 12px;
     padding: 10px 16px;
   }

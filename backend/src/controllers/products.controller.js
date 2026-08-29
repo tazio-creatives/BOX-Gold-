@@ -72,6 +72,8 @@ export function toListDto(row) {
     metalType: row.metal_type,
     purity: row.purity,
     goldColor: row.gold_color,
+    diamondColour: row.diamond_colour,
+    diamondClarity: row.diamond_clarity,
     sellingPrice: offer.sellingPrice,
     sellingPriceOriginal: offer.sellingPriceOriginal,
     mrp: Number(row.mrp),

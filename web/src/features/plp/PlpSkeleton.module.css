@@ -53,7 +53,7 @@
 
 .card {
   composes: shimmer from '../../styles/skeleton.module.css';
-  aspect-ratio: 4 / 5.6;
+  aspect-ratio: 3 / 4.4;
   border-radius: 10px;
 }
 
@@ -67,13 +67,17 @@
   }
 
   .grid {
-    grid-template-columns: repeat(2, 1fr);
+    grid-template-columns: repeat(3, 1fr);
   }
 }
 
-@media (max-width: 640px) {
+@media (max-width: 767px) {
   .page {
-    padding-left: var(--space-4);
-    padding-right: var(--space-4);
+    padding: 12px 12px var(--space-12);
+  }
+
+  .grid {
+    grid-template-columns: repeat(2, 1fr);
+    gap: 10px;
   }
 }

@@ -2,12 +2,16 @@ import { useState } from 'react';
 import { useQuery, keepPreviousData } from '@tanstack/react-query';
 import { fetchProducts } from '../../api/products';
 import { fetchCategoryFilterCounts } from '../../api/categories';
-import { ProductCard } from '../../components/ProductCard';
+import { PlpProductCard } from '../../components/PlpProductCard';
 import { Pagination } from '../../components/Pagination';
 import { Breadcrumbs, type Crumb } from '../../components/Breadcrumbs';
 import { FilterSidebar, type CategoryFilterGroup } from './FilterSidebar';
 import { SortSelect } from './SortSelect';
-import { ViewToggle, type ViewMode } from './ViewToggle';
+import { SortSheet } from './SortSheet';
+import { StickyActionBar } from './StickyActionBar';
+import { ActiveFilterChips } from './ActiveFilterChips';
+import { QuickAddSheet } from './QuickAddSheet';
+import { useQuickAdd } from './useQuickAdd';
 import { usePlpFilters } from './usePlpFilters';
 import { useHead } from '../../seo/head';
 import { breadcrumbJsonLd, organizationJsonLd } from '../../seo/jsonLd';
@@ -34,8 +38,9 @@ export function ProductListing({
 }: ProductListingProps) {
   const { metal, purity, goldColor, priceMin, priceMax, sort, page, updateFilters, updateSort, updatePage, clearFilters } =
     usePlpFilters();
-  const [viewMode, setViewMode] = useState<ViewMode>('grid');
   const [isFilterDrawerOpen, setIsFilterDrawerOpen] = useState(false);
+  const [isSortSheetOpen, setIsSortSheetOpen] = useState(false);
+  const quickAdd = useQuickAdd();
 
   const activeFilterCount = [metal, purity, goldColor, priceMin, priceMax].filter((v) => v != null).length;
 
@@ -52,7 +57,7 @@ export function ProductListing({
     ],
   });
 
-  const { data, isLoading, isError } = useQuery({
+  const { data, isLoading, isError, refetch } = useQuery({
     queryKey: ['products', { categorySlug, collectionSlug, metal, purity, goldColor, priceMin, priceMax, sort, page }],
     queryFn: () =>
       fetchProducts({
@@ -113,9 +118,10 @@ export function ProductListing({
               {activeFilterCount > 0 && <span className={styles.filtersButtonCount}>{activeFilterCount}</span>}
             </button>
             <SortSelect value={sort} onChange={updateSort} />
-            <ViewToggle value={viewMode} onChange={setViewMode} />
           </div>
         </div>
+
+        <ActiveFilterChips values={{ metal, purity, goldColor, priceMin, priceMax }} onChange={updateFilters} />
       </div>
 
       <div className={styles.layout}>
@@ -132,26 +138,47 @@ export function ProductListing({
           {isLoading && (
             <div className={styles.grid} aria-busy="true">
               {Array.from({ length: 8 }).map((_, i) => (
-                <div key={i} className={styles.skeletonCard} />
+                <div key={i} className={styles.skeletonCard}>
+                  <div className={styles.skeletonImage} />
+                  <div className={styles.skeletonLine} style={{ width: '90%' }} />
+                  <div className={styles.skeletonLine} style={{ width: '60%' }} />
+                  <div className={styles.skeletonLine} style={{ width: '75%', height: 18 }} />
+                  <div className={styles.skeletonButton} />
+                </div>
               ))}
             </div>
           )}
 
-          {isError && <p className={styles.message}>Couldn't load products right now.</p>}
+          {isError && (
+            <div className={styles.stateBlock}>
+              <p className={styles.message}>Couldn't load products right now.</p>
+              <button type="button" className={styles.retryButton} onClick={() => refetch()}>
+                Retry
+              </button>
+            </div>
+          )}
 
           {data && data.products.length === 0 && (
-            <p className={styles.message}>No pieces match these filters.</p>
+            <div className={styles.stateBlock}>
+              <p className={styles.emptyHeading}>No products found</p>
+              <p className={styles.message}>Try adjusting your filters or search.</p>
+              <button type="button" className={styles.retryButton} onClick={clearFilters}>
+                Clear Filters
+              </button>
+            </div>
           )}
 
           {data && data.products.length > 0 && (
-            <div className={viewMode === 'grid' ? styles.grid : styles.list}>
+            <div className={styles.grid}>
               {data.products.map((product, i) => (
-                <ProductCard
+                <PlpProductCard
                   key={product.id}
                   product={product}
                   index={i}
-                  layout={viewMode}
-                  imageFit="contain"
+                  onAddToCart={() => quickAdd.addToCart(product)}
+                  isAdding={quickAdd.pendingProductId === product.id}
+                  justAdded={quickAdd.justAddedProductId === product.id}
+                  hasError={quickAdd.errorProductId === product.id}
                 />
               ))}
             </div>
@@ -160,6 +187,22 @@ export function ProductListing({
           {data && <Pagination page={data.page} totalPages={data.totalPages} onChange={updatePage} />}
         </div>
       </div>
+
+      <StickyActionBar
+        onSort={() => setIsSortSheetOpen(true)}
+        onFilter={() => setIsFilterDrawerOpen(true)}
+        isSortOpen={isSortSheetOpen}
+        isFilterOpen={isFilterDrawerOpen}
+        activeFilterCount={activeFilterCount}
+      />
+
+      {isSortSheetOpen && (
+        <SortSheet value={sort} onChange={updateSort} onClose={() => setIsSortSheetOpen(false)} />
+      )}
+
+      {quickAdd.sheetProduct && (
+        <QuickAddSheet product={quickAdd.sheetProduct} onClose={quickAdd.closeSheet} />
+      )}
     </div>
   );
 }

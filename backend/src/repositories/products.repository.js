@@ -58,6 +58,7 @@ const LIST_COLUMNS = `
   p.rating_avg, p.rating_count, p.created_at, p.is_featured,
   p.net_weight_grams, p.gold_weight_grams, p.diamond_weight_grams, p.diamond_weight_carats, p.diamond_config_id,
   p.making_charge_discount_percent, p.diamond_discount_percent,
+  p.diamond_colour, p.diamond_clarity,
   primary_image.url AS primary_image_url,
   cat.slug AS category_slug,
   ${AVAILABLE_STOCK_SELECT}
