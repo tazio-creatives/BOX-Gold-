@@ -126,3 +126,14 @@ export function AuditLogsIcon() {
     </svg>
   );
 }
+
+export function AttributesIcon() {
+  return (
+    <svg {...common}>
+      <rect x="3" y="4" width="7" height="7" rx="1.5" />
+      <rect x="14" y="4" width="7" height="7" rx="1.5" />
+      <rect x="3" y="15" width="7" height="7" rx="1.5" />
+      <rect x="14" y="15" width="7" height="7" rx="1.5" />
+    </svg>
+  );
+}

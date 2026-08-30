@@ -5,7 +5,7 @@ import { fetchCart, updateCartItem, removeCartItem } from '../api/cart';
 import { addWishlistItem } from '../api/wishlist';
 import { applyCoupon } from '../api/coupons';
 import { fetchProducts } from '../api/products';
-import type { Cart, CartItem, VariantSelection } from '../api/types';
+import type { Cart, CartItem } from '../api/types';
 import { productUrl } from '../utils/productUrl';
 import { formatPrice } from '../utils/formatPrice';
 import { effectiveMrp } from '../utils/effectiveMrp';
@@ -31,30 +31,6 @@ function metaLine(item: CartItem): string {
   if (size) parts.push(`Size: ${size}`);
   if (item.diamondConfigName) parts.push(item.diamondConfigName);
   return parts.join('  ·  ');
-}
-
-function itemVariant(item: CartItem): VariantSelection {
-  return {
-    sizeId: item.sizeId,
-    goldColor: item.cartGoldColor,
-    purity: item.cartPurity,
-    diamondConfigId: item.cartDiamondConfigId,
-  };
-}
-
-function itemKey(item: CartItem): string {
-  return [item.productId, item.sizeId, item.goldColor, item.purity, item.diamondConfigId]
-    .map((v) => v ?? '')
-    .join(':');
-}
-
-// Correlates a pending mutation back to the specific row it's acting on —
-// built from the same {productId, variant} shape sent to the API, not
-// itemKey (which uses display-defaulted fields the mutation doesn't see).
-function mutationKey(productId: string, variant: VariantSelection): string {
-  return [productId, variant.sizeId, variant.goldColor, variant.purity, variant.diamondConfigId]
-    .map((v) => v ?? '')
-    .join(':');
 }
 
 function CloseIcon() {
@@ -121,14 +97,13 @@ export function CartPage() {
   });
 
   const updateMutation = useMutation({
-    mutationFn: ({ productId, variant, quantity }: { productId: string; variant: VariantSelection; quantity: number }) =>
-      updateCartItem(productId, quantity, variant),
+    mutationFn: ({ variantId, quantity }: { variantId: string; quantity: number }) =>
+      updateCartItem(variantId, quantity),
     onSuccess: (cart: Cart) => queryClient.setQueryData(['cart'], cart),
   });
 
   const removeMutation = useMutation({
-    mutationFn: ({ productId, variant }: { productId: string; variant: VariantSelection; name: string }) =>
-      removeCartItem(productId, variant),
+    mutationFn: ({ variantId }: { variantId: string; name: string }) => removeCartItem(variantId),
     onSuccess: (cart: Cart, { name }) => {
       queryClient.setQueryData(['cart'], cart);
       setStatusMessage(`${name} removed from your bag.`);
@@ -136,9 +111,9 @@ export function CartPage() {
   });
 
   const moveToWishlistMutation = useMutation({
-    mutationFn: async ({ productId, variant }: { productId: string; variant: VariantSelection; name: string }) => {
+    mutationFn: async ({ productId, variantId }: { productId: string; variantId: string; name: string }) => {
       await addWishlistItem(productId);
-      return removeCartItem(productId, variant);
+      return removeCartItem(variantId);
     },
     onSuccess: (cart: Cart, { name }) => {
       queryClient.setQueryData(['cart'], cart);
@@ -230,9 +205,9 @@ export function CartPage() {
 
   function changeQuantity(item: CartItem, quantity: number) {
     if (quantity <= 0) {
-      removeMutation.mutate({ productId: item.productId, variant: itemVariant(item), name: item.name });
+      removeMutation.mutate({ variantId: item.variantId, name: item.name });
     } else {
-      updateMutation.mutate({ productId: item.productId, variant: itemVariant(item), quantity });
+      updateMutation.mutate({ variantId: item.variantId, quantity });
     }
   }
 
@@ -256,29 +231,22 @@ export function CartPage() {
           <div className={styles.cartCard}>
             <ul className={styles.list}>
               {data.items.map((item, i) => {
-                const variant = itemVariant(item);
-                const rowKey = mutationKey(item.productId, variant);
-                const isUpdating =
-                  updateMutation.isPending &&
-                  mutationKey(updateMutation.variables.productId, updateMutation.variables.variant) === rowKey;
-                const isRemoving =
-                  removeMutation.isPending &&
-                  mutationKey(removeMutation.variables.productId, removeMutation.variables.variant) === rowKey;
+                const rowKey = item.variantId;
+                const isUpdating = updateMutation.isPending && updateMutation.variables.variantId === rowKey;
+                const isRemoving = removeMutation.isPending && removeMutation.variables.variantId === rowKey;
                 const isMovingToWishlist =
-                  moveToWishlistMutation.isPending &&
-                  mutationKey(moveToWishlistMutation.variables.productId, moveToWishlistMutation.variables.variant) ===
-                    rowKey;
+                  moveToWishlistMutation.isPending && moveToWishlistMutation.variables.variantId === rowKey;
                 const rowBusy = isUpdating || isRemoving || isMovingToWishlist;
                 const { strikePrice } = effectiveMrp(item.sellingPrice, item.mrp, item.sellingPriceOriginal);
 
                 return (
-                  <li key={itemKey(item)} className={styles.row} aria-busy={rowBusy || undefined}>
+                  <li key={item.variantId} className={styles.row} aria-busy={rowBusy || undefined}>
                     <button
                       type="button"
                       className={styles.removeButton}
                       aria-label={`Remove ${item.name} from bag`}
                       disabled={rowBusy}
-                      onClick={() => removeMutation.mutate({ productId: item.productId, variant, name: item.name })}
+                      onClick={() => removeMutation.mutate({ variantId: item.variantId, name: item.name })}
                     >
                       <CloseIcon />
                     </button>
@@ -347,7 +315,11 @@ export function CartPage() {
                         className={styles.wishlistAction}
                         disabled={rowBusy}
                         onClick={() =>
-                          moveToWishlistMutation.mutate({ productId: item.productId, variant, name: item.name })
+                          moveToWishlistMutation.mutate({
+                            productId: item.productId,
+                            variantId: item.variantId,
+                            name: item.name,
+                          })
                         }
                       >
                         <HeartIcon />

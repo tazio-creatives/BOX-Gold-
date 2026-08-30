@@ -57,6 +57,10 @@ export function PDPPage() {
     setSelectedPurity,
     selectedDiamondConfigId,
     setSelectedDiamondConfigId,
+    selectedVariantId,
+    isColorAvailableAtPurity,
+    isPurityAvailable,
+    isDiamondAvailableAtPurity,
     selectedSize,
     isOutOfStock,
     isLowStock,
@@ -69,19 +73,8 @@ export function PDPPage() {
   } = useVariantSelection(productData?.product);
 
   const addToCartMutation = useMutation({
-    mutationFn: ({
-      productId,
-      sizeId,
-      goldColor,
-      purity,
-      diamondConfigId,
-    }: {
-      productId: string;
-      sizeId?: string | null;
-      goldColor?: string | null;
-      purity?: string | null;
-      diamondConfigId?: string | null;
-    }) => addCartItem(productId, 1, { sizeId, goldColor, purity, diamondConfigId }),
+    mutationFn: ({ productId, variantId }: { productId: string; variantId?: string | null }) =>
+      addCartItem(productId, 1, variantId),
     onSuccess: (cart: Cart) => {
       queryClient.setQueryData(['cart'], cart);
       setJustAdded(true);
@@ -193,20 +186,20 @@ export function PDPPage() {
             onSelectSize={setSelectedSizeId}
             selectedGoldColor={selectedGoldColor}
             onSelectGoldColor={setSelectedGoldColor}
+            isColorAvailableAtPurity={isColorAvailableAtPurity}
             selectedPurity={selectedPurity}
             onSelectPurity={setSelectedPurity}
+            isPurityAvailable={isPurityAvailable}
             selectedDiamondConfigId={selectedDiamondConfigId}
             onSelectDiamondConfigId={setSelectedDiamondConfigId}
+            isDiamondAvailableAtPurity={isDiamondAvailableAtPurity}
             displayPrice={displayPrice}
             displayMrp={displayMrp}
             offerLabel={displayOfferLabel}
             onAddToCart={() =>
               addToCartMutation.mutate({
                 productId: product.id,
-                sizeId: selectedSizeId ?? undefined,
-                goldColor: selectedGoldColor ?? undefined,
-                purity: selectedPurity ?? undefined,
-                diamondConfigId: selectedDiamondConfigId ?? undefined,
+                variantId: selectedVariantId,
               })
             }
             onBuyNow={() =>
@@ -214,6 +207,7 @@ export function PDPPage() {
                 state: {
                   buyNow: {
                     productId: product.id,
+                    variantId: selectedVariantId,
                     quantity: 1,
                     name: product.name,
                     slug: product.slug,
@@ -223,11 +217,9 @@ export function PDPPage() {
                     primaryImageUrl:
                       product.images.find((img) => img.isPrimary && img.variant === 'small')?.url ?? null,
                     availableStock: product.availableStock,
-                    sizeId: selectedSize?.id ?? null,
                     sizeLabel: selectedSize?.label ?? null,
                     goldColor: selectedGoldColor ?? null,
                     purity: selectedPurity ?? null,
-                    diamondConfigId: selectedDiamondConfigId ?? null,
                     diamondConfigName: selectedDiamondOption?.name ?? null,
                     isBackordered: isOutOfStock,
                   },

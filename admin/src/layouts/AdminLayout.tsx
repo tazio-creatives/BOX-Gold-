@@ -15,6 +15,7 @@ import {
   PricingIcon,
   AdminUsersIcon,
   AuditLogsIcon,
+  AttributesIcon,
 } from './NavIcons';
 import styles from './AdminLayout.module.css';
 
@@ -29,6 +30,7 @@ const NAV_ITEMS = [
   { to: '/reviews', label: 'Reviews', icon: ReviewsIcon },
   { to: '/coupons', label: 'Coupons', icon: CouponsIcon },
   { to: '/pricing', label: 'Pricing', icon: PricingIcon },
+  { to: '/attributes', label: 'Attributes', icon: AttributesIcon },
   { to: '/admin-users', label: 'Admin Users', icon: AdminUsersIcon },
   { to: '/audit-logs', label: 'Audit Logs', icon: AuditLogsIcon },
 ];

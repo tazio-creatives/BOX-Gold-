@@ -79,6 +79,9 @@ export interface ProductDetail {
   gemstone: string | null;
   certification: string | null;
   productSize: string | null;
+  // Overrides the "Size" wording on the admin form and storefront (e.g.
+  // "Length" for a chain) — null means plain "Size".
+  sizeLabel: string | null;
   careInstructions: string | null;
   priceBreakup: {
     goldValue: number;
@@ -118,7 +121,19 @@ export interface ProductDetail {
 
   goldColorOptions: GoldColor[];
   purityOptions: Purity[];
-  diamondOptions: { id: string; name: string; ratePerCent: number }[];
+  diamondOptions: { id: string; name: string }[];
+
+  // Generic attribute+value catalogue this product currently offers —
+  // what Availability Rules picks its two sides from. Same data as
+  // goldColorOptions/purityOptions/diamondOptions/sizes above, just
+  // attribute-count-agnostic.
+  attributes: ProductAttributeGroup[];
+}
+
+export interface ProductAttributeGroup {
+  code: string;
+  name: string;
+  values: { id: string; value: string; label: string; refId: string | null }[];
 }
 
 export interface ProductInput {
@@ -142,6 +157,7 @@ export interface ProductInput {
   gemstone?: string | null;
   certification?: string | null;
   productSize?: string | null;
+  sizeLabel?: string | null;
   careInstructions?: string | null;
   goldValue?: number;
   diamondValue?: number;
@@ -165,6 +181,26 @@ export interface ProductInput {
   goldColors?: GoldColor[];
   purities?: Purity[];
   diamondConfigIds?: string[];
+
+  // Per-exact-combination overrides applied in the same save that sets up
+  // the axes above — lets a brand-new product be fully configured (stock/
+  // weight/availability per combination) without a separate trip into the
+  // variant editor afterward. Sent only by the "Add Product" create flow.
+  variantOverrides?: VariantOverrideInput[];
+}
+
+export interface VariantOverrideInput {
+  attributeValues: {
+    goldColor?: GoldColor;
+    purity?: Purity;
+    diamondConfigId?: string;
+    sizeLabel?: string;
+  };
+  stockQuantity?: number;
+  goldWeightGrams?: number | null;
+  diamondWeightGrams?: number | null;
+  diamondWeightCarats?: number | null;
+  isAvailable?: boolean;
 }
 
 export interface Category {

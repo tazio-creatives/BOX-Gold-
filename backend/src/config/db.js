@@ -1,7 +1,16 @@
 import pg from 'pg';
+import { AsyncLocalStorage } from 'node:async_hooks';
 import { env } from './env.js';
 
 export const pool = new pg.Pool({ connectionString: env.databaseUrl });
+
+// Ambient transaction context — lets the plain `query()` used throughout the
+// repositories transparently participate in a withTransaction() block
+// without every function in the call chain needing a `client` parameter
+// threaded through it. Existing code that takes `client` explicitly
+// (checkout's *Tx functions, which call client.query directly) is
+// unaffected — this only changes what the bare `query()` helper resolves to.
+const txContext = new AsyncLocalStorage();
 
 // pg emits 'error' on the pool when an *idle* client's connection is reset
 // by Postgres (network blip, managed-DB idle-connection reap) — with no
@@ -13,17 +22,22 @@ pool.on('error', (err) => {
 });
 
 export function query(text, params) {
-  return pool.query(text, params);
+  const client = txContext.getStore();
+  return (client ?? pool).query(text, params);
 }
 
 // Runs `fn` inside a transaction, passing a dedicated client (needed for
-// SELECT ... FOR UPDATE row locking — see plan §11 concurrency-safe reservations).
-// Commits on success, rolls back and rethrows on any error.
+// SELECT ... FOR UPDATE row locking — see plan §11 concurrency-safe
+// reservations). Commits on success, rolls back and rethrows on any error.
+// Also arms the ambient context above for the duration of `fn`, so any
+// plain query() call anywhere in that call stack — not just calls made
+// directly on the passed `client` — runs on this same connection/
+// transaction.
 export async function withTransaction(fn) {
   const client = await pool.connect();
   try {
     await client.query('BEGIN');
-    const result = await fn(client);
+    const result = await txContext.run(client, () => fn(client));
     await client.query('COMMIT');
     return result;
   } catch (err) {

@@ -16,15 +16,37 @@ export async function lockProductForCheckoutTx(client, productId) {
 }
 
 // Row-level locks don't cascade — locking the product row above says nothing
-// about a specific size row underneath it, so a sized line also locks its
-// product_sizes row before the stock check+reserve.
-export async function lockProductSizeForCheckoutTx(client, sizeId) {
+// about a specific variant row underneath it, so every line also locks its
+// own product_variants row before the stock check+reserve. Also resolves
+// the variant's attribute values (same shape findVariantById returns) in a
+// second query — computeVariantPricing's resolvedPurity/resolvedGoldColor/
+// resolvedDiamondConfigId helpers need it, and it must reflect the
+// just-locked row, not a stale pre-lock read.
+export async function lockProductVariantForCheckoutTx(client, variantId) {
   const { rows } = await client.query(
-    `SELECT id, product_id, label, stock_quantity, weight_grams, diamond_weight_carats
-     FROM product_sizes WHERE id = $1 FOR UPDATE`,
-    [sizeId],
+    `SELECT id, product_id, gold_weight_grams, diamond_weight_grams, diamond_weight_carats,
+            stock_quantity, is_available, combination_key
+     FROM product_variants WHERE id = $1 FOR UPDATE`,
+    [variantId],
   );
-  return rows[0] ?? null;
+  const variant = rows[0];
+  if (!variant) return null;
+
+  const { rows: attrRows } = await client.query(
+    `SELECT
+       COALESCE(
+         json_object_agg(a.code, jsonb_build_object('valueId', av.id, 'value', av.value, 'label', av.label, 'refId', av.ref_id))
+           FILTER (WHERE a.code IS NOT NULL),
+         '{}'::json
+       ) AS attributes
+     FROM variant_attribute_values vav
+     JOIN attribute_values av ON av.id = vav.attribute_value_id
+     JOIN attributes a ON a.id = av.attribute_id
+     WHERE vav.variant_id = $1`,
+    [variantId],
+  );
+  variant.attributes = attrRows[0]?.attributes ?? {};
+  return variant;
 }
 
 const ORDER_COLUMNS = [
@@ -69,15 +91,17 @@ export async function insertOrderTx(client, fields) {
 export async function insertOrderItemTx(client, fields) {
   const { rows } = await client.query(
     `INSERT INTO order_items
-       (order_id, product_id, product_name, product_sku, quantity,
+       (order_id, product_id, product_variant_id, variant_attributes_snapshot,
+        product_name, product_sku, quantity,
         gold_value, diamond_value, making_charge, gst_amount, unit_price, line_total, gold_rate_id,
-        product_size_id, product_size_label, gold_color, purity, diamond_config_id, diamond_config_name,
         is_backordered)
-     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
      RETURNING *`,
     [
       fields.orderId,
       fields.productId,
+      fields.productVariantId ?? null,
+      JSON.stringify(fields.variantAttributesSnapshot ?? []),
       fields.productName,
       fields.productSku,
       fields.quantity,
@@ -88,12 +112,6 @@ export async function insertOrderItemTx(client, fields) {
       fields.unitPrice,
       fields.lineTotal,
       fields.goldRateId ?? null,
-      fields.productSizeId ?? null,
-      fields.productSizeLabel ?? null,
-      fields.goldColor ?? null,
-      fields.purity ?? null,
-      fields.diamondConfigId ?? null,
-      fields.diamondConfigName ?? null,
       fields.isBackordered ?? false,
     ],
   );

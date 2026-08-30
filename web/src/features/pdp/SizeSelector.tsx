@@ -18,10 +18,18 @@ interface SizeSelectorProps {
   sizes: ProductSize[];
   selectedSizeId: string | null;
   onSelect: (_sizeId: string) => void;
+  // Overrides the "Size" wording (e.g. "Length" for a chain/necklace) — a
+  // product using this axis for something other than a ring size sets this
+  // via the admin form. Defaults to "Size", today's behavior. The ring
+  // circumference guide below is specific to actual ring sizing, so it only
+  // shows for the default label — a length-labeled product just gets no
+  // guide rather than a wrong one.
+  label?: string;
 }
 
-export function SizeSelector({ sizes, selectedSizeId, onSelect }: SizeSelectorProps) {
+export function SizeSelector({ sizes, selectedSizeId, onSelect, label = 'Size' }: SizeSelectorProps) {
   const [showGuide, setShowGuide] = useState(false);
+  const isRingSize = label === 'Size';
 
   if (sizes.length === 0) return null;
 
@@ -29,16 +37,18 @@ export function SizeSelector({ sizes, selectedSizeId, onSelect }: SizeSelectorPr
     <div className={styles.wrap}>
       <div className={styles.row}>
         <label className={styles.label} htmlFor="pdp-size-select">
-          Select Size
+          Select {label}
         </label>
-        <button type="button" className={styles.guideLink} onClick={() => setShowGuide((v) => !v)}>
-          Size Guide
-        </button>
+        {isRingSize && (
+          <button type="button" className={styles.guideLink} onClick={() => setShowGuide((v) => !v)}>
+            Size Guide
+          </button>
+        )}
       </div>
       <SelectDropdown
         id="pdp-size-select"
         value={selectedSizeId ?? ''}
-        placeholder="Choose a size"
+        placeholder={`Choose a ${label.toLowerCase()}`}
         options={sizes.map((size) => ({
           value: size.id,
           label: size.label + (size.availableStock > 0 ? ' — In Stock' : ' — Make to Order'),
@@ -46,7 +56,7 @@ export function SizeSelector({ sizes, selectedSizeId, onSelect }: SizeSelectorPr
         onChange={onSelect}
       />
 
-      {showGuide && (
+      {isRingSize && showGuide && (
         <div className={styles.guidePopover} role="dialog" aria-label="Size guide">
           <div className={styles.guideHeader}>
             <span>Ring Size Guide</span>

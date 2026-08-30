@@ -7,7 +7,7 @@ import { getCurrentGoldRate } from '../repositories/goldRates.repository.js';
 import { findDiamondConfigById } from '../repositories/diamondConfigs.repository.js';
 import {
   lockProductForCheckoutTx,
-  lockProductSizeForCheckoutTx,
+  lockProductVariantForCheckoutTx,
   insertOrderTx,
   insertOrderItemTx,
   insertOrderStatusHistoryTx,
@@ -15,7 +15,6 @@ import {
 import { getActiveReservedQuantityTx, insertReservationTx } from '../repositories/reservations.repository.js';
 import { computeVariantPricing } from './pricingService.js';
 import { validateCoupon } from './couponService.js';
-import { isColorAvailableAtPurity } from '../utils/goldColorRules.js';
 
 function round2(n) {
   return Math.round(n * 100) / 100;
@@ -46,13 +45,12 @@ export async function createOrder({ userId, contact, addressId, items, couponCod
 
   if (items.length === 0) throw new AppError(400, 'No items to checkout');
 
-  // Ascending product_id lock order (plan §11) — every checkout transaction
-  // acquires row locks in the same order, so two concurrent multi-item
-  // checkouts sharing a product can never deadlock against each other.
-  // Secondary sort by sizeId keeps a deterministic order across a single
-  // product's own size rows too.
+  // Ascending product_id, then variantId lock order (plan §11) — every
+  // checkout transaction acquires row locks in the same order, so two
+  // concurrent multi-item checkouts sharing a product can never deadlock
+  // against each other.
   const sortedItems = [...items].sort(
-    (a, b) => a.productId.localeCompare(b.productId) || (a.sizeId ?? '').localeCompare(b.sizeId ?? ''),
+    (a, b) => a.productId.localeCompare(b.productId) || (a.variantId ?? '').localeCompare(b.variantId ?? ''),
   );
 
   const order = await withTransaction(async (client) => {
@@ -61,24 +59,28 @@ export async function createOrder({ userId, contact, addressId, items, couponCod
     let gstTotal = 0;
     let grandTotal = 0;
 
-    for (const { productId, quantity, sizeId, goldColor, purity, diamondConfigId } of sortedItems) {
+    for (const { productId, variantId, quantity } of sortedItems) {
       const product = await lockProductForCheckoutTx(client, productId);
       if (!product || product.status !== 'PUBLISHED') {
         throw new AppError(400, `${product?.name ?? 'This item'} is no longer available`);
       }
 
-      // Row-level locks don't cascade — a sized line also locks its own
-      // product_sizes row so the stock check+reserve is atomic for that size.
-      let size = null;
-      if (sizeId) {
-        size = await lockProductSizeForCheckoutTx(client, sizeId);
-        if (!size || size.product_id !== product.id) {
-          throw new AppError(400, `${product.name}: selected size is no longer available`);
+      // Row-level locks don't cascade — every line also locks its own
+      // product_variants row so the stock check+reserve is atomic for that
+      // exact combination.
+      let variant = null;
+      if (variantId) {
+        variant = await lockProductVariantForCheckoutTx(client, variantId);
+        if (!variant || variant.product_id !== product.id) {
+          throw new AppError(400, `${product.name}: selected combination is no longer available`);
+        }
+        if (!variant.is_available) {
+          throw new AppError(400, `${product.name}: selected combination is no longer available`);
         }
       }
 
-      const reserved = await getActiveReservedQuantityTx(client, productId, sizeId ?? null);
-      const stockQuantity = size ? size.stock_quantity : product.stock_quantity;
+      const reserved = variant ? await getActiveReservedQuantityTx(client, variant.id) : 0;
+      const stockQuantity = variant ? variant.stock_quantity : product.stock_quantity;
       const available = stockQuantity - reserved;
       // Make to Order: never blocks checkout. A line whose requested
       // quantity exceeds what's physically available becomes backordered in
@@ -88,35 +90,23 @@ export async function createOrder({ userId, contact, addressId, items, couponCod
       // purchasable by other, fully-in-stock orders.
       const isBackordered = quantity > available;
 
-      // Purity/diamond quality don't gate stock (only size does, locked
-      // above) — they gate price, recomputed here from the same engine
-      // cart used so checkout charges exactly what the shopper saw.
-      const pricing = await computeVariantPricing(product, {
-        purity,
-        diamondConfigId,
-        sizeWeightGrams: size?.weight_grams != null ? Number(size.weight_grams) : null,
-        sizeDiamondWeightCarats:
-          size?.diamond_weight_carats != null ? Number(size.diamond_weight_carats) : null,
-      });
+      // Buy Now skips cartService.addItem entirely and lands straight
+      // here — resolve pricing (and combination validity) from the same
+      // variant/pricing engine cart uses, so checkout charges exactly what
+      // the shopper saw and can never sell an unavailable combination.
+      const pricing = await computeVariantPricing(product, variant && variant.combination_key !== '' ? variant : null);
       let diamondConfigName = null;
       if (pricing.diamondConfigId) {
         const config = await findDiamondConfigById(pricing.diamondConfigId);
         diamondConfigName = config?.name ?? null;
       }
 
-      // Buy Now skips cartService.addItem entirely and lands straight here —
-      // that path had no combination gate at all (unlike the cart), which
-      // would otherwise let e.g. 9K Rose Gold through checkout even though
-      // the cart/PDP block it. Checked against the resolved values (not just
-      // whatever the request sent), so an admin-set default that's itself an
-      // invalid combination is caught too.
-      const effectiveGoldColor = goldColor ?? product.gold_color;
-      if (effectiveGoldColor && pricing.purity && !isColorAvailableAtPurity(effectiveGoldColor, pricing.purity)) {
-        throw new AppError(
-          400,
-          `${product.name}: selected gold color is not available in ${pricing.purity} purity`,
-        );
-      }
+      const attributesSnapshot = [];
+      if (pricing.purity) attributesSnapshot.push({ attributeCode: 'purity', label: pricing.purity });
+      if (pricing.goldColor) attributesSnapshot.push({ attributeCode: 'gold_color', label: pricing.goldColor });
+      if (diamondConfigName) attributesSnapshot.push({ attributeCode: 'diamond_quality', label: diamondConfigName });
+      const sizeAttr = variant?.attributes?.size;
+      if (sizeAttr) attributesSnapshot.push({ attributeCode: 'size', label: sizeAttr.label });
 
       const lineGoldValue = round2(pricing.goldValue * quantity);
       const lineDiamondValue = round2(pricing.diamondValue * quantity);
@@ -133,7 +123,7 @@ export async function createOrder({ userId, contact, addressId, items, couponCod
 
       lineData.push({
         product,
-        size,
+        variant,
         quantity,
         lineGoldValue,
         lineDiamondValue,
@@ -142,10 +132,7 @@ export async function createOrder({ userId, contact, addressId, items, couponCod
         unitPrice,
         lineTotal,
         goldRateId,
-        goldColor: effectiveGoldColor,
-        purity: pricing.purity,
-        diamondConfigId: pricing.diamondConfigId,
-        diamondConfigName,
+        attributesSnapshot,
         isBackordered,
       });
       subtotal += lineTotal - lineGst;
@@ -189,6 +176,8 @@ export async function createOrder({ userId, contact, addressId, items, couponCod
       await insertOrderItemTx(client, {
         orderId: orderRow.id,
         productId: line.product.id,
+        productVariantId: line.variant?.id ?? null,
+        variantAttributesSnapshot: line.attributesSnapshot,
         productName: line.product.name,
         productSku: line.product.sku,
         quantity: line.quantity,
@@ -199,22 +188,16 @@ export async function createOrder({ userId, contact, addressId, items, couponCod
         unitPrice: line.unitPrice,
         lineTotal: line.lineTotal,
         goldRateId: line.goldRateId,
-        productSizeId: line.size?.id,
-        productSizeLabel: line.size?.label,
-        goldColor: line.goldColor,
-        purity: line.purity,
-        diamondConfigId: line.diamondConfigId,
-        diamondConfigName: line.diamondConfigName,
         isBackordered: line.isBackordered,
       });
 
       // A backordered line has nothing physical to hold — skip the
       // reservation entirely rather than reserving units that don't exist.
-      if (!line.isBackordered) {
+      if (!line.isBackordered && line.variant) {
         const expiresAt = new Date(Date.now() + env.reservationTtlMinutes * 60_000);
         await insertReservationTx(client, {
           productId: line.product.id,
-          productSizeId: line.size?.id,
+          productVariantId: line.variant.id,
           orderId: orderRow.id,
           quantity: line.quantity,
           expiresAt,

@@ -13,10 +13,25 @@ import { fetchAdminCategories } from '../../api/categories';
 import { fetchAdminCollections } from '../../api/collections';
 import { previewPricing } from '../../api/pricing';
 import { fetchDiamondConfigs } from '../../api/diamondConfigs';
-import type { GoldColor, MetalType, ProductInput, ProductStatus, Purity } from '../../api/types';
+import type {
+  GoldColor,
+  MetalType,
+  PricingPreviewResult,
+  ProductInput,
+  ProductStatus,
+  Purity,
+  VariantOverrideInput,
+} from '../../api/types';
 import { ApiError } from '../../api/client';
 import { formatPrice } from '../../utils/formatPrice';
 import { ProductGallery } from '../../features/products/ProductGallery';
+import { VariantMatrixEditor } from '../../features/products/VariantMatrixEditor';
+import { OptionChipRow } from '../../features/products/OptionChipRow';
+import { AdvancedVariantSummary } from '../../features/products/AdvancedVariantSummary';
+import { AvailabilityRules } from '../../features/products/AvailabilityRules';
+import { WeightDefaults } from '../../features/products/WeightDefaults';
+import { ConfirmDialog } from '../../components/ConfirmDialog';
+import pv from '../../features/products/ProductVariations.module.css';
 import sharedStyles from '../../styles/shared.module.css';
 import styles from './ProductFormPage.module.css';
 
@@ -28,6 +43,9 @@ const GOLD_COLORS: { value: GoldColor; label: string }[] = [
   { value: 'WHITE', label: 'White Gold' },
 ];
 const STATUSES: ProductStatus[] = ['DRAFT', 'AI_PROCESSING', 'AI_READY', 'PUBLISHED', 'FAILED'];
+const GOLD_COLOR_LABELS: Record<GoldColor, string> = Object.fromEntries(
+  GOLD_COLORS.map((c) => [c.value, c.label]),
+) as Record<GoldColor, string>;
 
 const EMPTY_FORM: ProductInput = {
   name: '',
@@ -50,6 +68,7 @@ const EMPTY_FORM: ProductInput = {
   gemstone: '',
   certification: '',
   productSize: '',
+  sizeLabel: '',
   careInstructions: '',
   sizes: [],
   goldColors: [],
@@ -104,7 +123,7 @@ export function ProductFormPage() {
   });
 
   const [form, setForm] = useState<ProductInput>(EMPTY_FORM);
-  const [preview, setPreview] = useState<{ goldValue: number; diamondValue: number; sellingPrice: number } | null>(null);
+  const [preview, setPreview] = useState<PricingPreviewResult | null>(null);
   const [isPreviewing, setIsPreviewing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   // Kept separate from the page-level `error` (shown far below, near Save)
@@ -121,6 +140,39 @@ export function ProductFormPage() {
   // form.makingCharge (the flat figure the API actually stores/uses) is kept
   // in sync below whenever this percent or the live gold value changes.
   const [makingChargePercent, setMakingChargePercent] = useState<number | ''>(0);
+  // Only populated/used on the Add Product (create) flow — lets the same
+  // save that picks Gold Colors/Purities/Diamond Qualities/Sizes also set
+  // starting stock + optional weight override per exact combination, so a
+  // brand-new product can be fully configured in one step instead of a
+  // separate trip into the per-product variant editor afterward.
+  const [variantOverrides, setVariantOverrides] = useState<VariantOverrideInput[]>([]);
+  const diamondConfigNames = Object.fromEntries(
+    (diamondConfigsData?.diamondConfigs ?? []).map((c) => [c.id, c.name]),
+  );
+  // 'fixed' = one configuration only (no axes checked). 'selectable' = at
+  // least one axis is offered. Purely a UI framing over the same
+  // goldColors/purities/diamondConfigIds/sizes arrays the API already
+  // takes — synced from loaded product data below, defaults to
+  // 'selectable' for a brand-new product (nothing to hide yet).
+  const [variationMode, setVariationMode] = useState<'fixed' | 'selectable'>('selectable');
+  const [matrixExpanded, setMatrixExpanded] = useState(false);
+  const [pendingFixedSwitch, setPendingFixedSwitch] = useState(false);
+
+  function hasAnyAxis(f: ProductInput) {
+    return (
+      (f.goldColors?.length ?? 0) > 0 ||
+      (f.purities?.length ?? 0) > 0 ||
+      (f.diamondConfigIds?.length ?? 0) > 0 ||
+      (f.sizes?.length ?? 0) > 0
+    );
+  }
+
+  function confirmSwitchToFixed() {
+    setForm((f) => ({ ...f, goldColors: [], purities: [], diamondConfigIds: [], sizes: [] }));
+    setVariantOverrides([]);
+    setVariationMode('fixed');
+    setPendingFixedSwitch(false);
+  }
 
   useEffect(() => {
     if (productData) {
@@ -146,6 +198,7 @@ export function ProductFormPage() {
         gemstone: p.gemstone ?? '',
         certification: p.certification ?? '',
         productSize: p.productSize ?? '',
+        sizeLabel: p.sizeLabel ?? '',
         careInstructions: p.careInstructions ?? '',
         sizes: p.sizes.map((s) => ({
           label: s.label,
@@ -177,6 +230,11 @@ export function ProductFormPage() {
         metaKeywords: p.metaKeywords ?? '',
       });
       setMakingChargePercent(p.makingChargePercent ?? 0);
+      setVariationMode(
+        p.goldColorOptions.length || p.purityOptions.length || p.diamondOptions.length || p.sizes.length
+          ? 'selectable'
+          : 'fixed',
+      );
     }
   }, [productData]);
 
@@ -230,8 +288,10 @@ export function ProductFormPage() {
       gemstone: form.gemstone || null,
       certification: form.certification || null,
       productSize: form.productSize || null,
+      sizeLabel: form.sizeLabel || null,
       careInstructions: form.careInstructions || null,
       sizes: (form.sizes ?? []).filter((s) => s.label.trim().length > 0),
+      ...(!isEditing && variantOverrides.length > 0 ? { variantOverrides } : {}),
       metaTitle: form.metaTitle || null,
       metaDescription: form.metaDescription || null,
       metaKeywords: form.metaKeywords || null,
@@ -437,6 +497,16 @@ export function ProductFormPage() {
   const categories = categoriesData?.categories ?? [];
   const collections = collectionsData?.collections ?? [];
   const isPriceLocked = productData?.product.isPriceLocked ?? false;
+  // Mirrors the cartesian product syncProductVariants generates server-side
+  // — a pure client-side count for the "N combinations selected" summary,
+  // not a price/stock calculation.
+  const variationAxisSizes = [
+    (form.goldColors ?? []).length,
+    (form.purities ?? []).length,
+    (form.diamondConfigIds ?? []).length,
+    (form.sizes ?? []).filter((s) => s.label.trim().length > 0).length,
+  ].filter((n) => n > 0);
+  const variationComboCount = variationAxisSizes.length === 0 ? 0 : variationAxisSizes.reduce((a, n) => a * n, 1);
 
   return (
     <div>
@@ -790,132 +860,297 @@ export function ProductFormPage() {
           )}
         </section>
 
-        <section className={sharedStyles.cardPadded}>
-          <h2 className={styles.sectionHeading}>Available Sizes</h2>
-          <p className={styles.sectionHint}>
-            Optional — leave empty for products that don't need a size choice. When set, shoppers must
-            pick one of these before adding to cart, each size tracks its own stock, and can optionally
-            override the product's gold weight for that size's price (e.g. a bigger size uses more gold).
-          </p>
-          <div className={styles.sizeRows}>
-            {(form.sizes ?? []).map((size, i) => (
-              <div key={i} className={styles.sizeCard}>
-                <div className={styles.sizeCardHeader}>
-                  <span className={styles.sizeCardTitle}>Size {i + 1}</span>
-                  <button type="button" className={sharedStyles.buttonLink} onClick={() => removeSizeRow(i)}>
-                    Remove
-                  </button>
-                </div>
-                <div className={styles.sizeCardFields}>
-                  <label className={sharedStyles.field}>
-                    Label
-                    <input
-                      value={size.label}
-                      placeholder="e.g. 6"
-                      onChange={(e) => updateSizeRow(i, { label: e.target.value })}
-                    />
-                  </label>
-                  <label className={sharedStyles.field}>
-                    Stock
-                    <input
-                      type="number"
-                      min="0"
-                      value={size.stockQuantity === 0 ? '' : size.stockQuantity}
-                      onChange={(e) =>
-                        updateSizeRow(i, { stockQuantity: e.target.value === '' ? 0 : Number(e.target.value) })
-                      }
-                    />
-                  </label>
-                  <label className={sharedStyles.field}>
-                    Weight (g) — optional
-                    <input
-                      type="number"
-                      step="0.001"
-                      min="0"
-                      placeholder="Uses product weight"
-                      value={size.weightGrams ?? ''}
-                      onChange={(e) =>
-                        updateSizeRow(i, { weightGrams: e.target.value ? Number(e.target.value) : null })
-                      }
-                    />
-                  </label>
+        <section className={`${sharedStyles.cardPadded} ${pv.section}`}>
+          <div className={pv.headRow}>
+            <h2 className={pv.heading}>Product Variations</h2>
+            <p className={pv.sub}>
+              Choose what customers can select. Defaults apply to every combination unless you add an
+              exception.
+            </p>
+          </div>
+
+          <div className={pv.modeGrid}>
+            <button
+              type="button"
+              className={variationMode === 'fixed' ? pv.modeCardSelected : pv.modeCard}
+              onClick={() => {
+                if (hasAnyAxis(form)) setPendingFixedSwitch(true);
+                else setVariationMode('fixed');
+              }}
+            >
+              <span className={pv.modeTitle}>
+                <span className={pv.modeRadioDot} />
+                Fixed Product
+              </span>
+              <span className={pv.modeDesc}>One configuration only</span>
+            </button>
+            <button
+              type="button"
+              className={variationMode === 'selectable' ? pv.modeCardSelected : pv.modeCard}
+              onClick={() => setVariationMode('selectable')}
+            >
+              <span className={pv.modeTitle}>
+                <span className={pv.modeRadioDot} />
+                Selectable Options
+              </span>
+              <span className={pv.modeDesc}>Customers choose colour, purity, quality or size</span>
+            </button>
+          </div>
+
+          {variationMode === 'selectable' && (
+            <>
+              <div className={pv.optionsBlock}>
+                <OptionChipRow
+                  label="Gold Colour"
+                  options={GOLD_COLORS.map((c) => ({
+                    key: c.value,
+                    label: c.label,
+                    selected: (form.goldColors ?? []).includes(c.value),
+                  }))}
+                  onToggle={(key) => toggleGoldColor(key as GoldColor)}
+                />
+
+                <OptionChipRow
+                  label="Purity"
+                  options={PURITIES.map((p) => ({
+                    key: p,
+                    label: p,
+                    selected: (form.purities ?? []).includes(p),
+                  }))}
+                  onToggle={(key) => togglePurityOption(key as Purity)}
+                />
+
+                <OptionChipRow
+                  label="Diamond Quality"
+                  options={(diamondConfigsData?.diamondConfigs ?? []).map((c) => ({
+                    key: c.id,
+                    label: c.name,
+                    selected: (form.diamondConfigIds ?? []).includes(c.id),
+                  }))}
+                  onToggle={toggleDiamondOption}
+                  emptyNote="No diamond quality tiers exist yet — add one on the Pricing page."
+                />
+
+                <div className={pv.attrRow}>
+                  <div className={pv.attrLabelRow}>
+                    <span className={pv.attrLabel}>Size</span>
+                    <label className={pv.sizeLabelOverride}>
+                      Field label on storefront
+                      <input
+                        value={form.sizeLabel ?? ''}
+                        placeholder="Size"
+                        onChange={(e) => set('sizeLabel', e.target.value)}
+                      />
+                    </label>
+                  </div>
+                  {(form.sizes ?? []).length === 0 ? (
+                    <p className={pv.emptyNote}>No sizes added — this product doesn't need a size choice.</p>
+                  ) : (
+                    <div className={pv.sizeTableWrap}>
+                      <table className={pv.sizeTable}>
+                        <thead>
+                          <tr>
+                            <th>Size</th>
+                            <th>Stock</th>
+                            <th>Gold Weight (g)</th>
+                            <th></th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {(form.sizes ?? []).map((size, i) => (
+                            <tr key={i}>
+                              <td>
+                                <input
+                                  value={size.label}
+                                  placeholder="e.g. 6"
+                                  onChange={(e) => updateSizeRow(i, { label: e.target.value })}
+                                />
+                              </td>
+                              <td>
+                                <input
+                                  type="number"
+                                  min="0"
+                                  value={size.stockQuantity === 0 ? '' : size.stockQuantity}
+                                  onChange={(e) =>
+                                    updateSizeRow(i, {
+                                      stockQuantity: e.target.value === '' ? 0 : Number(e.target.value),
+                                    })
+                                  }
+                                />
+                              </td>
+                              <td>
+                                <input
+                                  type="number"
+                                  step="0.001"
+                                  min="0"
+                                  placeholder="inherit"
+                                  value={size.weightGrams ?? ''}
+                                  onChange={(e) =>
+                                    updateSizeRow(i, { weightGrams: e.target.value ? Number(e.target.value) : null })
+                                  }
+                                />
+                              </td>
+                              <td>
+                                <button
+                                  type="button"
+                                  className={pv.sizeRemoveBtn}
+                                  onClick={() => removeSizeRow(i)}
+                                  aria-label={`Remove size ${size.label || i + 1}`}
+                                >
+                                  ✕
+                                </button>
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
+                  <div>
+                    <button type="button" className={pv.chipAdd} onClick={addSizeRow}>
+                      + Add Size
+                    </button>
+                  </div>
                 </div>
               </div>
-            ))}
-          </div>
-          <button type="button" className={sharedStyles.button} onClick={addSizeRow}>
-            + Add Size
-          </button>
-        </section>
 
-        <section className={sharedStyles.cardPadded}>
-          <h2 className={styles.sectionHeading}>Customer-Selectable Variations</h2>
-          <p className={styles.sectionHint}>
-            Optional — pick which Gold Colors, Purities, and Diamond Qualities shoppers can choose
-            between on this product. Purity and Diamond Quality change the live computed price;
-            Gold Color is display-only. Leave everything unchecked for a single fixed configuration
-            (today's behaviour).
-          </p>
-
-          <div className={styles.variantGroup}>
-            <span className={styles.variantGroupLabel}>Gold Colors</span>
-            <div className={styles.checkboxRow}>
-              {GOLD_COLORS.map((c) => (
-                <label key={c.value} className={styles.checkboxChip}>
-                  <input
-                    type="checkbox"
-                    checked={(form.goldColors ?? []).includes(c.value)}
-                    onChange={() => toggleGoldColor(c.value)}
-                  />
-                  {c.label}
-                </label>
-              ))}
-            </div>
-          </div>
-
-          <div className={styles.variantGroup}>
-            <span className={styles.variantGroupLabel}>Purity Options</span>
-            <div className={styles.checkboxRow}>
-              {PURITIES.map((p) => (
-                <label key={p} className={styles.checkboxChip}>
-                  <input
-                    type="checkbox"
-                    checked={(form.purities ?? []).includes(p)}
-                    onChange={() => togglePurityOption(p)}
-                  />
-                  {p}
-                </label>
-              ))}
-            </div>
-            {(form.goldColors ?? []).includes('ROSE') && (form.purities ?? []).includes('9K') && (
-              <p className={styles.sectionWarning}>
-                Rose Gold isn't available in 9K purity — shoppers won't be able to select that
-                combination on this product; the 9K option will show Rose Gold disabled with an
-                explanation.
-              </p>
-            )}
-          </div>
-
-          <div className={styles.variantGroup}>
-            <span className={styles.variantGroupLabel}>Diamond Quality Options</span>
-            {(diamondConfigsData?.diamondConfigs ?? []).length === 0 ? (
-              <p className={styles.sectionHint}>No diamond quality tiers exist yet — add one on the Pricing page.</p>
-            ) : (
-              <div className={styles.checkboxRow}>
-                {(diamondConfigsData?.diamondConfigs ?? []).map((c) => (
-                  <label key={c.id} className={styles.checkboxChip}>
-                    <input
-                      type="checkbox"
-                      checked={(form.diamondConfigIds ?? []).includes(c.id)}
-                      onChange={() => toggleDiamondOption(c.id)}
-                    />
-                    {c.name} (₹{c.ratePerCent.toLocaleString('en-IN')}/cent)
-                  </label>
-                ))}
+              <div className={pv.summaryBar}>
+                <span className={pv.summaryCount}>
+                  {variationComboCount} combination{variationComboCount === 1 ? '' : 's'} selected
+                </span>
+                <span className={pv.summaryMeta}>{variationComboCount} available</span>
               </div>
-            )}
-          </div>
+
+              <div className={pv.defaultsRow}>
+                <div className={pv.defaultsItem}>
+                  <span className={pv.defaultsLabel}>Base Gold Weight</span>
+                  <span className={pv.defaultsValue}>
+                    {form.goldWeightGrams != null ? `${form.goldWeightGrams}g` : '— set below in Pricing'}
+                  </span>
+                </div>
+                <div className={pv.defaultsItem}>
+                  <span className={pv.defaultsLabel}>Default Stock</span>
+                  <input
+                    type="number"
+                    min="0"
+                    className={pv.defaultsInput}
+                    value={form.stockQuantity === 0 ? '' : (form.stockQuantity ?? '')}
+                    placeholder="0"
+                    onChange={(e) => set('stockQuantity', e.target.value === '' ? 0 : Number(e.target.value))}
+                  />
+                </div>
+                <div className={pv.defaultsItem}>
+                  <span className={pv.defaultsLabel}>Availability</span>
+                  <span className={pv.pill}>Active</span>
+                </div>
+                <div className={pv.defaultsItem}>
+                  <span className={pv.defaultsLabel}>Pricing</span>
+                  <span className={pv.defaultsValue}>Automatically calculated</span>
+                </div>
+              </div>
+              <p className={pv.note}>New combinations inherit these values.</p>
+
+              {isEditing && id && productData?.product.attributes && (
+                <WeightDefaults productId={id} attributes={productData.product.attributes} />
+              )}
+
+              {isEditing && id && productData?.product.attributes && (
+                <AvailabilityRules productId={id} attributes={productData.product.attributes} />
+              )}
+
+              {preview && (
+                <div className={pv.pricePreview}>
+                  <div className={pv.pricePreviewHead}>
+                    <span className={pv.pricePreviewTitle}>Price Preview</span>
+                    <button type="button" className={pv.refreshBtn} onClick={runPreview} disabled={isPreviewing}>
+                      {isPreviewing ? 'Calculating…' : 'Refresh'}
+                    </button>
+                  </div>
+                  <div className={pv.priceRows}>
+                    <div className={pv.priceRow}>
+                      <span>Gold value</span>
+                      <span>{formatPrice(preview.goldValue)}</span>
+                    </div>
+                    <div className={pv.priceRow}>
+                      <span>Diamond value</span>
+                      <span>{formatPrice(preview.diamondValue)}</span>
+                    </div>
+                    <div className={pv.priceRow}>
+                      <span>Making charge</span>
+                      <span>{formatPrice(preview.makingCharge)}</span>
+                    </div>
+                    <div className={pv.priceRow}>
+                      <span>GST</span>
+                      <span>
+                        {formatPrice(
+                          Math.max(0, preview.sellingPrice - preview.goldValue - preview.diamondValue - preview.makingCharge),
+                        )}
+                      </span>
+                    </div>
+                    <div className={pv.priceRowTotal}>
+                      <span>Estimated selling price</span>
+                      <span>{formatPrice(preview.sellingPrice)}</span>
+                    </div>
+                  </div>
+                  <p className={pv.estimateTag}>Estimate, based on today's gold rate — recalculated per variant on save.</p>
+                </div>
+              )}
+
+              {isEditing && id ? (
+                <AdvancedVariantSummary productId={id} />
+              ) : (
+                variationComboCount > 0 && (
+                  <div className={pv.advancedPanel}>
+                    <div className={pv.advancedHead}>
+                      <div className={pv.advancedTitleRow}>
+                        <span className={pv.advancedTitle}>Advanced Variant Management</span>
+                        <span className={pv.badge}>{variationComboCount} combinations</span>
+                      </div>
+                      <button
+                        type="button"
+                        className={pv.chevronBtn}
+                        onClick={() => setMatrixExpanded((v) => !v)}
+                        aria-expanded={matrixExpanded}
+                      >
+                        {matrixExpanded ? '▲ Hide' : '▼ Manage Exceptions'}
+                      </button>
+                    </div>
+                    <p className={pv.advancedSub}>
+                      Edit an exact combination's stock, weight or availability only when it differs from the
+                      defaults above.
+                    </p>
+                    {matrixExpanded && (
+                      <div className={pv.advancedBody}>
+                        <VariantMatrixEditor
+                          goldColors={form.goldColors ?? []}
+                          purities={form.purities ?? []}
+                          diamondConfigIds={form.diamondConfigIds ?? []}
+                          goldColorLabels={GOLD_COLOR_LABELS}
+                          diamondConfigNames={diamondConfigNames}
+                          sizeLabels={(form.sizes ?? []).map((s) => s.label.trim()).filter(Boolean)}
+                          value={variantOverrides}
+                          onChange={setVariantOverrides}
+                        />
+                      </div>
+                    )}
+                  </div>
+                )
+              )}
+            </>
+          )}
         </section>
+
+        {pendingFixedSwitch && (
+          <ConfirmDialog
+            title="Switch to Fixed Product?"
+            message="This removes all Gold Colour, Purity, Diamond Quality and Size options from this product. Existing per-combination stock and weight data for those options will be cleared once you save — this can't be undone from here."
+            confirmLabel="Switch to Fixed"
+            cancelLabel="Keep Selectable Options"
+            danger
+            onConfirm={confirmSwitchToFixed}
+            onCancel={() => setPendingFixedSwitch(false)}
+          />
+        )}
 
         <section className={sharedStyles.cardPadded}>
           <h2 className={styles.sectionHeading}>SEO</h2>

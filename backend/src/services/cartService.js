@@ -1,14 +1,7 @@
 import { AppError, NotFoundError } from '../utils/AppError.js';
-import {
-  findProductById,
-  findProductsByIds,
-  findProductSizes,
-  findProductSizesByIds,
-} from '../repositories/products.repository.js';
-import { findProductVariantOptions } from '../repositories/productVariantOptions.repository.js';
-import { findDiamondConfigsByIds } from '../repositories/diamondConfigs.repository.js';
+import { findProductById, findProductsByIds } from '../repositories/products.repository.js';
+import { findVariantById, findVariantsByProductId, resolvedSizeLabel } from '../repositories/productVariants.repository.js';
 import { computeVariantPricing } from './pricingService.js';
-import { isColorAvailableAtPurity } from '../utils/goldColorRules.js';
 import {
   findCartByOwner,
   createCart,
@@ -35,7 +28,7 @@ async function findOrCreateCart(owner) {
   return createCart(owner);
 }
 
-function toItemDto(item, product, size, pricing, diamondConfigName) {
+function toItemDto(item, product, variant, pricing) {
   const sellingPrice = pricing.sellingPrice;
   const lineTotal = round2(sellingPrice * item.quantity);
   // Same split used at checkout (checkoutService.js) — the tax portion
@@ -45,31 +38,24 @@ function toItemDto(item, product, size, pricing, diamondConfigName) {
   const lineDiamondValue = round2(pricing.diamondValue * item.quantity);
   const lineMakingCharge = round2(pricing.makingCharge * item.quantity);
   const lineGst = round2(lineTotal - lineGoldValue - lineDiamondValue - lineMakingCharge);
-  // A sized line's real availability is the size's own stock, not the
-  // product-level rollup.
-  const availableStock = size ? size.available_stock : product.available_stock;
+  // A variant's real availability is its own stock, not the product-level
+  // rollup (which sums every variant together).
+  const availableStock = variant.stock_quantity;
+  const sizeLabel = resolvedSizeLabel(variant);
   return {
     productId: product.id,
+    variantId: variant.id,
     name: product.name,
     slug: product.slug,
     categorySlug: product.category_slug,
     primaryImageUrl: product.primary_image_url,
     metalType: product.metal_type,
     purity: pricing.purity,
-    goldColor: item.gold_color ?? product.gold_color,
-    productSize: product.product_size,
-    sizeId: size ? size.id : null,
-    sizeLabel: size ? size.label : null,
+    goldColor: pricing.goldColor,
+    productSize: product.product_size ?? null,
+    sizeLabel,
     diamondConfigId: pricing.diamondConfigId,
-    // Raw cart_items values (often null for products with no configurable
-    // variant), as opposed to the pricing-defaulted fields above — mutations
-    // (remove/update quantity) must send these back, not the defaulted
-    // display values, since carts.repository.js matches against the actual
-    // stored row and a defaulted-but-not-actually-set value matches nothing.
-    cartGoldColor: item.gold_color,
-    cartPurity: item.purity,
-    cartDiamondConfigId: item.diamond_config_id,
-    diamondConfigName: diamondConfigName ?? null,
+    diamondConfigName: variant.attributes?.diamond_quality?.label ?? null,
     sellingPrice,
     // Display-only — same pre-offer figure PDP/PLP/home already expose
     // (computeVariantPricing -> applyProductOffer), so the cart row can
@@ -96,33 +82,14 @@ export async function getCart(owner) {
   const products = await findProductsByIds(items.map((i) => i.product_id));
   const productMap = new Map(products.map((p) => [p.id, p]));
 
-  const sizeIds = items.map((i) => i.product_size_id).filter(Boolean);
-  const sizes = await findProductSizesByIds(sizeIds);
-  const sizeMap = new Map(sizes.map((s) => [s.id, s]));
-
-  const diamondConfigIds = [
-    ...new Set(items.map((i) => i.diamond_config_id).filter(Boolean)),
-  ];
-  const diamondConfigs = await findDiamondConfigsByIds(diamondConfigIds);
-  const diamondConfigMap = new Map(diamondConfigs.map((d) => [d.id, d.name]));
-
   const enriched = (
     await Promise.all(
       items.map(async (item) => {
         const product = productMap.get(item.product_id);
-        if (!product) return null;
-        const size = item.product_size_id ? sizeMap.get(item.product_size_id) : null;
-        const pricing = await computeVariantPricing(product, {
-          purity: item.purity,
-          diamondConfigId: item.diamond_config_id,
-          sizeWeightGrams: size?.weight_grams != null ? Number(size.weight_grams) : null,
-          sizeDiamondWeightCarats:
-            size?.diamond_weight_carats != null ? Number(size.diamond_weight_carats) : null,
-        });
-        const diamondConfigName = pricing.diamondConfigId
-          ? (diamondConfigMap.get(pricing.diamondConfigId) ?? null)
-          : null;
-        return toItemDto(item, product, size, pricing, diamondConfigName);
+        const variant = await findVariantById(item.product_variant_id);
+        if (!product || !variant) return null; // stale line (product/variant since removed) — quietly dropped from display
+        const pricing = await computeVariantPricing(product, variant.combination_key === '' ? null : variant);
+        return toItemDto(item, product, variant, pricing);
       }),
     )
   ).filter(Boolean);
@@ -139,85 +106,58 @@ export async function getCart(owner) {
   };
 }
 
-export async function addItem(owner, { productId, quantity, sizeId, goldColor, purity, diamondConfigId }) {
+export async function addItem(owner, { productId, variantId, quantity }) {
   const product = await findProductById(productId);
   if (!product || product.status !== 'PUBLISHED') throw new NotFoundError('Product not found');
 
-  const sizes = await findProductSizes(productId);
-  if (sizes.length > 0 && !sizeId) {
-    throw new AppError(400, 'Please select a size');
+  const variants = await findVariantsByProductId(productId);
+  if (variants.length > 1 && !variantId) {
+    // More than the synthetic default variant exists — a specific
+    // combination must be chosen.
+    throw new AppError(400, 'Please select all product options');
   }
-  let size = null;
-  if (sizeId) {
-    size = sizes.find((s) => s.id === sizeId);
-    if (!size) throw new AppError(400, 'Selected size is not available for this product');
-  }
-
-  const options = await findProductVariantOptions(productId);
-  if (options.goldColors.length > 0 && !goldColor) {
-    throw new AppError(400, 'Please select a gold color');
-  }
-  if (goldColor && !options.goldColors.includes(goldColor)) {
-    throw new AppError(400, 'Selected gold color is not available for this product');
-  }
-  if (options.purities.length > 0 && !purity) {
-    throw new AppError(400, 'Please select a purity');
-  }
-  if (purity && !options.purities.includes(purity)) {
-    throw new AppError(400, 'Selected purity is not available for this product');
-  }
-  if (goldColor && purity && !isColorAvailableAtPurity(goldColor, purity)) {
-    throw new AppError(400, `Selected gold color is not available in ${purity} purity`);
-  }
-  if (options.diamondOptions.length > 0 && !diamondConfigId) {
-    throw new AppError(400, 'Please select a diamond quality');
-  }
-  if (diamondConfigId && !options.diamondOptions.some((d) => d.id === diamondConfigId)) {
-    throw new AppError(400, 'Selected diamond quality is not available for this product');
-  }
+  const variant = variantId
+    ? variants.find((v) => v.id === variantId)
+    : variants.find((v) => v.combination_key === '');
+  if (!variant) throw new AppError(400, 'Selected combination is not available for this product');
+  if (!variant.is_available) throw new AppError(409, 'Selected combination is no longer available');
 
   // Out-of-stock no longer blocks adding to cart — it becomes Make to
   // Order, enforced/flagged for display in toItemDto and at checkout
   // (checkoutService), not here. Still capped at a fixed ceiling (not
   // availableStock) so repeated increments can't grow a line unbounded.
   const cart = await findOrCreateCart(owner);
-  const variant = { sizeId: sizeId ?? null, goldColor: goldColor ?? null, purity: purity ?? null, diamondConfigId: diamondConfigId ?? null };
-  let item = await upsertCartItemIncrement(cart.id, productId, variant, quantity);
+  let item = await upsertCartItemIncrement(cart.id, productId, variant.id, quantity);
   if (item.quantity > MAX_LINE_QUANTITY) {
-    item = await setCartItemQuantity(cart.id, productId, variant, MAX_LINE_QUANTITY);
+    item = await setCartItemQuantity(cart.id, variant.id, MAX_LINE_QUANTITY);
   }
   return getCart(owner);
 }
 
-export async function updateItemQuantity(owner, productId, variant, quantity) {
+export async function updateItemQuantity(owner, variantId, quantity) {
   const cart = await findOrCreateCart(owner);
   if (quantity <= 0) {
-    await removeCartItem(cart.id, productId, variant);
+    await removeCartItem(cart.id, variantId);
     return getCart(owner);
   }
 
-  if (variant?.sizeId) {
-    const sizes = await findProductSizes(productId);
-    if (!sizes.some((s) => s.id === variant.sizeId)) throw new NotFoundError('Product not found');
-  } else {
-    const product = await findProductById(productId);
-    if (!product) throw new NotFoundError('Product not found');
-  }
+  const variant = await findVariantById(variantId);
+  if (!variant) throw new NotFoundError('Product not found');
 
-  const updated = await setCartItemQuantity(cart.id, productId, variant, quantity);
+  const updated = await setCartItemQuantity(cart.id, variantId, quantity);
   if (!updated) throw new NotFoundError('Item not in cart');
   return getCart(owner);
 }
 
-export async function removeItem(owner, productId, variant) {
+export async function removeItem(owner, variantId) {
   const cart = await findOrCreateCart(owner);
-  await removeCartItem(cart.id, productId, variant);
+  await removeCartItem(cart.id, variantId);
   return getCart(owner);
 }
 
 // Fired from the OTP verify LOGIN/SIGNUP path (plan §11) — folds whatever
 // was in the guest cart_session cookie's cart into the now-identified
-// user's cart, deduping by product_id (and every variant axis).
+// user's cart, deduping by product_variant_id.
 export async function mergeCartsOnLogin(guestSessionId, userId) {
   if (!guestSessionId) return;
   const guestCart = await findCartByOwner({ guestSessionId });

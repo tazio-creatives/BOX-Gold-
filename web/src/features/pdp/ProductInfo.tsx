@@ -125,10 +125,13 @@ interface ProductInfoProps {
   onSelectSize: (sizeId: string) => void;
   selectedGoldColor: GoldColor | null;
   onSelectGoldColor: (color: GoldColor) => void;
+  isColorAvailableAtPurity: (color: GoldColor, purity: string | null | undefined) => boolean;
   selectedPurity: string | null;
   onSelectPurity: (purity: string) => void;
+  isPurityAvailable: (purity: string) => boolean;
   selectedDiamondConfigId: string | null;
   onSelectDiamondConfigId: (id: string) => void;
+  isDiamondAvailableAtPurity: (diamondConfigId: string) => boolean;
   displayPrice: number;
   displayMrp: number;
   offerLabel: string | null;
@@ -146,16 +149,20 @@ export function ProductInfo({
   onSelectSize,
   selectedGoldColor,
   onSelectGoldColor,
+  isColorAvailableAtPurity,
   selectedPurity,
   onSelectPurity,
+  isPurityAvailable,
   selectedDiamondConfigId,
   onSelectDiamondConfigId,
+  isDiamondAvailableAtPurity,
   displayPrice,
   displayMrp,
   offerLabel,
   onAddToCart,
   onBuyNow,
 }: ProductInfoProps) {
+  const sizeFieldLabel = product.sizeLabel?.trim() || 'Size';
   const sizeRequired = product.sizes.length > 0 && !selectedSizeId;
   const colorRequired = product.goldColorOptions.length > 0 && !selectedGoldColor;
   const purityRequired = product.purityOptions.length > 0 && !selectedPurity;
@@ -268,7 +275,7 @@ export function ProductInfo({
     product.goldColorOptions.length > 0 ? (selectedGoldColor ? COLOR_SWATCH[selectedGoldColor].label : null) : null,
     product.purityOptions.length > 0 ? selectedPurity : null,
     product.diamondOptions.length > 0 ? (selectedDiamondOption?.name ?? null) : null,
-    product.sizes.length > 0 ? (selectedSize ? `Size ${selectedSize.label}` : null) : null,
+    product.sizes.length > 0 ? (selectedSize ? `${sizeFieldLabel} ${selectedSize.label}` : null) : null,
   ].filter((p): p is string => !!p);
 
   return (
@@ -352,7 +359,9 @@ export function ProductInfo({
             </span>
             <span className={styles.customizeToggleText}>
               <span className={styles.customizeTitle}>Customize Your Design</span>
-              <span className={styles.customizeSubtitle}>Choose gold colour, purity, diamond quality and size</span>
+              <span className={styles.customizeSubtitle}>
+                Choose gold colour, purity, diamond quality{product.sizes.length > 0 ? ` and ${sizeFieldLabel.toLowerCase()}` : ''}
+              </span>
             </span>
             <span className={customizeOpen ? styles.customizeChevronOpen : styles.customizeChevron} aria-hidden="true">
               <ChevronDownIcon />
@@ -368,6 +377,7 @@ export function ProductInfo({
                     selectedColor={selectedGoldColor}
                     onSelect={onSelectGoldColor}
                     selectedPurity={selectedPurity}
+                    isColorAvailable={isColorAvailableAtPurity}
                   />
                   {showValidation && colorRequired && (
                     <p className={styles.fieldError}>Please select a gold color</p>
@@ -382,6 +392,7 @@ export function ProductInfo({
                     options={product.purityOptions.map((p) => ({ value: p, label: p }))}
                     selectedValue={selectedPurity}
                     onSelect={onSelectPurity}
+                    isOptionAvailable={isPurityAvailable}
                   />
                   {showValidation && purityRequired && <p className={styles.fieldError}>Please select a purity</p>}
                 </div>
@@ -394,6 +405,7 @@ export function ProductInfo({
                     options={product.diamondOptions.map((d) => ({ value: d.id, label: d.name }))}
                     selectedValue={selectedDiamondConfigId}
                     onSelect={onSelectDiamondConfigId}
+                    isOptionAvailable={isDiamondAvailableAtPurity}
                   />
                   {showValidation && diamondRequired && (
                     <p className={styles.fieldError}>Please select a diamond quality</p>
@@ -403,8 +415,15 @@ export function ProductInfo({
 
               {product.sizes.length > 0 && (
                 <div className={styles.fieldGroup} ref={sizeFieldRef}>
-                  <SizeSelector sizes={product.sizes} selectedSizeId={selectedSizeId} onSelect={onSelectSize} />
-                  {showValidation && sizeRequired && <p className={styles.fieldError}>Please select a size</p>}
+                  <SizeSelector
+                    sizes={product.sizes}
+                    selectedSizeId={selectedSizeId}
+                    onSelect={onSelectSize}
+                    label={sizeFieldLabel}
+                  />
+                  {showValidation && sizeRequired && (
+                    <p className={styles.fieldError}>Please select a {sizeFieldLabel.toLowerCase()}</p>
+                  )}
                 </div>
               )}
 

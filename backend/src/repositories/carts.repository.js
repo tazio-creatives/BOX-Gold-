@@ -25,26 +25,15 @@ export async function findCartByOwnerTx(client, { userId, guestSessionId }) {
 // which is exactly what lets "Buy Now" reuse this same endpoint without its
 // single item ever having touched cart_items. A wholesale DELETE here would
 // wipe unrelated items a Buy Now shopper still has sitting in their real
-// cart; joining against this order's product_id + variant instead means a
-// Buy Now purchase naturally matches zero rows and leaves the cart alone.
-//
-// gold_color/purity/diamond_config_id use "cart value unset, or matches" —
-// not a strict equals — because checkoutService.computeVariantPricing()
-// defaults each of those three (never product_size_id) to the product's own
-// value when the request didn't specify one, so a cart line added with no
-// explicit variant legitimately ends up with a "more specific" order_items
-// row than what's sitting in cart_items for the exact same line.
+// cart; joining against this order's product_variant_id instead means a Buy
+// Now purchase naturally matches zero rows and leaves the cart alone.
 export async function clearOrderedItemsFromCartTx(client, cartId, orderId) {
   await client.query(
     `DELETE FROM cart_items ci
      USING order_items oi
      WHERE oi.order_id = $2
        AND ci.cart_id = $1
-       AND ci.product_id = oi.product_id
-       AND ci.product_size_id IS NOT DISTINCT FROM oi.product_size_id
-       AND (ci.gold_color IS NULL OR ci.gold_color = oi.gold_color)
-       AND (ci.purity IS NULL OR ci.purity = oi.purity)
-       AND (ci.diamond_config_id IS NULL OR ci.diamond_config_id = oi.diamond_config_id)`,
+       AND ci.product_variant_id = oi.product_variant_id`,
     [cartId, orderId],
   );
 }
@@ -59,57 +48,40 @@ export async function createCart({ userId, guestSessionId }) {
 
 export async function findCartItems(cartId) {
   const { rows } = await query(
-    `SELECT id, product_id, product_size_id, gold_color, purity, diamond_config_id, quantity, created_at
+    `SELECT id, product_id, product_variant_id, quantity, created_at
      FROM cart_items WHERE cart_id = $1 ORDER BY created_at`,
     [cartId],
   );
   return rows;
 }
 
-// A cart line's real identity is (product, size, gold color, purity,
-// diamond quality) — four independently-nullable axes. cart_items_line_
-// unique_idx (see 20260815020000_product_variant_options.js) is a single
-// COALESCE-normalized index across all of them, so one upsert/match query
-// works uniformly instead of branching per axis's nullability.
-export async function upsertCartItemIncrement(cartId, productId, variant, quantity) {
-  const { sizeId = null, goldColor = null, purity = null, diamondConfigId = null } = variant ?? {};
+// A cart line's identity is now just (cart, variant) — one non-nullable
+// column instead of the old 4 independently-nullable axes — so a plain
+// unique index (cart_items_variant_unique_idx) handles the upsert directly.
+export async function upsertCartItemIncrement(cartId, productId, variantId, quantity) {
   const { rows } = await query(
-    `INSERT INTO cart_items (cart_id, product_id, product_size_id, gold_color, purity, diamond_config_id, quantity)
-     VALUES ($1, $2, $3, $4, $5, $6, $7)
-     ON CONFLICT (cart_id, product_id, COALESCE(product_size_id::text, ''), COALESCE(gold_color, ''), COALESCE(purity, ''), COALESCE(diamond_config_id::text, ''))
+    `INSERT INTO cart_items (cart_id, product_id, product_variant_id, quantity)
+     VALUES ($1, $2, $3, $4)
+     ON CONFLICT (cart_id, product_variant_id)
        DO UPDATE SET quantity = cart_items.quantity + EXCLUDED.quantity
      RETURNING *`,
-    [cartId, productId, sizeId, goldColor, purity, diamondConfigId, quantity],
+    [cartId, productId, variantId, quantity],
   );
   return rows[0];
 }
 
-export async function setCartItemQuantity(cartId, productId, variant, quantity) {
-  const { sizeId = null, goldColor = null, purity = null, diamondConfigId = null } = variant ?? {};
+export async function setCartItemQuantity(cartId, variantId, quantity) {
   const { rows } = await query(
-    `UPDATE cart_items SET quantity = $6
-     WHERE cart_id = $1 AND product_id = $2
-       AND COALESCE(product_size_id::text, '') = COALESCE($3::text, '')
-       AND COALESCE(gold_color, '') = COALESCE($4, '')
-       AND COALESCE(purity, '') = COALESCE($5, '')
-       AND COALESCE(diamond_config_id::text, '') = COALESCE($7::text, '')
+    `UPDATE cart_items SET quantity = $3
+     WHERE cart_id = $1 AND product_variant_id = $2
      RETURNING *`,
-    [cartId, productId, sizeId, goldColor, purity, quantity, diamondConfigId],
+    [cartId, variantId, quantity],
   );
   return rows[0] ?? null;
 }
 
-export async function removeCartItem(cartId, productId, variant) {
-  const { sizeId = null, goldColor = null, purity = null, diamondConfigId = null } = variant ?? {};
-  await query(
-    `DELETE FROM cart_items
-     WHERE cart_id = $1 AND product_id = $2
-       AND COALESCE(product_size_id::text, '') = COALESCE($3::text, '')
-       AND COALESCE(gold_color, '') = COALESCE($4, '')
-       AND COALESCE(purity, '') = COALESCE($5, '')
-       AND COALESCE(diamond_config_id::text, '') = COALESCE($6::text, '')`,
-    [cartId, productId, sizeId, goldColor, purity, diamondConfigId],
-  );
+export async function removeCartItem(cartId, variantId) {
+  await query('DELETE FROM cart_items WHERE cart_id = $1 AND product_variant_id = $2', [cartId, variantId]);
 }
 
 // Login-time reassignment (plan §11): a guest who never had an account yet
@@ -122,15 +94,14 @@ export async function reassignCartOwner(cartId, userId) {
 }
 
 // Both carts already exist (returning customer with items left in a guest
-// session) — dedupe by the same (product, size, color, purity, diamond)
-// line identity as upsertCartItemIncrement, quantities add together, guest
+// session) — dedupe by (product_variant_id), quantities add together, guest
 // cart dropped once merged.
 export async function mergeGuestCartIntoUserCart(guestCartId, userCartId) {
   await query(
-    `INSERT INTO cart_items (cart_id, product_id, product_size_id, gold_color, purity, diamond_config_id, quantity)
-     SELECT $2, product_id, product_size_id, gold_color, purity, diamond_config_id, quantity
+    `INSERT INTO cart_items (cart_id, product_id, product_variant_id, quantity)
+     SELECT $2, product_id, product_variant_id, quantity
      FROM cart_items WHERE cart_id = $1
-     ON CONFLICT (cart_id, product_id, COALESCE(product_size_id::text, ''), COALESCE(gold_color, ''), COALESCE(purity, ''), COALESCE(diamond_config_id::text, ''))
+     ON CONFLICT (cart_id, product_variant_id)
        DO UPDATE SET quantity = cart_items.quantity + EXCLUDED.quantity`,
     [guestCartId, userCartId],
   );

@@ -15,11 +15,8 @@ export const checkoutSchema = z.object({
     .array(
       z.object({
         productId: z.string().uuid(),
+        variantId: z.string().uuid().optional(),
         quantity: z.coerce.number().int().positive().max(20),
-        sizeId: z.string().uuid().optional(),
-        goldColor: z.string().trim().optional(),
-        purity: z.string().trim().optional(),
-        diamondConfigId: z.string().uuid().optional(),
       }),
     )
     .min(1),

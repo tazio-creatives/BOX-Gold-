@@ -169,6 +169,9 @@ export interface ProductDetail {
   gemstone: string | null;
   certification: string | null;
   productSize: string | null;
+  // Overrides the "Size" wording on the storefront (e.g. "Length" for a
+  // chain) — null means plain "Size".
+  sizeLabel: string | null;
   careInstructions: string | null;
 
   priceBreakup: PriceBreakup;
@@ -194,19 +197,47 @@ export interface ProductDetail {
   ratingCount: number;
 
   images: ProductImage[];
-  sizes: ProductSize[];
 
+  // Admin-form-shaped convenience views, derived server-side from
+  // `attributes`/`variants` below — existing selectors (ColorSelector,
+  // PillSelector, SizeSelector) read these directly, unchanged.
+  sizes: ProductSize[];
   goldColorOptions: GoldColor[];
   purityOptions: Purity[];
-  diamondOptions: { id: string; name: string; ratePerCent: number }[];
+  diamondOptions: { id: string; name: string }[];
+
+  // The generic attribute + variant model — every real sellable combination
+  // is one entry in `variants`, with its own stock/availability/weight
+  // overrides. useVariantSelection resolves a selection (goldColor/purity/
+  // diamondConfigId/sizeId, same as before) to one of these to get a real
+  // variantId for pricing/cart/checkout.
+  attributes: ProductAttribute[];
+  variants: ProductVariant[];
 }
 
-// Live-recomputed price for a Purity/Diamond Quality selection — same
-// pricing engine cart/checkout use, so what's shown while shopping matches
-// what gets charged. Gold Color never affects price so isn't part of this.
+export interface ProductAttribute {
+  code: string;
+  name: string;
+  values: { id: string; value: string; label: string; refId: string | null }[];
+}
+
+export interface ProductVariant {
+  id: string;
+  isAvailable: boolean;
+  stockQuantity: number;
+  availableStock: number;
+  goldWeightGrams: number | null;
+  diamondWeightGrams: number | null;
+  diamondWeightCarats: number | null;
+  attributeValueIds: string[];
+}
+
+// Live-recomputed price for a specific variant — same pricing engine cart/
+// checkout use, so what's shown while shopping matches what gets charged.
 export interface VariantPricePreview {
   purity: string | null;
   diamondConfigId: string | null;
+  goldColor: string | null;
   goldValue: number;
   diamondValue: number;
   diamondValueOriginal: number;
@@ -242,6 +273,7 @@ export interface ProductListResponse {
 
 export interface CartItem {
   productId: string;
+  variantId: string;
   name: string;
   slug: string;
   categorySlug: string | null;
@@ -250,16 +282,9 @@ export interface CartItem {
   purity: Purity | null;
   goldColor: GoldColor | null;
   productSize: string | null;
-  sizeId: string | null;
   sizeLabel: string | null;
   diamondConfigId: string | null;
   diamondConfigName: string | null;
-  // Raw cart row values (undefaulted) — use these, not goldColor/purity/
-  // diamondConfigId above, when building the variant for a remove/update
-  // request; those are defaulted to the product's own value for display.
-  cartGoldColor: string | null;
-  cartPurity: string | null;
-  cartDiamondConfigId: string | null;
   sellingPrice: number;
   sellingPriceOriginal: number;
   mrp: number;
@@ -269,14 +294,6 @@ export interface CartItem {
   isBackordered: boolean;
 }
 
-// One product/size/color/purity/diamond-quality combination a shopper has
-// picked — threaded through cart add/update/remove and checkout.
-export interface VariantSelection {
-  sizeId?: string | null;
-  goldColor?: string | null;
-  purity?: string | null;
-  diamondConfigId?: string | null;
-}
 
 export interface Cart {
   items: CartItem[];
@@ -433,11 +450,10 @@ export interface BuyNowItem {
   gstAmount: number;
   primaryImageUrl: string | null;
   availableStock: number;
-  sizeId?: string | null;
+  variantId: string | null;
   sizeLabel?: string | null;
   goldColor?: string | null;
   purity?: string | null;
-  diamondConfigId?: string | null;
   diamondConfigName?: string | null;
   isBackordered?: boolean;
 }
@@ -447,11 +463,8 @@ export interface CheckoutPayload {
   addressId: string;
   items: {
     productId: string;
+    variantId?: string;
     quantity: number;
-    sizeId?: string;
-    goldColor?: string;
-    purity?: string;
-    diamondConfigId?: string;
   }[];
   couponCode?: string;
 }

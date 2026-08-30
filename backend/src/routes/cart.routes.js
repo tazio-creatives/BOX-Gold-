@@ -7,5 +7,5 @@ export const cartRouter = Router();
 
 cartRouter.get('/', get);
 cartRouter.post('/items', addItem);
-cartRouter.patch('/items/:productId', updateItem);
-cartRouter.delete('/items/:productId', removeItem);
+cartRouter.patch('/items/:variantId', updateItem);
+cartRouter.delete('/items/:variantId', removeItem);

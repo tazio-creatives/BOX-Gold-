@@ -42,14 +42,7 @@ export function fetchRelatedProducts(slug: string) {
   return apiFetch<{ products: ProductCard[] }>(`/products/${slug}/related`);
 }
 
-export function fetchVariantPricePreview(
-  productId: string,
-  selection: { purity?: string | null; diamondConfigId?: string | null; sizeId?: string | null },
-) {
-  const qs = new URLSearchParams();
-  if (selection.purity) qs.set('purity', selection.purity);
-  if (selection.diamondConfigId) qs.set('diamondConfigId', selection.diamondConfigId);
-  if (selection.sizeId) qs.set('sizeId', selection.sizeId);
-  const suffix = qs.toString();
-  return apiFetch<VariantPricePreview>(`/products/${productId}/price-preview${suffix ? `?${suffix}` : ''}`);
+export function fetchVariantPricePreview(productId: string, selection: { variantId: string }) {
+  const qs = new URLSearchParams({ variantId: selection.variantId });
+  return apiFetch<VariantPricePreview>(`/products/${productId}/price-preview?${qs.toString()}`);
 }

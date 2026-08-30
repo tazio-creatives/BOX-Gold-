@@ -13,7 +13,7 @@ const PLATINUM_DOT_HEX = '#9DA3A6';
 
 function TagIcon() {
   return (
-    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" aria-hidden="true">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" aria-hidden="true">
       <path d="M20.5 12.5L12.5 20.5a1.5 1.5 0 0 1-2.1 0l-7-7a1.5 1.5 0 0 1 0-2.1L11.4 3.4a2 2 0 0 1 1.4-.6H19a2 2 0 0 1 2 2v6.6a2 2 0 0 1-.5 1.5z" strokeLinejoin="round" />
       <circle cx="16" cy="7" r="1.5" />
     </svg>
@@ -22,7 +22,7 @@ function TagIcon() {
 
 function DiamondIcon() {
   return (
-    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" aria-hidden="true">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" aria-hidden="true">
       <path d="M6 3h12l4 6-10 12L2 9z" strokeLinejoin="round" />
       <path d="M2 9h20M9 3l-2 6 5 12 5-12-2-6" strokeLinejoin="round" />
     </svg>
@@ -115,7 +115,7 @@ export function PlpProductCard({ product, index = 0, onAddToCart, isAdding, just
         {product.offerLabel && (
           <div className={styles.offerStrip}>
             <TagIcon />
-            <span>{product.offerLabel}</span>
+            <span className={styles.offerText}>{product.offerLabel}</span>
           </div>
         )}
 

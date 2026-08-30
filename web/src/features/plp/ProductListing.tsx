@@ -1,10 +1,9 @@
-import { useState } from 'react';
-import { useQuery, keepPreviousData } from '@tanstack/react-query';
-import { fetchProducts } from '../../api/products';
+import { useEffect, useRef, useState } from 'react';
+import { useInfiniteQuery, useQuery, keepPreviousData } from '@tanstack/react-query';
 import { fetchCategoryFilterCounts } from '../../api/categories';
 import { PlpProductCard } from '../../components/PlpProductCard';
-import { Pagination } from '../../components/Pagination';
 import { Breadcrumbs, type Crumb } from '../../components/Breadcrumbs';
+import { productsQueryKey, fetchProductsPage, getNextProductsPageParam } from './productsQuery';
 import { FilterSidebar, type CategoryFilterGroup } from './FilterSidebar';
 import { SortSelect } from './SortSelect';
 import { SortSheet } from './SortSheet';
@@ -36,11 +35,12 @@ export function ProductListing({
   canonicalPath,
   subcategories,
 }: ProductListingProps) {
-  const { metal, purity, goldColor, priceMin, priceMax, sort, page, updateFilters, updateSort, updatePage, clearFilters } =
+  const { metal, purity, goldColor, priceMin, priceMax, sort, updateFilters, updateSort, clearFilters } =
     usePlpFilters();
   const [isFilterDrawerOpen, setIsFilterDrawerOpen] = useState(false);
   const [isSortSheetOpen, setIsSortSheetOpen] = useState(false);
   const quickAdd = useQuickAdd();
+  const loadMoreRef = useRef<HTMLDivElement>(null);
 
   const activeFilterCount = [metal, purity, goldColor, priceMin, priceMax].filter((v) => v != null).length;
 
@@ -57,23 +57,46 @@ export function ProductListing({
     ],
   });
 
-  const { data, isLoading, isError, refetch } = useQuery({
-    queryKey: ['products', { categorySlug, collectionSlug, metal, purity, goldColor, priceMin, priceMax, sort, page }],
-    queryFn: () =>
-      fetchProducts({
-        category: categorySlug,
-        collection: collectionSlug,
-        metal,
-        purity,
-        goldColor,
-        priceMin,
-        priceMax,
-        sort,
-        page,
-        limit: 24,
-      }),
+  const filters = { category: categorySlug, collection: collectionSlug, metal, purity, goldColor, priceMin, priceMax, sort };
+
+  const {
+    data,
+    isLoading,
+    isError,
+    refetch,
+    fetchNextPage,
+    hasNextPage,
+    isFetchingNextPage,
+  } = useInfiniteQuery({
+    queryKey: productsQueryKey(filters),
+    queryFn: ({ pageParam }) => fetchProductsPage(filters, pageParam),
+    initialPageParam: 1,
+    getNextPageParam: getNextProductsPageParam,
     placeholderData: keepPreviousData,
   });
+
+  const products = data ? data.pages.flatMap((p) => p.products) : [];
+  const total = data?.pages[0]?.total ?? 0;
+
+  // Fires fetchNextPage() as the sentinel div (placed just past the last
+  // row) scrolls into view — the actual "load more on scroll" behavior.
+  // Guarded on hasNextPage/isFetchingNextPage so it can't double-fire while
+  // a page is already in flight or after the last page has loaded.
+  useEffect(() => {
+    const el = loadMoreRef.current;
+    if (!el) return undefined;
+
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        if (entry.isIntersecting && hasNextPage && !isFetchingNextPage) {
+          fetchNextPage();
+        }
+      },
+      { rootMargin: '600px 0px' },
+    );
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, [hasNextPage, isFetchingNextPage, fetchNextPage]);
 
   const { data: countsData } = useQuery({
     queryKey: ['category-filter-counts', categorySlug],
@@ -105,7 +128,7 @@ export function ProductListing({
             <h1 className={styles.heading}>{heading}</h1>
             {description && <p className={styles.description}>{description}</p>}
             <p className={styles.count} aria-live="polite">
-              {data ? `${data.total} ${data.total === 1 ? 'Product' : 'Products'}` : ' '}
+              {data ? `${total} ${total === 1 ? 'Product' : 'Products'}` : ' '}
             </p>
           </div>
           <div className={styles.headerRight}>
@@ -158,7 +181,7 @@ export function ProductListing({
             </div>
           )}
 
-          {data && data.products.length === 0 && (
+          {data && products.length === 0 && (
             <div className={styles.stateBlock}>
               <p className={styles.emptyHeading}>No products found</p>
               <p className={styles.message}>Try adjusting your filters or search.</p>
@@ -168,23 +191,36 @@ export function ProductListing({
             </div>
           )}
 
-          {data && data.products.length > 0 && (
-            <div className={styles.grid}>
-              {data.products.map((product, i) => (
-                <PlpProductCard
-                  key={product.id}
-                  product={product}
-                  index={i}
-                  onAddToCart={() => quickAdd.addToCart(product)}
-                  isAdding={quickAdd.pendingProductId === product.id}
-                  justAdded={quickAdd.justAddedProductId === product.id}
-                  hasError={quickAdd.errorProductId === product.id}
-                />
-              ))}
-            </div>
-          )}
+          {data && products.length > 0 && (
+            <>
+              <div className={styles.grid}>
+                {products.map((product, i) => (
+                  <PlpProductCard
+                    key={product.id}
+                    product={product}
+                    index={i}
+                    onAddToCart={() => quickAdd.addToCart(product)}
+                    isAdding={quickAdd.pendingProductId === product.id}
+                    justAdded={quickAdd.justAddedProductId === product.id}
+                    hasError={quickAdd.errorProductId === product.id}
+                  />
+                ))}
+              </div>
 
-          {data && <Pagination page={data.page} totalPages={data.totalPages} onChange={updatePage} />}
+              {/* Sits just past the last row — the IntersectionObserver above
+                  fires fetchNextPage() once this scrolls near the viewport.
+                  Stays in the DOM (empty) even with no next page so the ref
+                  is always attached. */}
+              <div ref={loadMoreRef} className={styles.loadMoreSentinel}>
+                {isFetchingNextPage && (
+                  <div className={styles.loadingMore} aria-live="polite">
+                    <span className={styles.loadingMoreSpinner} aria-hidden="true" />
+                    Loading more…
+                  </div>
+                )}
+              </div>
+            </>
+          )}
         </div>
       </div>
 

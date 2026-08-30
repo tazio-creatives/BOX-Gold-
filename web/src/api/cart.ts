@@ -1,41 +1,28 @@
 import { apiFetch } from './client';
-import type { Cart, VariantSelection } from './types';
+import type { Cart } from './types';
 
 export function fetchCart() {
   return apiFetch<Cart>('/cart');
 }
 
-export function addCartItem(productId: string, quantity = 1, variant?: VariantSelection) {
+export function addCartItem(productId: string, quantity = 1, variantId?: string | null) {
   return apiFetch<Cart>('/cart/items', {
     method: 'POST',
     body: JSON.stringify({
       productId,
       quantity,
-      ...(variant?.sizeId ? { sizeId: variant.sizeId } : {}),
-      ...(variant?.goldColor ? { goldColor: variant.goldColor } : {}),
-      ...(variant?.purity ? { purity: variant.purity } : {}),
-      ...(variant?.diamondConfigId ? { diamondConfigId: variant.diamondConfigId } : {}),
+      ...(variantId ? { variantId } : {}),
     }),
   });
 }
 
-function variantQuery(variant?: VariantSelection) {
-  const qs = new URLSearchParams();
-  if (variant?.sizeId) qs.set('sizeId', variant.sizeId);
-  if (variant?.goldColor) qs.set('goldColor', variant.goldColor);
-  if (variant?.purity) qs.set('purity', variant.purity);
-  if (variant?.diamondConfigId) qs.set('diamondConfigId', variant.diamondConfigId);
-  const s = qs.toString();
-  return s ? `?${s}` : '';
-}
-
-export function updateCartItem(productId: string, quantity: number, variant?: VariantSelection) {
-  return apiFetch<Cart>(`/cart/items/${productId}${variantQuery(variant)}`, {
+export function updateCartItem(variantId: string, quantity: number) {
+  return apiFetch<Cart>(`/cart/items/${variantId}`, {
     method: 'PATCH',
     body: JSON.stringify({ quantity }),
   });
 }
 
-export function removeCartItem(productId: string, variant?: VariantSelection) {
-  return apiFetch<Cart>(`/cart/items/${productId}${variantQuery(variant)}`, { method: 'DELETE' });
+export function removeCartItem(variantId: string) {
+  return apiFetch<Cart>(`/cart/items/${variantId}`, { method: 'DELETE' });
 }

@@ -7,7 +7,6 @@ export interface ParsedPlpFilters {
   priceMin?: number;
   priceMax?: number;
   sort: SortOption;
-  page: number;
 }
 
 // Single source of truth for URL <-> filter-state parsing, shared by the
@@ -24,7 +23,6 @@ export function parsePlpFilters(searchParams: URLSearchParams): ParsedPlpFilters
   const priceMin = priceMinRaw ? Number(priceMinRaw) : undefined;
   const priceMax = priceMaxRaw ? Number(priceMaxRaw) : undefined;
   const sort = (searchParams.get('sort') as SortOption | null) ?? 'featured';
-  const page = Number(searchParams.get('page') ?? '1');
 
-  return { metal, purity, goldColor, priceMin, priceMax, sort, page };
+  return { metal, purity, goldColor, priceMin, priceMax, sort };
 }

@@ -44,6 +44,9 @@ export const createProductSchema = z.object({
   gemstone: z.string().trim().max(100).nullable().optional(),
   certification: z.string().trim().max(200).nullable().optional(),
   productSize: z.string().trim().max(100).nullable().optional(),
+  // Overrides the storefront/admin wording for the Size axis (e.g. "Length"
+  // for a chain) — null means "Size", the default for every product today.
+  sizeLabel: z.string().trim().max(50).nullable().optional(),
   careInstructions: z.string().trim().max(2000).nullable().optional(),
 
   goldValue: z.coerce.number().nonnegative().optional(),
@@ -81,6 +84,29 @@ export const createProductSchema = z.object({
   goldColors: z.array(z.enum(GOLD_COLORS)).optional(),
   purities: z.array(z.enum(PURITIES)).optional(),
   diamondConfigIds: z.array(z.string().uuid()).optional(),
+
+  // Per-exact-combination overrides, applied in the same save that sets up
+  // the axes above — lets a brand-new product be fully configured (stock/
+  // weight/availability per combination) without a separate trip back into
+  // the variant editor afterward.
+  variantOverrides: z
+    .array(
+      z.object({
+        attributeValues: z.object({
+          goldColor: z.enum(GOLD_COLORS).optional(),
+          purity: z.enum(PURITIES).optional(),
+          diamondConfigId: z.string().uuid().optional(),
+          sizeLabel: z.string().optional(),
+        }),
+        stockQuantity: z.coerce.number().int().nonnegative().optional(),
+        goldWeightGrams: z.coerce.number().positive().nullable().optional(),
+        diamondWeightGrams: z.coerce.number().nonnegative().nullable().optional(),
+        diamondWeightCarats: z.coerce.number().nonnegative().nullable().optional(),
+        isAvailable: z.boolean().optional(),
+        priceOverride: z.coerce.number().nonnegative().nullable().optional(),
+      }),
+    )
+    .optional(),
 });
 
 export const updateProductSchema = createProductSchema.partial();
@@ -90,7 +116,22 @@ export const featuredSchema = z.object({
 });
 
 export const variantPricePreviewQuerySchema = z.object({
-  purity: z.enum(PURITIES).optional(),
-  diamondConfigId: z.string().uuid().optional(),
-  sizeId: z.string().uuid().optional(),
+  variantId: z.string().uuid().optional(),
+});
+
+export const updateVariantSchema = z.object({
+  stockQuantity: z.coerce.number().int().nonnegative().optional(),
+  goldWeightGrams: z.coerce.number().positive().nullable().optional(),
+  diamondWeightGrams: z.coerce.number().nonnegative().nullable().optional(),
+  diamondWeightCarats: z.coerce.number().nonnegative().nullable().optional(),
+  isAvailable: z.boolean().optional(),
+  sku: z.string().trim().max(100).nullable().optional(),
+  priceOverride: z.coerce.number().nonnegative().nullable().optional(),
+});
+
+// Same field set, applied to many variants at once — the bulk-edit toolbar
+// on the Advanced Variant Management table.
+export const bulkUpdateVariantSchema = z.object({
+  variantIds: z.array(z.string().uuid()).min(1),
+  fields: updateVariantSchema.omit({ sku: true }),
 });

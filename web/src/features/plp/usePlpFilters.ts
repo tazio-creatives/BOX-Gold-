@@ -6,7 +6,7 @@ import { parsePlpFilters } from './parsePlpFilters';
 export function usePlpFilters() {
   const [searchParams, setSearchParams] = useSearchParams();
 
-  const { metal, purity, goldColor, priceMin, priceMax, sort, page } = parsePlpFilters(searchParams);
+  const { metal, purity, goldColor, priceMin, priceMax, sort } = parsePlpFilters(searchParams);
 
   function updateFilters(patch: FilterValues) {
     const next = new URLSearchParams(searchParams);
@@ -14,22 +14,13 @@ export function usePlpFilters() {
       if (value === undefined || value === '') next.delete(key);
       else next.set(key, String(value));
     }
-    next.delete('page');
     setSearchParams(next);
   }
 
   function updateSort(value: SortOption) {
     const next = new URLSearchParams(searchParams);
     next.set('sort', value);
-    next.delete('page');
     setSearchParams(next);
-  }
-
-  function updatePage(value: number) {
-    const next = new URLSearchParams(searchParams);
-    next.set('page', String(value));
-    setSearchParams(next);
-    window.scrollTo({ top: 0, behavior: 'smooth' });
   }
 
   function clearFilters() {
@@ -43,10 +34,8 @@ export function usePlpFilters() {
     priceMin,
     priceMax,
     sort,
-    page,
     updateFilters,
     updateSort,
-    updatePage,
     clearFilters,
   };
 }

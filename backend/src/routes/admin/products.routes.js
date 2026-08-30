@@ -6,6 +6,14 @@ import {
   adminUpdate,
   adminDelete,
   setFeatured,
+  listVariants,
+  updateVariant,
+  bulkUpdateVariants,
+  listExclusionRules,
+  createExclusionRule,
+  deleteExclusionRule,
+  getWeightRules,
+  replaceWeightRules,
 } from '../../controllers/products.controller.js';
 import { setPriceLock } from '../../controllers/pricing.controller.js';
 import {
@@ -46,6 +54,23 @@ adminProductsRouter.patch('/:id', adminUpdate);
 adminProductsRouter.delete('/:id', adminDelete);
 adminProductsRouter.patch('/:id/price-lock', setPriceLock);
 adminProductsRouter.patch('/:id/featured', setFeatured);
+
+// Variant editor (attribute + variant model) — per-combination stock/
+// weight/availability, each with its own live price.
+adminProductsRouter.get('/:id/variants', listVariants);
+// Registered before "/:id/variants/:variantId" — Express would otherwise
+// treat "bulk" as a variantId.
+adminProductsRouter.patch('/:id/variants/bulk', bulkUpdateVariants);
+adminProductsRouter.patch('/:id/variants/:variantId', updateVariant);
+
+// Availability Rules — per-product pairwise combination exclusions.
+adminProductsRouter.get('/:id/exclusion-rules', listExclusionRules);
+adminProductsRouter.post('/:id/exclusion-rules', createExclusionRule);
+adminProductsRouter.delete('/:id/exclusion-rules/:ruleId', deleteExclusionRule);
+
+// Weight Defaults — Purity and Purity+Size live weight resolution levels.
+adminProductsRouter.get('/:id/weight-rules', getWeightRules);
+adminProductsRouter.put('/:id/weight-rules', replaceWeightRules);
 
 // Product photo gallery (plan §9/§10).
 adminProductsRouter.get('/:id/images', listImages);

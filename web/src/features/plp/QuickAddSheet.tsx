@@ -30,6 +30,10 @@ export function QuickAddSheet({ product, onClose }: QuickAddSheetProps) {
     setSelectedPurity,
     selectedDiamondConfigId,
     setSelectedDiamondConfigId,
+    selectedVariantId,
+    isColorAvailableAtPurity,
+    isPurityAvailable,
+    isDiamondAvailableAtPurity,
     isOutOfStock,
     displayPrice,
     displayMrp,
@@ -39,16 +43,10 @@ export function QuickAddSheet({ product, onClose }: QuickAddSheetProps) {
   const colorRequired = product.goldColorOptions.length > 0 && !selectedGoldColor;
   const purityRequired = product.purityOptions.length > 0 && !selectedPurity;
   const diamondRequired = product.diamondOptions.length > 0 && !selectedDiamondConfigId;
-  const variantRequired = sizeRequired || colorRequired || purityRequired || diamondRequired;
+  const variantRequired = sizeRequired || colorRequired || purityRequired || diamondRequired || !selectedVariantId;
 
   const addMutation = useMutation({
-    mutationFn: () =>
-      addCartItem(product.id, 1, {
-        sizeId: selectedSizeId ?? undefined,
-        goldColor: selectedGoldColor ?? undefined,
-        purity: selectedPurity ?? undefined,
-        diamondConfigId: selectedDiamondConfigId ?? undefined,
-      }),
+    mutationFn: () => addCartItem(product.id, 1, selectedVariantId),
     onSuccess: (cart: Cart) => {
       queryClient.setQueryData(['cart'], cart);
       onClose();
@@ -95,6 +93,7 @@ export function QuickAddSheet({ product, onClose }: QuickAddSheetProps) {
               selectedColor={selectedGoldColor}
               onSelect={setSelectedGoldColor}
               selectedPurity={selectedPurity}
+              isColorAvailable={isColorAvailableAtPurity}
             />
           )}
           {product.purityOptions.length > 0 && (
@@ -103,6 +102,7 @@ export function QuickAddSheet({ product, onClose }: QuickAddSheetProps) {
               options={product.purityOptions.map((p) => ({ value: p, label: p }))}
               selectedValue={selectedPurity}
               onSelect={setSelectedPurity}
+              isOptionAvailable={isPurityAvailable}
             />
           )}
           {product.diamondOptions.length > 0 && (
@@ -111,10 +111,16 @@ export function QuickAddSheet({ product, onClose }: QuickAddSheetProps) {
               options={product.diamondOptions.map((d) => ({ value: d.id, label: d.name }))}
               selectedValue={selectedDiamondConfigId}
               onSelect={setSelectedDiamondConfigId}
+              isOptionAvailable={isDiamondAvailableAtPurity}
             />
           )}
           {product.sizes.length > 0 && (
-            <SizeSelector sizes={product.sizes} selectedSizeId={selectedSizeId} onSelect={setSelectedSizeId} />
+            <SizeSelector
+              sizes={product.sizes}
+              selectedSizeId={selectedSizeId}
+              onSelect={setSelectedSizeId}
+              label={product.sizeLabel?.trim() || 'Size'}
+            />
           )}
         </div>
 

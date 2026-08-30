@@ -5,7 +5,11 @@ import {
   updateProductSchema,
   featuredSchema,
   variantPricePreviewQuerySchema,
+  updateVariantSchema,
+  bulkUpdateVariantSchema,
 } from '../validators/products.validators.js';
+import { createExclusionRuleSchema } from '../validators/exclusionRules.validators.js';
+import { replaceWeightRulesSchema } from '../validators/weightRules.validators.js';
 import * as productsService from '../services/productsService.js';
 import { applyProductOffer } from '../services/pricingService.js';
 import { AppError } from '../utils/AppError.js';
@@ -122,6 +126,9 @@ function toDetailDto(row) {
     gemstone: row.gemstone,
     certification: row.certification,
     productSize: row.product_size,
+    // Overrides the "Size" wording on the admin form and storefront (e.g.
+    // "Length" for a chain) — null means plain "Size", today's default.
+    sizeLabel: row.size_label,
     careInstructions: row.care_instructions,
 
     priceBreakup: {
@@ -174,22 +181,58 @@ function toDetailDto(row) {
       sortOrder: img.sort_order,
     })),
 
-    sizes: (row.sizes ?? []).map((s) => ({
-      id: s.id,
-      label: s.label,
-      stockQuantity: s.stock_quantity,
-      availableStock: s.available_stock,
-      weightGrams: s.weight_grams == null ? null : Number(s.weight_grams),
-      diamondWeightCarats: s.diamond_weight_carats == null ? null : Number(s.diamond_weight_carats),
+    // Admin-defined dimensions this product offers values on (Purity, Gold
+    // Color, Diamond Quality, Size, and whatever's added later) — replaces
+    // the old fixed goldColorOptions/purityOptions/diamondOptions/sizes
+    // fields with one generic, attribute-count-agnostic shape.
+    attributes: (row.attributes ?? []).map((a) => ({
+      code: a.code,
+      name: a.name,
+      values: a.values.map((v) => ({ id: v.id, value: v.value, label: v.label, refId: v.refId })),
     })),
 
-    goldColorOptions: row.variantOptions?.goldColors ?? [],
-    purityOptions: row.variantOptions?.purities ?? [],
-    diamondOptions: (row.variantOptions?.diamondOptions ?? []).map((d) => ({
-      id: d.id,
-      name: d.name,
-      ratePerCent: Number(d.rate_per_carat),
+    // One real sellable combination per entry — a product with nothing
+    // configured has exactly one (the synthetic default, empty
+    // attributeValueIds). isAvailable gates selectability; combinations that
+    // were never configured for this product simply don't appear here at
+    // all (no separate "invalid combination" list needed).
+    variants: (row.variants ?? []).map((v) => ({
+      id: v.id,
+      isAvailable: v.is_available,
+      stockQuantity: v.stock_quantity,
+      availableStock: v.stock_quantity,
+      goldWeightGrams: v.gold_weight_grams == null ? null : Number(v.gold_weight_grams),
+      diamondWeightGrams: v.diamond_weight_grams == null ? null : Number(v.diamond_weight_grams),
+      diamondWeightCarats: v.diamond_weight_carats == null ? null : Number(v.diamond_weight_carats),
+      attributeValueIds: Object.values(v.attributes ?? {}).map((a) => a.valueId),
     })),
+
+    // Admin-form-shaped convenience views, derived from `attributes` above —
+    // the admin's "Customer-Selectable Variations" section still edits axes
+    // as flat lists (unchanged UI), and the storefront's SizeSelector still
+    // reads a flat `sizes` prop directly — this keeps both working without
+    // either needing to understand the generic attribute shape. A size's
+    // stockQuantity/availableStock is the SUM across every variant carrying
+    // that size (any color/purity/diamond combo) — real current stock for
+    // "is this size available at all," not a per-exact-combination figure
+    // (that finer-grained number lives on `variants` above). Re-saving the
+    // admin form's per-size seed values never touches already-existing
+    // variants (see syncProductVariants), so this being a live rollup rather
+    // than the raw seed is strictly more informative, not a behavior risk.
+    sizes: (row.attributes ?? [])
+      .find((a) => a.code === 'size')
+      ?.values.map((v) => {
+        const stock = (row.variants ?? [])
+          .filter((variant) => Object.values(variant.attributes ?? {}).some((a) => a.valueId === v.id))
+          .reduce((sum, variant) => sum + (variant.is_available ? variant.stock_quantity : 0), 0);
+        return { id: v.id, label: v.label, stockQuantity: stock, availableStock: stock, weightGrams: null, diamondWeightCarats: null };
+      }) ?? [],
+    goldColorOptions: (row.attributes ?? []).find((a) => a.code === 'gold_color')?.values.map((v) => v.value) ?? [],
+    purityOptions: (row.attributes ?? []).find((a) => a.code === 'purity')?.values.map((v) => v.value) ?? [],
+    diamondOptions:
+      (row.attributes ?? [])
+        .find((a) => a.code === 'diamond_quality')
+        ?.values.map((v) => ({ id: v.refId, name: v.label })) ?? [],
   };
 }
 
@@ -231,12 +274,8 @@ export async function getBySlug(req, res, next) {
 
 export async function pricePreview(req, res, next) {
   try {
-    const { purity, diamondConfigId, sizeId } = variantPricePreviewQuerySchema.parse(req.query);
-    const result = await productsService.previewProductVariantPricing(req.params.id, {
-      purity,
-      diamondConfigId,
-      sizeId,
-    });
+    const { variantId } = variantPricePreviewQuerySchema.parse(req.query);
+    const result = await productsService.previewProductVariantPricing(req.params.id, { variantId });
     res.json({
       ...result,
       offerLabel: offerLabel(result.makingChargeDiscountPercent, result.diamondDiscountPercent),
@@ -338,6 +377,131 @@ export async function setFeatured(req, res, next) {
     const { featured } = featuredSchema.parse(req.body);
     const product = await productsService.adminUpdateProduct(req.params.id, { isFeatured: featured });
     res.json({ id: product.id, isFeatured: product.is_featured });
+  } catch (err) {
+    next(err);
+  }
+}
+
+// One row per real combination for this product, with a human-readable
+// label built from its attribute values and the exact live price a shopper
+// picking that combination would be charged.
+// Fixed order so a combination's label always reads the same way (e.g.
+// always "9K / Yellow Gold / FL. EF / 6", never scrambled) — json_object_agg
+// doesn't guarantee key order, so Object.values() alone can't be trusted.
+const ATTRIBUTE_LABEL_ORDER = ['purity', 'gold_color', 'diamond_quality', 'size'];
+
+function toVariantDto({ variant, pricing }) {
+  const attributes = variant.attributes ?? {};
+  const orderedCodes = [
+    ...ATTRIBUTE_LABEL_ORDER.filter((code) => attributes[code]),
+    ...Object.keys(attributes).filter((code) => !ATTRIBUTE_LABEL_ORDER.includes(code)),
+  ];
+  const attributeLabels = orderedCodes.map((code) => attributes[code].label);
+  return {
+    id: variant.id,
+    label: attributeLabels.length > 0 ? attributeLabels.join(' / ') : 'Default',
+    isAvailable: variant.is_available,
+    stockQuantity: variant.stock_quantity,
+    goldWeightGrams: variant.gold_weight_grams == null ? null : Number(variant.gold_weight_grams),
+    diamondWeightGrams: variant.diamond_weight_grams == null ? null : Number(variant.diamond_weight_grams),
+    diamondWeightCarats: variant.diamond_weight_carats == null ? null : Number(variant.diamond_weight_carats),
+    sellingPrice: pricing.sellingPrice,
+    priceOverride: variant.price_override == null ? null : Number(variant.price_override),
+    isPriceOverridden: pricing.isPriceOverridden ?? false,
+    attributeValueIds: Object.values(attributes).map((a) => a.valueId),
+    excludedByRuleId: variant.excluded_by_rule_id ?? null,
+  };
+}
+
+export async function listVariants(req, res, next) {
+  try {
+    const rows = await productsService.adminListVariants(req.params.id);
+    res.json({ variants: rows.map(toVariantDto) });
+  } catch (err) {
+    next(err);
+  }
+}
+
+export async function updateVariant(req, res, next) {
+  try {
+    const input = updateVariantSchema.parse(req.body);
+    const result = await productsService.adminUpdateVariant(req.params.id, req.params.variantId, input);
+    res.json({ variant: toVariantDto(result) });
+  } catch (err) {
+    next(err);
+  }
+}
+
+export async function bulkUpdateVariants(req, res, next) {
+  try {
+    const { variantIds, fields } = bulkUpdateVariantSchema.parse(req.body);
+    const results = await productsService.adminBulkUpdateVariants(req.params.id, variantIds, fields);
+    res.json({ variants: results.map(toVariantDto) });
+  } catch (err) {
+    next(err);
+  }
+}
+
+function toWeightRuleDto(rule) {
+  return {
+    id: rule.id,
+    purity: rule.purity_value,
+    purityLabel: rule.purity_label,
+    sizeLabel: rule.size_label ?? null,
+    goldWeightGrams: Number(rule.gold_weight_grams),
+  };
+}
+
+export async function getWeightRules(req, res, next) {
+  try {
+    const rules = await productsService.adminGetWeightRules(req.params.id);
+    res.json({ rules: rules.map(toWeightRuleDto) });
+  } catch (err) {
+    next(err);
+  }
+}
+
+export async function replaceWeightRules(req, res, next) {
+  try {
+    const input = replaceWeightRulesSchema.parse(req.body);
+    const rules = await productsService.adminReplaceWeightRules(req.params.id, input);
+    res.json({ rules: rules.map(toWeightRuleDto) });
+  } catch (err) {
+    next(err);
+  }
+}
+
+function toRuleDto(rule) {
+  return {
+    id: rule.id,
+    valueA: { id: rule.value_a.id, attributeCode: rule.value_a.attributeCode, attributeName: rule.value_a.attributeName, label: rule.value_a.label },
+    valueB: { id: rule.value_b.id, attributeCode: rule.value_b.attributeCode, attributeName: rule.value_b.attributeName, label: rule.value_b.label },
+  };
+}
+
+export async function listExclusionRules(req, res, next) {
+  try {
+    const rules = await productsService.adminListExclusionRules(req.params.id);
+    res.json({ rules: rules.map(toRuleDto) });
+  } catch (err) {
+    next(err);
+  }
+}
+
+export async function createExclusionRule(req, res, next) {
+  try {
+    const input = createExclusionRuleSchema.parse(req.body);
+    const rule = await productsService.adminCreateExclusionRule(req.params.id, input);
+    res.status(201).json({ rule: toRuleDto(rule) });
+  } catch (err) {
+    next(err);
+  }
+}
+
+export async function deleteExclusionRule(req, res, next) {
+  try {
+    await productsService.adminDeleteExclusionRule(req.params.id, req.params.ruleId);
+    res.status(204).end();
   } catch (err) {
     next(err);
   }

@@ -1,6 +1,8 @@
 import { AppError } from '../utils/AppError.js';
 import { getCurrentGoldRate, getCurrentGoldRates } from '../repositories/goldRates.repository.js';
 import { findDiamondConfigById } from '../repositories/diamondConfigs.repository.js';
+import { resolvedPurity, resolvedGoldColor, resolvedDiamondConfigId } from '../repositories/productVariants.repository.js';
+import { findWeightRuleValuesByProduct } from '../repositories/weightRules.repository.js';
 
 // karat/24 — default purity multiplier (plan §9a: "overridable in settings
 // if market convention differs"; no settings table exists in the approved
@@ -124,30 +126,57 @@ export function getCurrentRatesSnapshot() {
   return getCurrentGoldRates();
 }
 
-// Prices a product's line for a customer-selected Gold Color / Purity /
-// Diamond Quality / Size combination. Gold Color never affects price (same
-// karat, different alloy) so it isn't a parameter here. When purity/
-// diamondConfigId match the product's own base values (the common case — no
-// override selected, or the axis isn't configured for this product), the
-// product's already-cached gold_value/diamond_value are reused as-is instead
-// of re-querying rates — same numbers cart/checkout showed before variants
-// existed, zero regression for products with no configured options.
+// Resolves a variant's gold weight through the priority chain: its own
+// exact override wins outright; otherwise a Purity+Size weight default
+// (most specific) beats a Purity-only default; otherwise there's nothing to
+// resolve and the caller falls back to the product's base weight. There is
+// no separate "Size-only" live level — a size's weight is still seeded
+// directly onto matching variants at creation time (via the product's
+// Sizes list), which already makes it an exact-variant-level value, i.e.
+// the top of this chain, not a level of its own.
+async function resolveWeightFromRules(product, variant, weightRules) {
+  const purityValueId = variant?.attributes?.purity?.valueId ?? null;
+  const sizeValueId = variant?.attributes?.size?.valueId ?? null;
+  if (!purityValueId) return null;
+
+  const rules = weightRules ?? (await findWeightRuleValuesByProduct(product.id));
+  const puritySizeRule = sizeValueId
+    ? rules.find((r) => r.purity_value_id === purityValueId && r.size_value_id === sizeValueId)
+    : null;
+  const purityRule = rules.find((r) => r.purity_value_id === purityValueId && r.size_value_id === null);
+  const matched = puritySizeRule ?? purityRule;
+  return matched ? Number(matched.gold_weight_grams) : null;
+}
+
+// Prices a product's line for a specific product_variants row (or the
+// synthetic default variant with no attribute values / overrides, for a
+// product with nothing configured). Replaces the old
+// {purity, diamondConfigId, sizeWeightGrams, sizeDiamondWeightCarats} param
+// shape — every axis (including Gold Color, which never affected price
+// before) is now resolved generically from the variant's own attribute
+// values and weight overrides, falling back to the product's base value on
+// any axis the variant doesn't override. A variant with no overrides at all
+// (or a null `variant`) is byte-identical to pre-variant-model pricing —
+// zero regression for products with nothing configured.
 //
-// sizeWeightGrams/sizeDiamondWeightCarats are optional per-size overrides (a
-// bigger size can use more gold and carry more diamond weight) — when both
-// are omitted/null, this is byte-identical to the pre-size-override behavior
-// below (falls back to the product's own weight/diamond weight).
-export async function computeVariantPricing(
-  product,
-  { purity, diamondConfigId, sizeWeightGrams, sizeDiamondWeightCarats } = {},
-) {
-  const effectivePurity = purity || product.purity;
-  const effectiveDiamondConfigId = diamondConfigId || product.diamond_config_id;
+// `weightRules` is optional — pass a pre-fetched array (from
+// findWeightRuleValuesByProduct) when pricing many variants for the same
+// product in a loop (applyCheapestVariantPricing, adminListVariants) to
+// avoid re-querying per variant; omitted, it's fetched on demand only when
+// actually needed (the variant has no exact weight override of its own).
+export async function computeVariantPricing(product, variant = null, weightRules = null) {
+  const effectivePurity = resolvedPurity(variant) || product.purity;
+  const effectiveDiamondConfigId = resolvedDiamondConfigId(variant) || product.diamond_config_id;
+  const effectiveGoldColor = resolvedGoldColor(variant) || product.gold_color;
 
   const baseWeightGrams = product.gold_weight_grams != null ? Number(product.gold_weight_grams) : null;
-  const effectiveWeightGrams = sizeWeightGrams ?? baseWeightGrams;
+  let variantWeightGrams = variant?.gold_weight_grams != null ? Number(variant.gold_weight_grams) : null;
+  if (variantWeightGrams == null && variant) {
+    variantWeightGrams = await resolveWeightFromRules(product, variant, weightRules);
+  }
+  const effectiveWeightGrams = variantWeightGrams ?? baseWeightGrams;
   const weightOverridden =
-    sizeWeightGrams != null && baseWeightGrams != null && sizeWeightGrams !== baseWeightGrams;
+    variantWeightGrams != null && baseWeightGrams != null && variantWeightGrams !== baseWeightGrams;
 
   let goldValue = Number(product.gold_value);
   if (
@@ -160,11 +189,13 @@ export async function computeVariantPricing(
 
   const baseDiamondWeightCarats =
     product.diamond_weight_carats != null ? Number(product.diamond_weight_carats) : null;
-  const effectiveDiamondWeightCarats = sizeDiamondWeightCarats ?? baseDiamondWeightCarats;
+  const variantDiamondWeightCarats =
+    variant?.diamond_weight_carats != null ? Number(variant.diamond_weight_carats) : null;
+  const effectiveDiamondWeightCarats = variantDiamondWeightCarats ?? baseDiamondWeightCarats;
   const diamondWeightOverridden =
-    sizeDiamondWeightCarats != null &&
+    variantDiamondWeightCarats != null &&
     baseDiamondWeightCarats != null &&
-    sizeDiamondWeightCarats !== baseDiamondWeightCarats;
+    variantDiamondWeightCarats !== baseDiamondWeightCarats;
 
   let diamondValue = Number(product.diamond_value);
   if (
@@ -191,6 +222,32 @@ export async function computeVariantPricing(
   const gstPercent = Number(product.gst_percent);
   const baseSellingPrice = computeSellingPrice({ goldValue, diamondValue, makingCharge, gstPercent });
 
+  // A per-variant manual price override wins outright — set by an admin for
+  // this one exact combination, it replaces the live-computed total. The
+  // component breakdown (goldValue/diamondValue/makingCharge) above is kept
+  // as computed for informational display; only the final total changes.
+  // Product-level promotional offers don't layer on top of a manual
+  // override — the override *is* the final admin-set price.
+  if (variant?.price_override != null) {
+    const overridePrice = round2(Number(variant.price_override));
+    return {
+      purity: effectivePurity,
+      diamondConfigId: effectiveDiamondConfigId,
+      goldColor: effectiveGoldColor,
+      goldValue,
+      diamondValue,
+      diamondValueOriginal: diamondValue,
+      makingCharge,
+      makingChargeOriginal: makingCharge,
+      makingChargeDiscountPercent: 0,
+      diamondDiscountPercent: 0,
+      gstAmount: round2(overridePrice - goldValue - diamondValue - makingCharge),
+      sellingPrice: overridePrice,
+      sellingPriceOriginal: overridePrice,
+      isPriceOverridden: true,
+    };
+  }
+
   const offer = applyProductOffer({
     goldValue,
     diamondValue,
@@ -205,6 +262,7 @@ export async function computeVariantPricing(
   return {
     purity: effectivePurity,
     diamondConfigId: effectiveDiamondConfigId,
+    goldColor: effectiveGoldColor,
     goldValue: offer.goldValue,
     diamondValue: offer.diamondValue,
     diamondValueOriginal: offer.diamondValueOriginal,
@@ -215,5 +273,6 @@ export async function computeVariantPricing(
     gstAmount,
     sellingPrice: offer.sellingPrice,
     sellingPriceOriginal: offer.sellingPriceOriginal,
+    isPriceOverridden: false,
   };
 }

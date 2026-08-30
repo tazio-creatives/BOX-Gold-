@@ -1,40 +1,28 @@
 import { query } from '../config/db.js';
 
-// Available stock = stock_quantity minus whatever is actively reserved by
-// pending checkouts (plan §11) — computed once here so every read path
-// (listing, detail) reflects it consistently. Products with real configured
-// sizes (product_sizes) roll up per-size availability instead — a sizeless
-// reservation never applies to a sized product, so the two counts stay
-// mutually exclusive (product_size_id IS NULL vs IS NOT NULL).
+// Available stock = SUM across every available variant's own stock minus
+// whatever is actively reserved against it (plan §11) — computed once here
+// so every read path (listing, detail) reflects it consistently. Every
+// product always has at least one product_variants row (a synthetic
+// default for a product with no configured attributes), so this needs no
+// branching between "has variants" and "flat product stock" the way the old
+// size-vs-product CASE did.
 const AVAILABLE_STOCK_JOIN = `
-  LEFT JOIN (
-    SELECT product_id, SUM(quantity) AS reserved_qty
-    FROM stock_reservations
-    WHERE status = 'ACTIVE' AND product_size_id IS NULL
-    GROUP BY product_id
-  ) reservations ON reservations.product_id = p.id
   LEFT JOIN LATERAL (
-    SELECT
-      COUNT(*) > 0 AS has_sizes,
-      COALESCE(SUM(GREATEST(ps.stock_quantity - COALESCE(ps_res.reserved_qty, 0), 0)), 0) AS sized_available
-    FROM product_sizes ps
+    SELECT COALESCE(SUM(GREATEST(pv.stock_quantity - COALESCE(v_res.reserved_qty, 0), 0)), 0) AS available
+    FROM product_variants pv
     LEFT JOIN (
-      SELECT product_size_id, SUM(quantity) AS reserved_qty
+      SELECT product_variant_id, SUM(quantity) AS reserved_qty
       FROM stock_reservations
-      WHERE status = 'ACTIVE' AND product_size_id IS NOT NULL
-      GROUP BY product_size_id
-    ) ps_res ON ps_res.product_size_id = ps.id
-    WHERE ps.product_id = p.id
-  ) size_stock ON true
+      WHERE status = 'ACTIVE' AND product_variant_id IS NOT NULL
+      GROUP BY product_variant_id
+    ) v_res ON v_res.product_variant_id = pv.id
+    WHERE pv.product_id = p.id AND pv.is_available = true
+  ) variant_stock ON true
 `;
 // ::int cast: SUM() returns bigint, which node-pg parses as a string to
 // avoid precision loss — cast keeps this a proper JSON number instead.
-const AVAILABLE_STOCK_SELECT = `
-  CASE
-    WHEN size_stock.has_sizes THEN size_stock.sized_available::int
-    ELSE (p.stock_quantity - COALESCE(reservations.reserved_qty, 0))::int
-  END AS available_stock
-`;
+const AVAILABLE_STOCK_SELECT = `variant_stock.available::int AS available_stock`;
 
 // "small" is the listing-card size (plan §35); no image upload flow exists
 // yet (Phase 9/15), so this is null until then and the frontend falls back
@@ -226,45 +214,6 @@ export async function findProductImages(productId) {
   return rows;
 }
 
-export async function findProductSizes(productId) {
-  const { rows } = await query(
-    `SELECT ps.id, ps.label, ps.stock_quantity, ps.weight_grams, ps.diamond_weight_carats,
-            GREATEST(ps.stock_quantity - COALESCE(res.reserved_qty, 0), 0)::int AS available_stock
-     FROM product_sizes ps
-     LEFT JOIN (
-       SELECT product_size_id, SUM(quantity) AS reserved_qty
-       FROM stock_reservations
-       WHERE status = 'ACTIVE' AND product_size_id IS NOT NULL
-       GROUP BY product_size_id
-     ) res ON res.product_size_id = ps.id
-     WHERE ps.product_id = $1
-     ORDER BY ps.sort_order`,
-    [productId],
-  );
-  return rows;
-}
-
-// Batch lookup by size id (cart/checkout hydration — mirrors
-// findProductsByIds) rather than per-product, since a cart's lines can span
-// many different products' size rows.
-export async function findProductSizesByIds(ids) {
-  if (ids.length === 0) return [];
-  const { rows } = await query(
-    `SELECT ps.id, ps.product_id, ps.label, ps.stock_quantity, ps.weight_grams, ps.diamond_weight_carats,
-            GREATEST(ps.stock_quantity - COALESCE(res.reserved_qty, 0), 0)::int AS available_stock
-     FROM product_sizes ps
-     LEFT JOIN (
-       SELECT product_size_id, SUM(quantity) AS reserved_qty
-       FROM stock_reservations
-       WHERE status = 'ACTIVE' AND product_size_id IS NOT NULL
-       GROUP BY product_size_id
-     ) res ON res.product_size_id = ps.id
-     WHERE ps.id = ANY($1)`,
-    [ids],
-  );
-  return rows;
-}
-
 const INSERT_COLUMNS = [
   'name',
   'sku',
@@ -288,6 +237,7 @@ const INSERT_COLUMNS = [
   'gemstone',
   'certification',
   'product_size',
+  'size_label',
   'care_instructions',
   'gold_value',
   'diamond_value',
@@ -361,26 +311,19 @@ export async function deleteProduct(id) {
 // category_id/slug are pulled through here (not just pricing fields) so the
 // recalculation jobs can invalidate the right page_cache rows per product
 // without an extra query per row (plan §1a invalidation hooks).
-// A size with no weight_grams override still prices at the base Gold
-// Weight once selected (see computeVariantPricing's fallback) — so the base
-// weight is only a valid "cheapest achievable" candidate when at least one
-// size actually has no override (or there are no sizes at all). If every
-// size carries its own (heavier) override, the base weight alone is never
-// actually purchasable and MIN(weight_grams) across the sizes is the real
-// floor instead.
+//
+// Only the product's own cached base price needs proactive recalculation
+// here — every product_variants row is priced live via computeVariantPricing
+// at read time (always querying the current gold/diamond rate), so there's
+// no per-variant cache to go stale. pricingJobs.js re-derives the cheapest
+// variant's price via productsService.applyCheapestVariantPricing after
+// this, superseding the old "cheapest weight" heuristic that used to live
+// in this query (every axis, not just size, can move price now).
 export async function findGoldProductsForRecalculation() {
   const { rows } = await query(
-    `SELECT p.id, p.slug, p.category_id, p.gold_weight_grams, p.purity, p.diamond_value, p.making_charge,
-            p.making_charge_percent, p.gst_percent, p.selling_price,
-            (SELECT
-               CASE
-                 WHEN NOT EXISTS (SELECT 1 FROM product_sizes WHERE product_id = p.id) THEN NULL
-                 WHEN EXISTS (SELECT 1 FROM product_sizes WHERE product_id = p.id AND weight_grams IS NULL)
-                   THEN p.gold_weight_grams
-                 ELSE (SELECT MIN(weight_grams) FROM product_sizes WHERE product_id = p.id)
-               END
-            ) AS pricing_weight_grams
-     FROM products p
+    `SELECT id, slug, category_id, gold_weight_grams, purity, diamond_value, making_charge,
+            making_charge_percent, gst_percent, selling_price
+     FROM products
      WHERE metal_type = 'GOLD' AND purity IS NOT NULL AND gold_weight_grams IS NOT NULL
        AND is_price_locked = false`,
   );

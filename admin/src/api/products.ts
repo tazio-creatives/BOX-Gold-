@@ -62,3 +62,49 @@ export function setFeatured(id: string, featured: boolean) {
     body: JSON.stringify({ featured }),
   });
 }
+
+export interface ProductVariantRow {
+  id: string;
+  label: string;
+  isAvailable: boolean;
+  stockQuantity: number;
+  goldWeightGrams: number | null;
+  diamondWeightGrams: number | null;
+  diamondWeightCarats: number | null;
+  sellingPrice: number;
+  priceOverride: number | null;
+  isPriceOverridden: boolean;
+  attributeValueIds: string[];
+  excludedByRuleId: string | null;
+}
+
+export interface ProductVariantInput {
+  stockQuantity?: number;
+  goldWeightGrams?: number | null;
+  diamondWeightGrams?: number | null;
+  diamondWeightCarats?: number | null;
+  isAvailable?: boolean;
+  priceOverride?: number | null;
+}
+
+export function fetchProductVariants(productId: string) {
+  return apiFetch<{ variants: ProductVariantRow[] }>(`/admin/products/${productId}/variants`);
+}
+
+export function updateProductVariant(productId: string, variantId: string, input: ProductVariantInput) {
+  return apiFetch<{ variant: ProductVariantRow }>(`/admin/products/${productId}/variants/${variantId}`, {
+    method: 'PATCH',
+    body: JSON.stringify(input),
+  });
+}
+
+export function bulkUpdateProductVariants(
+  productId: string,
+  variantIds: string[],
+  fields: Omit<ProductVariantInput, 'stockQuantity'> & { stockQuantity?: number },
+) {
+  return apiFetch<{ variants: ProductVariantRow[] }>(`/admin/products/${productId}/variants/bulk`, {
+    method: 'PATCH',
+    body: JSON.stringify({ variantIds, fields }),
+  });
+}

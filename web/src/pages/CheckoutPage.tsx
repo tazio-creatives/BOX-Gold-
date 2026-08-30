@@ -23,15 +23,14 @@ import placeholderStyles from './PlaceholderPage.module.css';
 
 interface DisplayItem {
   productId: string;
+  variantId: string | null;
   name: string;
   sellingPrice: number;
   quantity: number;
   primaryImageUrl: string | null;
-  sizeId: string | null;
   sizeLabel: string | null;
   goldColor: string | null;
   purity: string | null;
-  diamondConfigId: string | null;
   diamondConfigName: string | null;
   isBackordered: boolean;
 }
@@ -366,30 +365,28 @@ export function CheckoutPage() {
     ? [
         {
           productId: buyNow.productId,
+          variantId: buyNow.variantId ?? null,
           name: buyNow.name,
           sellingPrice: buyNow.sellingPrice,
           quantity: buyNow.quantity,
           primaryImageUrl: buyNow.primaryImageUrl,
-          sizeId: buyNow.sizeId ?? null,
           sizeLabel: buyNow.sizeLabel ?? null,
           goldColor: buyNow.goldColor ?? null,
           purity: buyNow.purity ?? null,
-          diamondConfigId: buyNow.diamondConfigId ?? null,
           diamondConfigName: buyNow.diamondConfigName ?? null,
           isBackordered: buyNow.isBackordered ?? false,
         },
       ]
     : (cartData?.items ?? []).map((i) => ({
         productId: i.productId,
+        variantId: i.variantId,
         name: i.name,
         sellingPrice: i.sellingPrice,
         quantity: i.quantity,
         primaryImageUrl: i.primaryImageUrl,
-        sizeId: i.sizeId,
         sizeLabel: i.sizeLabel,
         goldColor: i.goldColor,
         purity: i.purity,
-        diamondConfigId: i.diamondConfigId,
         diamondConfigName: i.diamondConfigName,
         isBackordered: i.isBackordered,
       }));
@@ -410,7 +407,7 @@ export function CheckoutPage() {
   const summaryItems = displayItems.map((item) => {
     const variantBits = [item.sizeLabel ? `Size ${item.sizeLabel}` : null, item.diamondConfigName].filter(Boolean);
     return {
-      id: [item.productId, item.sizeId, item.goldColor, item.purity, item.diamondConfigId].map((v) => v ?? '').join(':'),
+      id: item.variantId ?? item.productId,
       name: variantBits.length > 0 ? `${item.name} (${variantBits.join(', ')})` : item.name,
       qty: item.quantity,
       image: item.primaryImageUrl,
@@ -506,10 +503,7 @@ export function CheckoutPage() {
       items: displayItems.map((i) => ({
         productId: i.productId,
         quantity: i.quantity,
-        ...(i.sizeId ? { sizeId: i.sizeId } : {}),
-        ...(i.goldColor ? { goldColor: i.goldColor } : {}),
-        ...(i.purity ? { purity: i.purity } : {}),
-        ...(i.diamondConfigId ? { diamondConfigId: i.diamondConfigId } : {}),
+        ...(i.variantId ? { variantId: i.variantId } : {}),
       })),
       ...(appliedCoupon ? { couponCode: appliedCoupon.code } : {}),
     });

@@ -4,8 +4,14 @@ import { ApiError } from '../api/client';
 import { fetchHomepage } from '../api/homepage';
 import { fetchCategories } from '../api/categories';
 import { fetchCollectionBySlug } from '../api/collections';
-import { fetchProducts, fetchProductBySlug } from '../api/products';
+import { fetchProductBySlug } from '../api/products';
 import { parsePlpFilters } from '../features/plp/parsePlpFilters';
+import {
+  productsQueryKey,
+  fetchProductsPage,
+  getNextProductsPageParam,
+  type ProductsQueryFilters,
+} from '../features/plp/productsQuery';
 import type { Category } from '../api/types';
 
 // Prefetches the exact same TanStack Query key + data each of the 4 SSR
@@ -35,17 +41,15 @@ export async function prefetchForRoute(
       fetchCollectionBySlug(collectionSlug),
     );
     if (!notFound) {
-      const filters = parsePlpFilters(searchParams);
-      await safePrefetch(queryClient, ['products', { collectionSlug, ...filters }], () =>
-        fetchProducts({ collection: collectionSlug, ...filters, limit: 24 }),
-      );
+      const filters = { collection: collectionSlug, ...parsePlpFilters(searchParams) };
+      await safePrefetchProducts(queryClient, filters);
     }
     return { notFound };
   }
 
   if (pathname === '/new-arrivals') {
     const filters = parsePlpFilters(searchParams);
-    await safePrefetch(queryClient, ['products', { ...filters }], () => fetchProducts({ ...filters, limit: 24 }));
+    await safePrefetchProducts(queryClient, filters);
     return { notFound: false };
   }
 
@@ -67,10 +71,8 @@ export async function prefetchForRoute(
     const exists = categoriesData?.categories.some((c) => c.slug === categorySlug) ?? false;
     if (!exists) return { notFound: true };
 
-    const filters = parsePlpFilters(searchParams);
-    await safePrefetch(queryClient, ['products', { categorySlug, ...filters }], () =>
-      fetchProducts({ category: categorySlug, ...filters, limit: 24 }),
-    );
+    const filters = { category: categorySlug, ...parsePlpFilters(searchParams) };
+    await safePrefetchProducts(queryClient, filters);
     return { notFound: false };
   }
 
@@ -105,6 +107,26 @@ async function safePrefetch<T>(
 ): Promise<void> {
   try {
     await queryClient.prefetchQuery({ queryKey, queryFn });
+  } catch {
+    // intentionally swallowed
+  }
+}
+
+// The PLP grid is an infinite-scroll query client-side (productsQuery.ts) —
+// this has to prefetch the same shape (prefetchInfiniteQuery, not
+// prefetchQuery) with the same key/queryFn/getNextPageParam, or the
+// dehydrated first page comes back as the wrong cache shape and the client
+// silently refetches from scratch on hydration instead of reusing it. Only
+// page 1 is fetched server-side (the `pages: 1` default) — scrolling further
+// is a client-only concern.
+async function safePrefetchProducts(queryClient: QueryClient, filters: ProductsQueryFilters): Promise<void> {
+  try {
+    await queryClient.prefetchInfiniteQuery({
+      queryKey: productsQueryKey(filters),
+      queryFn: ({ pageParam }) => fetchProductsPage(filters, pageParam as number),
+      initialPageParam: 1,
+      getNextPageParam: getNextProductsPageParam,
+    });
   } catch {
     // intentionally swallowed
   }

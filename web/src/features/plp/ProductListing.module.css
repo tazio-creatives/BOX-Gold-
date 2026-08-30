@@ -148,6 +148,35 @@
   margin-top: auto;
 }
 
+.loadMoreSentinel {
+  min-height: 1px;
+}
+
+.loadingMore {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: var(--space-6) 0;
+  font-size: 13px;
+  color: #667172;
+}
+
+.loadingMoreSpinner {
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  border: 2px solid #d8d3cb;
+  border-top-color: #075968;
+  animation: loadMoreSpin 0.8s linear infinite;
+}
+
+@keyframes loadMoreSpin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
 .stateBlock {
   text-align: center;
   padding: var(--space-10) 0;

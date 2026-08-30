@@ -5,6 +5,7 @@ import { DashboardPage } from './pages/DashboardPage';
 import { ProductsListPage } from './pages/products/ProductsListPage';
 import { ProductFormPage } from './pages/products/ProductFormPage';
 import { AiImageStudioPage } from './pages/products/AiImageStudioPage';
+import { ProductVariantsPage } from './pages/products/ProductVariantsPage';
 import { CategoriesPage } from './pages/CategoriesPage';
 import { CollectionsPage } from './pages/CollectionsPage';
 import { OrdersListPage } from './pages/orders/OrdersListPage';
@@ -15,6 +16,7 @@ import { HomepagePage } from './pages/HomepagePage';
 import { ReviewsListPage } from './pages/reviews/ReviewsListPage';
 import { CouponsListPage } from './pages/coupons/CouponsListPage';
 import { PricingPage } from './pages/PricingPage';
+import { AttributesPage } from './pages/AttributesPage';
 import { AdminUsersListPage } from './pages/adminUsers/AdminUsersListPage';
 import { AuditLogsPage } from './pages/AuditLogsPage';
 
@@ -28,6 +30,7 @@ export function App() {
         <Route path="/products/new" element={<ProductFormPage />} />
         <Route path="/products/:id/edit" element={<ProductFormPage />} />
         <Route path="/products/:id/ai-image-studio" element={<AiImageStudioPage />} />
+        <Route path="/products/:id/variants" element={<ProductVariantsPage />} />
         <Route path="/categories" element={<CategoriesPage />} />
         <Route path="/collections" element={<CollectionsPage />} />
         <Route path="/homepage" element={<HomepagePage />} />
@@ -38,6 +41,7 @@ export function App() {
         <Route path="/reviews" element={<ReviewsListPage />} />
         <Route path="/coupons" element={<CouponsListPage />} />
         <Route path="/pricing" element={<PricingPage />} />
+        <Route path="/attributes" element={<AttributesPage />} />
         <Route path="/admin-users" element={<AdminUsersListPage />} />
         <Route path="/audit-logs" element={<AuditLogsPage />} />
       </Route>

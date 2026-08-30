@@ -1,8 +1,4 @@
-import {
-  addCartItemSchema,
-  updateCartItemSchema,
-  cartItemVariantQuerySchema,
-} from '../validators/cart.validators.js';
+import { addCartItemSchema, updateCartItemSchema } from '../validators/cart.validators.js';
 import * as cartService from '../services/cartService.js';
 
 // Cart works for both guests (cart_session cookie, plan §27) and logged-in
@@ -36,13 +32,7 @@ export async function addItem(req, res, next) {
 export async function updateItem(req, res, next) {
   try {
     const { quantity } = updateCartItemSchema.parse(req.body);
-    const variant = cartItemVariantQuerySchema.parse(req.query);
-    const cart = await cartService.updateItemQuantity(
-      ownerFromReq(req),
-      req.params.productId,
-      variant,
-      quantity,
-    );
+    const cart = await cartService.updateItemQuantity(ownerFromReq(req), req.params.variantId, quantity);
     res.json(cart);
   } catch (err) {
     next(err);
@@ -51,8 +41,7 @@ export async function updateItem(req, res, next) {
 
 export async function removeItem(req, res, next) {
   try {
-    const variant = cartItemVariantQuerySchema.parse(req.query);
-    const cart = await cartService.removeItem(ownerFromReq(req), req.params.productId, variant);
+    const cart = await cartService.removeItem(ownerFromReq(req), req.params.variantId);
     res.json(cart);
   } catch (err) {
     next(err);

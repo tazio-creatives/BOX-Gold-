@@ -24,6 +24,7 @@ import { collectionsRouter } from './routes/collections.routes.js';
 import { searchRouter } from './routes/search.routes.js';
 import { homepageRouter } from './routes/homepage.routes.js';
 import { adminProductsRouter } from './routes/admin/products.routes.js';
+import { adminAttributesRouter } from './routes/admin/attributes.routes.js';
 import { adminImageEnhancementRouter } from './routes/admin/imageEnhancement.routes.js';
 import { adminCategoriesRouter } from './routes/admin/categories.routes.js';
 import { adminCollectionsRouter } from './routes/admin/collections.routes.js';
@@ -119,6 +120,7 @@ export function createApp() {
   const adminCatalogRouter = express.Router();
   adminCatalogRouter.use(adminSession, loadAdmin, requireAdminAuth, requireCsrfHeader, auditLog);
   adminCatalogRouter.use('/products', adminProductsRouter);
+  adminCatalogRouter.use('/attributes', adminAttributesRouter);
   adminCatalogRouter.use('/image-enhancement', adminImageEnhancementRouter);
   adminCatalogRouter.use('/categories', adminCategoriesRouter);
   adminCatalogRouter.use('/collections', adminCollectionsRouter);
