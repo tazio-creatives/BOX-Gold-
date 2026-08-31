@@ -28,9 +28,10 @@ interface StudioStepperProps {
   status: StudioJobStatus | null;
   confirmSubStep: 'analyse' | 'presenter' | 'prompts';
   generateCount: number;
+  isRing?: boolean;
 }
 
-export function StudioStepper({ status, confirmSubStep, generateCount }: StudioStepperProps) {
+export function StudioStepper({ status, confirmSubStep, generateCount, isRing }: StudioStepperProps) {
   const activeIndex = stepIndexForStatus(status, confirmSubStep);
 
   return (
@@ -38,7 +39,12 @@ export function StudioStepper({ status, confirmSubStep, generateCount }: StudioS
       {STEPS.map((step, i) => {
         const isDone = activeIndex > i || status === 'completed';
         const isActive = activeIndex === i && status !== 'completed';
-        const label = i === 3 ? `Generate ${generateCount} Image${generateCount === 1 ? '' : 's'}` : step.label;
+        const label =
+          i === 3
+            ? `Generate ${generateCount} Image${generateCount === 1 ? '' : 's'}`
+            : i === 2 && isRing
+              ? 'Hand Pose'
+              : step.label;
         return (
           <li key={step.label} className={styles.step}>
             <span className={isActive ? styles.dotActive : isDone ? styles.dotDone : styles.dot}>{i + 1}</span>

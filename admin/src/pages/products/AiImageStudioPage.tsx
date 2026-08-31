@@ -12,6 +12,7 @@ import {
   completeStudioImport,
   cancelStudioJob,
   type JewelleryType,
+  type HandPoseId,
   type PromptOverrides,
   type PromptCreativeOverride,
 } from '../../api/aiStudio';
@@ -23,6 +24,7 @@ import { StudioStepper } from '../../features/aiStudio/StudioStepper';
 import { UploadStep } from '../../features/aiStudio/UploadStep';
 import { AnalyseConfirmStep } from '../../features/aiStudio/AnalyseConfirmStep';
 import { PresenterStep } from '../../features/aiStudio/PresenterStep';
+import { HandPoseStep } from '../../features/aiStudio/HandPoseStep';
 import { ReviewPromptsStep } from '../../features/aiStudio/ReviewPromptsStep';
 import { GenerateStep } from '../../features/aiStudio/GenerateStep';
 import { ReviewImportStep } from '../../features/aiStudio/ReviewImportStep';
@@ -60,8 +62,14 @@ export function AiImageStudioPage() {
     () => localStorage.getItem(ROSE_GOLD_PREF_KEY) !== 'false',
   );
   const [presenterId, setPresenterId] = useState<string | null>(null);
+  const [handPose, setHandPose] = useState<HandPoseId>('BACK_OF_HAND_HERO');
   const [promptOverrides, setPromptOverrides] = useState<PromptOverrides>({});
-  const [regeneratingAssetId, setRegeneratingAssetId] = useState<string | null>(null);
+  // A Set (not a single id) so "Regenerate All" — Ring-only — can show every
+  // in-flight tile's own "Requesting…" state at once, not just the last one
+  // clicked; individual regenerate still works exactly as before, just
+  // adding/removing its own id from the set.
+  const [regeneratingAssetIds, setRegeneratingAssetIds] = useState<Set<string>>(new Set());
+  const isRing = jewelleryType === 'RING';
 
   const { data: productData } = useQuery({
     queryKey: ['admin-product', productId],
@@ -134,21 +142,36 @@ export function AiImageStudioPage() {
       confirmStudioJob(productId as string, jobId as string, {
         jewelleryType: jewelleryType as Exclude<JewelleryType, 'UNKNOWN'>,
         categoryId: product?.categoryId ?? null,
-        presenterId,
+        presenterId: isRing ? null : presenterId,
         generateRoseGold,
+        handPose: isRing ? handPose : undefined,
         promptOverrides,
       }),
     onSuccess: invalidateJob,
   });
 
   const retryMutation = useMutation({
-    mutationFn: (assetId: string) => {
-      setRegeneratingAssetId(assetId);
-      return retryStudioAsset(productId as string, jobId as string, assetId);
-    },
-    onSuccess: invalidateJob,
-    onSettled: () => setRegeneratingAssetId(null),
+    mutationFn: (assetId: string) => retryStudioAsset(productId as string, jobId as string, assetId),
   });
+
+  function regenerateAsset(assetId: string) {
+    setRegeneratingAssetIds((prev) => new Set(prev).add(assetId));
+    retryMutation.mutate(assetId, {
+      onSuccess: invalidateJob,
+      onSettled: () =>
+        setRegeneratingAssetIds((prev) => {
+          const next = new Set(prev);
+          next.delete(assetId);
+          return next;
+        }),
+    });
+  }
+
+  function regenerateAllAssets(assetIds: string[]) {
+    for (const assetId of assetIds) {
+      if (!regeneratingAssetIds.has(assetId)) regenerateAsset(assetId);
+    }
+  }
 
   const selectionMutation = useMutation({
     mutationFn: ({
@@ -168,11 +191,16 @@ export function AiImageStudioPage() {
       await updateStudioAssetSelection(productId as string, jobId as string, assetId, {
         customCreativeInstructions: override,
       });
-      setRegeneratingAssetId(assetId);
+      setRegeneratingAssetIds((prev) => new Set(prev).add(assetId));
       return retryStudioAsset(productId as string, jobId as string, assetId);
     },
     onSuccess: invalidateJob,
-    onSettled: () => setRegeneratingAssetId(null),
+    onSettled: (_data, _err, variables) =>
+      setRegeneratingAssetIds((prev) => {
+        const next = new Set(prev);
+        next.delete(variables.assetId);
+        return next;
+      }),
   });
 
   const cancelMutation = useMutation({
@@ -188,7 +216,7 @@ export function AiImageStudioPage() {
     localStorage.setItem(ROSE_GOLD_PREF_KEY, String(value));
   }
 
-  const generateCount = resolveAssetTypesForJob({ generateRoseGold, hasPresenter: !!presenterId }).length;
+  const generateCount = resolveAssetTypesForJob({ generateRoseGold, hasPresenter: !!presenterId, jewelleryType }).length;
 
   return (
     <div>
@@ -204,7 +232,7 @@ export function AiImageStudioPage() {
         Upload jewellery reference photos and generate a catalogue image set for {product?.name ?? 'this product'}.
       </p>
 
-      <StudioStepper status={job?.status ?? null} confirmSubStep={confirmSubStep} generateCount={generateCount} />
+      <StudioStepper status={job?.status ?? null} confirmSubStep={confirmSubStep} generateCount={generateCount} isRing={isRing} />
 
       <section className={sharedStyles.cardPadded}>
         {!job && (
@@ -241,12 +269,16 @@ export function AiImageStudioPage() {
 
         {job && job.status === 'awaiting_confirmation' && confirmSubStep === 'presenter' && (
           <>
-            <PresenterStep
-              jewelleryType={jewelleryType}
-              presenterId={presenterId}
-              onChange={setPresenterId}
-              generateRoseGold={generateRoseGold}
-            />
+            {isRing ? (
+              <HandPoseStep handPose={handPose} onChange={setHandPose} generateRoseGold={generateRoseGold} />
+            ) : (
+              <PresenterStep
+                jewelleryType={jewelleryType}
+                presenterId={presenterId}
+                onChange={setPresenterId}
+                generateRoseGold={generateRoseGold}
+              />
+            )}
             <div className={styles.actions}>
               <button type="button" className={sharedStyles.button} onClick={() => setConfirmSubStep('analyse')}>
                 Back
@@ -268,9 +300,10 @@ export function AiImageStudioPage() {
               productId={productId as string}
               jobId={jobId as string}
               jewelleryType={jewelleryType as Exclude<JewelleryType, 'UNKNOWN'>}
-              presenterId={presenterId}
-              presenterName={presenters.find((p) => p.id === presenterId)?.displayName ?? null}
+              presenterId={isRing ? null : presenterId}
+              presenterName={isRing ? null : presenters.find((p) => p.id === presenterId)?.displayName ?? null}
               generateRoseGold={generateRoseGold}
+              handPose={isRing ? handPose : undefined}
               promptOverrides={promptOverrides}
               onPromptOverridesChange={setPromptOverrides}
             />
@@ -294,16 +327,19 @@ export function AiImageStudioPage() {
         {job && job.status === 'generating' && (
           <GenerateStep
             assets={job.assets}
-            onRegenerate={(assetId) => retryMutation.mutate(assetId)}
-            regeneratingAssetId={regeneratingAssetId}
+            jewelleryType={job.jewelleryType}
+            generateRoseGold={job.generateRoseGold}
+            onRegenerate={regenerateAsset}
+            regeneratingAssetIds={regeneratingAssetIds}
           />
         )}
 
         {job && ['review_ready', 'partially_failed', 'importing', 'completed'].includes(job.status) && (
           <ReviewImportStep
             job={job}
-            onRegenerate={(assetId) => retryMutation.mutate(assetId)}
-            regeneratingAssetId={regeneratingAssetId}
+            onRegenerate={regenerateAsset}
+            onRegenerateAll={regenerateAllAssets}
+            regeneratingAssetIds={regeneratingAssetIds}
             onToggleSelected={(assetId, selected) => selectionMutation.mutate({ assetId, input: { selected } })}
             onSetFeatured={(assetId) => selectionMutation.mutate({ assetId, input: { isFeatured: true } })}
             onAcceptValidation={(assetId) => selectionMutation.mutate({ assetId, input: { validationAccepted: true } })}

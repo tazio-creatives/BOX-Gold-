@@ -72,11 +72,24 @@ export function deriveJobStatus(assets) {
 // never overrides an admin's later "Set as Featured" choice from Step 5.
 async function ensureDefaultFeatured(jobId, assets) {
   if (assets.some((a) => a.is_featured)) return;
-  const front = assets.find((a) => a.asset_type === 'YELLOW_FRONT' && a.status === 'READY');
+  const front = assets.find(
+    (a) => (a.asset_type === 'YELLOW_FRONT' || a.asset_type === 'RING_GOLD_FRONT') && a.status === 'READY',
+  );
   if (front) await updateAsset(front.id, { is_featured: true });
 }
 
-async function generateOneAsset({ jobId, asset, referenceBuffer, mimetype, template, confirmedType, presenter, imageModel }) {
+async function generateOneAsset({
+  jobId,
+  asset,
+  referenceBuffer,
+  mimetype,
+  template,
+  confirmedType,
+  presenter,
+  imageModel,
+  generateRoseGold,
+  handPose,
+}) {
   // A cancelled job's late-arriving results are discarded, never written
   // back (plan §12) — checked immediately before each write, not just once
   // up front, since cancellation can land mid-flight.
@@ -112,6 +125,8 @@ async function generateOneAsset({ jobId, asset, referenceBuffer, mimetype, templ
       creative: asset.custom_creative_instructions ?? undefined,
       priorFailure,
       promptOverride: priorFailure ? undefined : (asset.assembled_final_prompt ?? undefined),
+      generateRoseGold,
+      handPose,
     });
 
     const stillActive = await findJobById(jobId);
@@ -134,7 +149,7 @@ async function generateOneAsset({ jobId, asset, referenceBuffer, mimetype, templ
         referenceBuffer,
         referenceMimetype: mimetype,
         confirmedType,
-        metalColor: metalColorForAssetType(asset.asset_type),
+        metalColor: metalColorForAssetType(asset.asset_type, generateRoseGold),
         assetType: asset.asset_type,
       });
       validationStatus = result.validationStatus;
@@ -208,6 +223,8 @@ async function generateHandler(jobs) {
         confirmedType: aiStudioJob.jewellery_type,
         presenter,
         imageModel: env.openaiImageModel,
+        generateRoseGold: aiStudioJob.generate_rose_gold,
+        handPose: aiStudioJob.hand_pose,
       }),
     );
 

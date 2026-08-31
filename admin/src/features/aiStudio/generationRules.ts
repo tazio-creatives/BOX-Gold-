@@ -1,5 +1,15 @@
 import type { AssetType, JewelleryType } from '../../api/aiStudio';
 
+const RING_ASSET_TYPES: AssetType[] = [
+  'RING_HAND_1',
+  'RING_HAND_2',
+  'RING_GOLD_FRONT',
+  'RING_GOLD_SIDE',
+  'RING_ROSE_FRONT',
+  'RING_ROSE_SIDE',
+];
+const RING_ASSET_TYPE_SET = new Set<AssetType>(RING_ASSET_TYPES);
+
 // Best-effort keyword match from a free-text product category name (e.g.
 // "Diamond Rings", "Rose Gold Bangle") to the fixed jewellery-type
 // vocabulary — categories in this app aren't constrained to that vocabulary,
@@ -30,14 +40,24 @@ export function inferJewelleryTypeFromCategory(categoryName: string | null): Jew
 // Mirrors backend/src/services/aiStudioService.js's resolveAssetTypesForJob —
 // duplicated intentionally (same pattern as SHOT_LABELS being duplicated
 // across GenerateStep/ReviewImportStep) so Step 3's live Generation Summary
-// can compute counts reactively without a round-trip to the server.
+// can compute counts reactively without a round-trip to the server. Ring is
+// a completely separate, fixed 4/6-image output structure (Hand Pose 1/2 +
+// Front/Side, no 45° Hero) — ignores hasPresenter entirely, since Rings
+// never use a Presenter.
 export function resolveAssetTypesForJob({
   generateRoseGold,
   hasPresenter,
+  jewelleryType,
 }: {
   generateRoseGold: boolean;
   hasPresenter: boolean;
+  jewelleryType?: JewelleryType | '';
 }): AssetType[] {
+  if (jewelleryType === 'RING') {
+    const types: AssetType[] = ['RING_HAND_1', 'RING_HAND_2', 'RING_GOLD_FRONT', 'RING_GOLD_SIDE'];
+    if (generateRoseGold) types.push('RING_ROSE_FRONT', 'RING_ROSE_SIDE');
+    return types;
+  }
   const types: AssetType[] = ['YELLOW_FRONT', 'YELLOW_HERO_45'];
   if (generateRoseGold) types.push('ROSE_FRONT', 'ROSE_HERO_45');
   if (hasPresenter) {
@@ -48,12 +68,25 @@ export function resolveAssetTypesForJob({
 }
 
 export function catalogueCount(types: AssetType[]): number {
-  return types.filter((t) => t === 'YELLOW_FRONT' || t === 'YELLOW_HERO_45' || t === 'ROSE_FRONT' || t === 'ROSE_HERO_45')
-    .length;
+  return types.filter(
+    (t) =>
+      t === 'YELLOW_FRONT' ||
+      t === 'YELLOW_HERO_45' ||
+      t === 'ROSE_FRONT' ||
+      t === 'ROSE_HERO_45' ||
+      t === 'RING_GOLD_FRONT' ||
+      t === 'RING_GOLD_SIDE' ||
+      t === 'RING_ROSE_FRONT' ||
+      t === 'RING_ROSE_SIDE',
+  ).length;
 }
 
 export function presenterCount(types: AssetType[]): number {
   return types.filter((t) => t.startsWith('PRESENTER_')).length;
+}
+
+export function handShotCount(types: AssetType[]): number {
+  return types.filter((t) => t === 'RING_HAND_1' || t === 'RING_HAND_2').length;
 }
 
 export const SHOT_LABELS: Record<AssetType, string> = {
@@ -64,15 +97,37 @@ export const SHOT_LABELS: Record<AssetType, string> = {
   PRESENTER_YELLOW_1: 'Yellow Gold — Presenter',
   PRESENTER_YELLOW_2: 'Yellow Gold — Presenter (Alt Angle)',
   PRESENTER_ROSE: 'Rose Gold — Presenter',
+  RING_HAND_1: 'Yellow Gold — Hand Pose 1',
+  RING_HAND_2: 'Rose Gold — Hand Pose 2',
+  RING_GOLD_FRONT: 'Yellow Gold — True Front View',
+  RING_GOLD_SIDE: 'Yellow Gold — True Side Profile',
+  RING_ROSE_FRONT: 'Rose Gold — True Front View',
+  RING_ROSE_SIDE: 'Rose Gold — True Side Profile',
 };
 
-export type AssetGroup = 'Yellow Gold' | 'Rose Gold' | 'Presenter';
+// RING_HAND_2's label depends on the Rose Gold toggle (its static SHOT_LABELS
+// entry above assumes Rose Gold is on, the common case) — every other Ring
+// label is fixed regardless of the toggle.
+export function ringShotLabel(assetType: AssetType, generateRoseGold: boolean): string {
+  if (assetType === 'RING_HAND_2' && !generateRoseGold) return 'Yellow Gold — Hand Pose 2';
+  return SHOT_LABELS[assetType];
+}
+
+export type AssetGroup = 'Yellow Gold' | 'Rose Gold' | 'Presenter' | 'Ring';
 
 export function groupForAssetType(assetType: AssetType): AssetGroup {
+  if (RING_ASSET_TYPE_SET.has(assetType)) return 'Ring';
   if (assetType.startsWith('PRESENTER_')) return 'Presenter';
   return assetType.startsWith('ROSE_') ? 'Rose Gold' : 'Yellow Gold';
 }
 
-export function metalColorForAssetType(assetType: AssetType): 'YELLOW' | 'ROSE' {
+// RING_HAND_2's metal follows the Rose Gold toggle (Rose when required, Gold
+// otherwise) — every other asset type is unambiguous from its name alone, so
+// the extra param is a no-op for them. Defaults to true (Rose Gold on) to
+// match the previous no-arg call sites' assumption.
+export function metalColorForAssetType(assetType: AssetType, generateRoseGold = true): 'YELLOW' | 'ROSE' {
+  if (assetType === 'RING_HAND_2') return generateRoseGold ? 'ROSE' : 'YELLOW';
+  if (assetType.startsWith('RING_ROSE_')) return 'ROSE';
+  if (RING_ASSET_TYPE_SET.has(assetType)) return 'YELLOW';
   return assetType.startsWith('ROSE_') || assetType === 'PRESENTER_ROSE' ? 'ROSE' : 'YELLOW';
 }

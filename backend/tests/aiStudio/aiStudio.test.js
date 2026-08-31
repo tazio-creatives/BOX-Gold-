@@ -2,7 +2,14 @@ import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
 import { deriveJobStatus } from '../../src/jobs/aiStudioJob.js';
 import { confirmSchema } from '../../src/controllers/aiStudio.controller.js';
-import { JEWELLERY_TYPES, resolveAssetTypesForJob, previewPromptsForJob } from '../../src/services/aiStudioService.js';
+import {
+  JEWELLERY_TYPES,
+  HAND_POSES,
+  resolveAssetTypesForJob,
+  previewPromptsForJob,
+  metalColorForAssetType,
+  formatHandPose,
+} from '../../src/services/aiStudioService.js';
 import { query } from '../../src/config/db.js';
 import { insertJob, findCategoryTemplate } from '../../src/repositories/aiStudio.repository.js';
 
@@ -98,6 +105,57 @@ describe('resolveAssetTypesForJob (rose gold toggle x presenter selection)', () 
   });
 });
 
+describe('resolveAssetTypesForJob — Ring-only output structure', () => {
+  test('confirmedType RING, rose gold off -> exactly 4: both hand poses + gold front/side, no 45° hero, ignores hasPresenter', () => {
+    assert.deepEqual(
+      resolveAssetTypesForJob({ generateRoseGold: false, hasPresenter: true, confirmedType: 'RING' }),
+      ['RING_HAND_1', 'RING_HAND_2', 'RING_GOLD_FRONT', 'RING_GOLD_SIDE'],
+    );
+  });
+
+  test('confirmedType RING, rose gold on -> exactly 6, in the client-mandated Position 1-6 order', () => {
+    assert.deepEqual(
+      resolveAssetTypesForJob({ generateRoseGold: true, hasPresenter: false, confirmedType: 'RING' }),
+      ['RING_HAND_1', 'RING_HAND_2', 'RING_GOLD_FRONT', 'RING_GOLD_SIDE', 'RING_ROSE_FRONT', 'RING_ROSE_SIDE'],
+    );
+  });
+
+  test('never produces a 45° Hero or PRESENTER_* asset for Ring', () => {
+    const types = resolveAssetTypesForJob({ generateRoseGold: true, hasPresenter: true, confirmedType: 'RING' });
+    assert.ok(!types.some((t) => t.includes('HERO_45')));
+    assert.ok(!types.some((t) => t.startsWith('PRESENTER_')));
+  });
+});
+
+describe('metalColorForAssetType — Ring types', () => {
+  test('RING_HAND_1 and RING_GOLD_* are always Yellow', () => {
+    assert.equal(metalColorForAssetType('RING_HAND_1', true), 'YELLOW');
+    assert.equal(metalColorForAssetType('RING_GOLD_FRONT', true), 'YELLOW');
+    assert.equal(metalColorForAssetType('RING_GOLD_SIDE', false), 'YELLOW');
+  });
+
+  test('RING_ROSE_* are always Rose', () => {
+    assert.equal(metalColorForAssetType('RING_ROSE_FRONT', true), 'ROSE');
+    assert.equal(metalColorForAssetType('RING_ROSE_SIDE', true), 'ROSE');
+  });
+
+  test('RING_HAND_2 follows the Rose Gold toggle — Rose when required, Gold otherwise', () => {
+    assert.equal(metalColorForAssetType('RING_HAND_2', true), 'ROSE');
+    assert.equal(metalColorForAssetType('RING_HAND_2', false), 'YELLOW');
+  });
+});
+
+describe('formatHandPose', () => {
+  test('every hand pose formats to its exact spec-mandated label', () => {
+    assert.equal(formatHandPose('BACK_OF_HAND_HERO'), 'Back-of-Hand Hero');
+    assert.equal(formatHandPose('ELEGANT_DIAGONAL'), 'Elegant Diagonal');
+    assert.equal(formatHandPose('SIDE_ROTATION'), 'Side Rotation');
+    assert.equal(formatHandPose('SOFT_RESTING_POSE'), 'Soft Resting Pose');
+    assert.equal(formatHandPose('FINGER_DETAIL_CLOSEUP'), 'Finger Detail Close-up');
+    assert.equal(HAND_POSES.length, 5);
+  });
+});
+
 describe('category templates (plan §9 — table-driven, all 12 categories)', () => {
   test('every jewellery type except UNKNOWN has a complete, active template', async () => {
     const realTypes = JEWELLERY_TYPES.filter((t) => t !== 'UNKNOWN');
@@ -127,7 +185,7 @@ const FAKE_PRESENTER = { prompt_descriptor: 'a friendly presenter', style_label:
 describe('previewPromptsForJob (Review Prompts panel — pure, no DB/API calls)', () => {
   test('recommended mode: no presenter, rose gold off -> 2 catalogue prompts, no placement rules', () => {
     const previews = previewPromptsForJob({
-      confirmedType: 'RING',
+      confirmedType: 'EARRINGS',
       template: FAKE_TEMPLATE,
       presenter: null,
       generateRoseGold: false,
@@ -137,29 +195,28 @@ describe('previewPromptsForJob (Review Prompts panel — pure, no DB/API calls)'
     for (const p of previews) {
       assert.equal(p.mode, 'recommended');
       assert.equal(p.categoryPlacementRules.length, 0);
-      assert.ok(p.lockedProductRules.some((s) => s.includes('confirmed product category is Ring')));
+      assert.ok(p.lockedProductRules.some((s) => s.includes('confirmed product category is Earrings')));
     }
   });
 
-  test('presenter shots include the exact spec-mandated Ring placement/exclusion wording (Problem 2)', () => {
+  test('presenter shots include the exact spec-mandated Ring placement/exclusion wording (Problem 2) — a non-Ring category still using the generic Presenter flow', () => {
     const previews = previewPromptsForJob({
       confirmedType: 'RING',
       template: FAKE_TEMPLATE,
       presenter: FAKE_PRESENTER,
       generateRoseGold: false,
+      handPose: 'BACK_OF_HAND_HERO',
       overridesByAssetType: undefined,
     });
-    const presenterShot = previews.find((p) => p.assetType === 'PRESENTER_YELLOW_1');
-    assert.equal(presenterShot.categoryPlacementRules.length, 1);
-    assert.match(presenterShot.categoryPlacementRules[0], /ring finger/i);
-    assert.match(
-      presenterShot.categoryPlacementRules[0],
-      /No earrings, necklace, pendant, bracelet, bangle, nose pin, anklet, watch or other ring/,
-    );
+    // RING now uses the dedicated hand-pose workflow, not PRESENTER_* — its
+    // hand shots carry the ring-finger placement wording directly instead.
+    const handShot = previews.find((p) => p.assetType === 'RING_HAND_1');
+    assert.equal(handShot.categoryPlacementRules.length, 1);
+    assert.match(handShot.categoryPlacementRules[0], /ring finger/i);
   });
 
-  test('every real jewellery type gets a non-empty presenter placement rule, including the generic-fallback types', () => {
-    for (const type of JEWELLERY_TYPES.filter((t) => t !== 'UNKNOWN')) {
+  test('every non-Ring jewellery type gets a non-empty presenter placement rule, including the generic-fallback types', () => {
+    for (const type of JEWELLERY_TYPES.filter((t) => t !== 'UNKNOWN' && t !== 'RING')) {
       const previews = previewPromptsForJob({
         confirmedType: type,
         template: FAKE_TEMPLATE,
@@ -218,6 +275,169 @@ describe('previewPromptsForJob (Review Prompts panel — pure, no DB/API calls)'
     );
     const rosePresenter = previews.find((p) => p.assetType === 'PRESENTER_ROSE');
     assert.match(rosePresenter.finalPrompt, /rose gold/i);
+  });
+});
+
+describe('previewPromptsForJob — Ring-only output structure', () => {
+  const RING_TEMPLATE = { ...FAKE_TEMPLATE };
+
+  test('6-image plan uses the exact spec labels/order and never a 45° Hero', () => {
+    const previews = previewPromptsForJob({
+      confirmedType: 'RING',
+      template: RING_TEMPLATE,
+      presenter: null,
+      generateRoseGold: true,
+      handPose: 'BACK_OF_HAND_HERO',
+      overridesByAssetType: undefined,
+    });
+    assert.deepEqual(
+      previews.map((p) => p.assetType),
+      ['RING_HAND_1', 'RING_HAND_2', 'RING_GOLD_FRONT', 'RING_GOLD_SIDE', 'RING_ROSE_FRONT', 'RING_ROSE_SIDE'],
+    );
+    // "45 degree" legitimately appears in Front View's own negative
+    // instruction ("do not rotate to a 30-45 degree angle") — what must
+    // never appear is the dedicated three-quarter Hero shot's own wording.
+    assert.ok(!previews.some((p) => p.finalPrompt.includes('three-quarter hero view')));
+  });
+
+  test('4-image plan (no Rose Gold) is just the first 4', () => {
+    const previews = previewPromptsForJob({
+      confirmedType: 'RING',
+      template: RING_TEMPLATE,
+      presenter: null,
+      generateRoseGold: false,
+      handPose: 'BACK_OF_HAND_HERO',
+      overridesByAssetType: undefined,
+    });
+    assert.deepEqual(
+      previews.map((p) => p.assetType),
+      ['RING_HAND_1', 'RING_HAND_2', 'RING_GOLD_FRONT', 'RING_GOLD_SIDE'],
+    );
+    // No Rose Gold required -> Hand Pose 2 falls back to Gold, not Rose.
+    const hand2 = previews.find((p) => p.assetType === 'RING_HAND_2');
+    assert.equal(hand2.metalColor, 'YELLOW');
+  });
+
+  test('Hand Pose 2 always uses a different pose from Hand Pose 1 (cyclic rotation)', () => {
+    for (const pose of HAND_POSES) {
+      const previews = previewPromptsForJob({
+        confirmedType: 'RING',
+        template: RING_TEMPLATE,
+        presenter: null,
+        generateRoseGold: false,
+        handPose: pose,
+        overridesByAssetType: undefined,
+      });
+      const hand1 = previews.find((p) => p.assetType === 'RING_HAND_1');
+      const hand2 = previews.find((p) => p.assetType === 'RING_HAND_2');
+      assert.notEqual(
+        hand1.categoryPlacementRules[0],
+        hand2.categoryPlacementRules[0],
+        `pose text for ${pose} was reused unchanged on Hand Pose 2`,
+      );
+    }
+  });
+
+  test('hand shots never mention a face, body or clothing, and require exactly one ring', () => {
+    const previews = previewPromptsForJob({
+      confirmedType: 'RING',
+      template: RING_TEMPLATE,
+      presenter: null,
+      generateRoseGold: true,
+      handPose: 'BACK_OF_HAND_HERO',
+      overridesByAssetType: undefined,
+    });
+    for (const assetType of ['RING_HAND_1', 'RING_HAND_2']) {
+      const shot = previews.find((p) => p.assetType === assetType);
+      assert.match(shot.finalPrompt, /do not show a face, head, hair, upper body/i);
+      assert.match(shot.finalPrompt, /exactly one ring/i);
+      assert.match(shot.finalPrompt, /five naturally proportioned fingers/i);
+    }
+  });
+
+  test('hand shots use a natural background that is never tied to the metal colour', () => {
+    const previews = previewPromptsForJob({
+      confirmedType: 'RING',
+      template: RING_TEMPLATE,
+      presenter: null,
+      generateRoseGold: true,
+      handPose: 'BACK_OF_HAND_HERO',
+      overridesByAssetType: undefined,
+    });
+    const hand1 = previews.find((p) => p.assetType === 'RING_HAND_1'); // Yellow Gold
+    const hand2 = previews.find((p) => p.assetType === 'RING_HAND_2'); // Rose Gold
+    // Same background instruction regardless of the metal colour of the shot.
+    assert.equal(hand1.creativeInstructions.background, hand2.creativeInstructions.background);
+    assert.match(hand1.finalPrompt, /natural photographic environment/i);
+    assert.match(hand1.finalPrompt, /do not force a champagne, ivory, peach or rose-coloured background/i);
+    assert.doesNotMatch(hand1.finalPrompt, /#F4E7DA|#E8C4B2/);
+  });
+
+  test('Front View is a true direct view, explicitly not the upright orientation used for Side Profile', () => {
+    const previews = previewPromptsForJob({
+      confirmedType: 'RING',
+      template: RING_TEMPLATE,
+      presenter: null,
+      generateRoseGold: true,
+      handPose: 'BACK_OF_HAND_HERO',
+      overridesByAssetType: undefined,
+    });
+    const goldFront = previews.find((p) => p.assetType === 'RING_GOLD_FRONT');
+    assert.match(goldFront.finalPrompt, /centre stone.*visual centre/i);
+    assert.match(goldFront.finalPrompt, /do not stand the ring vertically upright/i);
+    assert.match(goldFront.finalPrompt, /do not display the circular band opening as the main shape/i);
+    assert.match(goldFront.finalPrompt, /do not rotate the ring to a 30-45 degree angle/i);
+  });
+
+  test('Side Profile prompts are distinct from Front View and explicitly reject a front-facing result', () => {
+    const previews = previewPromptsForJob({
+      confirmedType: 'RING',
+      template: RING_TEMPLATE,
+      presenter: null,
+      generateRoseGold: true,
+      handPose: 'BACK_OF_HAND_HERO',
+      overridesByAssetType: undefined,
+    });
+    const goldFront = previews.find((p) => p.assetType === 'RING_GOLD_FRONT');
+    const goldSide = previews.find((p) => p.assetType === 'RING_GOLD_SIDE');
+    assert.notEqual(goldFront.finalPrompt, goldSide.finalPrompt);
+    assert.match(goldSide.finalPrompt, /upright/i);
+    assert.match(goldSide.finalPrompt, /band opening/i);
+    assert.match(goldSide.finalPrompt, /80-90 degrees/i);
+    assert.match(goldSide.finalPrompt, /do not use a front-facing angle/i);
+    assert.match(goldSide.finalPrompt, /do not use a slight three-quarter rotation/i);
+
+    const roseSide = previews.find((p) => p.assetType === 'RING_ROSE_SIDE');
+    assert.match(roseSide.finalPrompt, /opposite side direction from the gold side profile/i);
+  });
+
+  test('every Ring asset carries the extra Ring-only fidelity/no-bangle-conversion instruction', () => {
+    const previews = previewPromptsForJob({
+      confirmedType: 'RING',
+      template: RING_TEMPLATE,
+      presenter: null,
+      generateRoseGold: true,
+      handPose: 'BACK_OF_HAND_HERO',
+      overridesByAssetType: undefined,
+    });
+    for (const p of previews) {
+      assert.match(p.finalPrompt, /convert the ring into a bangle or bracelet/i);
+    }
+  });
+
+  test('Gold catalogue shots use the spec-exact satin background hex values, Rose shots use the Rose set', () => {
+    const previews = previewPromptsForJob({
+      confirmedType: 'RING',
+      template: RING_TEMPLATE,
+      presenter: null,
+      generateRoseGold: true,
+      handPose: 'BACK_OF_HAND_HERO',
+      overridesByAssetType: undefined,
+    });
+    const goldFront = previews.find((p) => p.assetType === 'RING_GOLD_FRONT');
+    assert.match(goldFront.finalPrompt, /#F4E7DA/);
+    const roseFront = previews.find((p) => p.assetType === 'RING_ROSE_FRONT');
+    assert.match(roseFront.finalPrompt, /#E8C4B2/);
   });
 });
 

@@ -32,7 +32,7 @@ export function PresenterStep({ jewelleryType, presenterId, onChange, generateRo
   });
 
   const selectedPresenter = presenters.find((p) => p.id === presenterId) ?? null;
-  const assetTypes = resolveAssetTypesForJob({ generateRoseGold, hasPresenter: !!presenterId });
+  const assetTypes = resolveAssetTypesForJob({ generateRoseGold, hasPresenter: !!presenterId, jewelleryType });
   const catalogue = catalogueCount(assetTypes);
   const presenterShots = presenterCount(assetTypes);
 

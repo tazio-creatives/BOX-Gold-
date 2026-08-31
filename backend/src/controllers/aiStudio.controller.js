@@ -5,7 +5,7 @@ import { AppError, NotFoundError } from '../utils/AppError.js';
 import { env } from '../config/env.js';
 import { boss } from '../jobs/queue.js';
 import { JOB_AI_STUDIO_ANALYSE, JOB_AI_STUDIO_GENERATE, resetAssetForRetry } from '../jobs/aiStudioJob.js';
-import { JEWELLERY_TYPES, ASSET_DISPLAY_ORDER, previewPromptsForJob } from '../services/aiStudioService.js';
+import { JEWELLERY_TYPES, HAND_POSES, ASSET_DISPLAY_ORDER, previewPromptsForJob } from '../services/aiStudioService.js';
 import { findPresenterById } from '../repositories/presenters.repository.js';
 import { findCategoryById } from '../repositories/categories.repository.js';
 import { storageProvider } from '../providers/storage/index.js';
@@ -37,7 +37,16 @@ import {
 
 const MIN_DIMENSION_PX = 200;
 const MAX_DIMENSION_PX = 8000;
-const CATALOGUE_ASSET_TYPES = ['YELLOW_FRONT', 'YELLOW_HERO_45', 'ROSE_FRONT', 'ROSE_HERO_45'];
+const CATALOGUE_ASSET_TYPES = [
+  'YELLOW_FRONT',
+  'YELLOW_HERO_45',
+  'ROSE_FRONT',
+  'ROSE_HERO_45',
+  'RING_GOLD_FRONT',
+  'RING_GOLD_SIDE',
+  'RING_ROSE_FRONT',
+  'RING_ROSE_SIDE',
+];
 
 // The only fields a "Customise Prompt" admin can edit (Review Prompts panel)
 // — everything else (category, design preservation, metal colour, no
@@ -58,6 +67,7 @@ export const confirmSchema = z.object({
   categoryId: z.string().uuid().nullable().optional(),
   presenterId: z.string().uuid().nullable().optional(),
   generateRoseGold: z.boolean().optional(),
+  handPose: z.enum(HAND_POSES).optional(),
   promptOverrides: promptOverridesSchema.optional(),
 });
 
@@ -65,6 +75,7 @@ const promptPreviewSchema = z.object({
   jewelleryType: z.enum(JEWELLERY_TYPES.filter((t) => t !== 'UNKNOWN')).optional(),
   presenterId: z.string().uuid().nullable().optional(),
   generateRoseGold: z.boolean().optional(),
+  handPose: z.enum(HAND_POSES).optional(),
   promptOverrides: promptOverridesSchema.optional(),
 });
 
@@ -122,6 +133,7 @@ function jobDto(job, assets, presenter) {
       ? { id: presenter.id, displayName: presenter.display_name, styleLabel: presenter.style_label }
       : null,
     generateRoseGold: job.generate_rose_gold,
+    handPose: job.hand_pose,
     error: job.error,
     createdAt: job.created_at,
     confirmedAt: job.confirmed_at,
@@ -294,8 +306,13 @@ export async function confirmJob(req, res, next) {
     const template = await findCategoryTemplate(input.jewelleryType);
     if (!template) throw new AppError(400, `No generation template for "${input.jewelleryType}"`);
 
+    // Rings never use a Presenter — a "Hand Pose" choice replaces it — so
+    // presenterId is ignored outright for a Ring job even if the client sent
+    // one (e.g. left over from switching jewellery type mid-wizard).
+    const isRing = input.jewelleryType === 'RING';
+
     let presenter = null;
-    if (input.presenterId) {
+    if (!isRing && input.presenterId) {
       presenter = await findPresenterById(input.presenterId);
       if (!presenter || !presenter.is_active) throw new AppError(400, 'Selected presenter is not available');
       if (!presenter.supported_jewellery_types.includes(input.jewelleryType)) {
@@ -304,12 +321,14 @@ export async function confirmJob(req, res, next) {
     }
 
     const generateRoseGold = input.generateRoseGold ?? true;
+    const handPose = isRing ? input.handPose ?? 'BACK_OF_HAND_HERO' : null;
 
     await updateJob(job.id, {
       jewellery_type: input.jewelleryType,
       category_id: input.categoryId ?? null,
-      presenter_id: input.presenterId ?? null,
+      presenter_id: isRing ? null : (input.presenterId ?? null),
       generate_rose_gold: generateRoseGold,
+      hand_pose: handPose,
       confirmed_at: new Date(),
       category_confirmed_at: new Date(),
       status: 'generating',
@@ -324,6 +343,7 @@ export async function confirmJob(req, res, next) {
       template,
       presenter,
       generateRoseGold,
+      handPose,
       overridesByAssetType: input.promptOverrides,
     });
 
@@ -368,20 +388,23 @@ export async function previewPrompts(req, res, next) {
     const template = await findCategoryTemplate(jewelleryType);
     if (!template) throw new AppError(400, `No generation template for "${jewelleryType}"`);
 
+    const isRing = jewelleryType === 'RING';
     const presenterId = input.presenterId !== undefined ? input.presenterId : job.presenter_id;
     let presenter = null;
-    if (presenterId) {
+    if (!isRing && presenterId) {
       presenter = await findPresenterById(presenterId);
       if (!presenter || !presenter.is_active) throw new AppError(400, 'Selected presenter is not available');
     }
 
     const generateRoseGold = input.generateRoseGold ?? job.generate_rose_gold ?? true;
+    const handPose = isRing ? input.handPose ?? job.hand_pose ?? 'BACK_OF_HAND_HERO' : null;
 
     const previews = previewPromptsForJob({
       confirmedType: jewelleryType,
       template,
       presenter,
       generateRoseGold,
+      handPose,
       overridesByAssetType: input.promptOverrides,
     });
 
@@ -452,6 +475,7 @@ export async function updateAssetSelection(req, res, next) {
         template,
         presenter,
         generateRoseGold: job.generate_rose_gold,
+        handPose: job.hand_pose,
         overridesByAssetType: { [asset.asset_type]: input.customCreativeInstructions },
       });
       const preview = previews.find((p) => p.assetType === asset.asset_type);

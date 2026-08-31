@@ -3,7 +3,7 @@ import sharedStyles from '../../styles/shared.module.css';
 import type { StudioAsset, StudioJob, PromptCreativeOverride } from '../../api/aiStudio';
 import { ConfirmDialog } from '../../components/ConfirmDialog';
 import { Modal } from '../../components/Modal';
-import { SHOT_LABELS, metalColorForAssetType, catalogueCount, presenterCount } from './generationRules';
+import { SHOT_LABELS, ringShotLabel, metalColorForAssetType, catalogueCount, presenterCount } from './generationRules';
 import styles from './ReviewImportStep.module.css';
 
 type ImportState = 'idle' | 'importing' | 'completed' | 'partially_failed';
@@ -11,7 +11,8 @@ type ImportState = 'idle' | 'importing' | 'completed' | 'partially_failed';
 interface ReviewImportStepProps {
   job: StudioJob;
   onRegenerate: (_assetId: string) => void;
-  regeneratingAssetId: string | null;
+  onRegenerateAll: (_assetIds: string[]) => void;
+  regeneratingAssetIds: Set<string>;
   onToggleSelected: (_assetId: string, _selected: boolean) => void;
   onSetFeatured: (_assetId: string) => void;
   onAcceptValidation: (_assetId: string) => void;
@@ -22,7 +23,16 @@ interface ReviewImportStepProps {
   onSaveAsDraft: () => void;
 }
 
-const CATALOGUE_TYPES = new Set(['YELLOW_FRONT', 'YELLOW_HERO_45', 'ROSE_FRONT', 'ROSE_HERO_45']);
+const CATALOGUE_TYPES = new Set([
+  'YELLOW_FRONT',
+  'YELLOW_HERO_45',
+  'ROSE_FRONT',
+  'ROSE_HERO_45',
+  'RING_GOLD_FRONT',
+  'RING_GOLD_SIDE',
+  'RING_ROSE_FRONT',
+  'RING_ROSE_SIDE',
+]);
 const CREATIVE_FIELDS: { key: keyof PromptCreativeOverride; label: string }[] = [
   { key: 'background', label: 'Background' },
   { key: 'lighting', label: 'Lighting' },
@@ -35,7 +45,8 @@ const CREATIVE_FIELDS: { key: keyof PromptCreativeOverride; label: string }[] = 
 export function ReviewImportStep({
   job,
   onRegenerate,
-  regeneratingAssetId,
+  onRegenerateAll,
+  regeneratingAssetIds,
   onToggleSelected,
   onSetFeatured,
   onAcceptValidation,
@@ -57,6 +68,8 @@ export function ReviewImportStep({
   const allSelectedReady = selected.every((a) => a.status === 'READY');
   const featured = assets.find((a) => a.isFeatured);
   const assetTypes = assets.map((a) => a.assetType);
+  const isRing = job.jewelleryType === 'RING';
+  const regeneratableAssetIds = assets.filter((a) => ['READY', 'FAILED'].includes(a.status)).map((a) => a.id);
 
   async function runImport(targets: StudioAsset[]) {
     setImportState('importing');
@@ -109,13 +122,32 @@ export function ReviewImportStep({
     <div>
       <p className={styles.disclaimer}>AI output requires human verification before import.</p>
 
-      <div className={styles.grid}>
+      {isRing && (
+        <div className={styles.ringHeader}>
+          <h2 className={styles.ringHeading}>Generated Ring Images</h2>
+          <p className={styles.ringSubheading}>{assets.length} images ready for review</p>
+          <span className={sharedStyles.badgeNeutral}>Ring · {job.generateRoseGold ? 'Yellow Gold & Rose Gold' : 'Yellow Gold Only'}</span>
+          <button
+            type="button"
+            className={sharedStyles.buttonLink}
+            disabled={regeneratableAssetIds.every((id) => regeneratingAssetIds.has(id)) || regeneratableAssetIds.length === 0}
+            onClick={() => onRegenerateAll(regeneratableAssetIds)}
+          >
+            Regenerate All
+          </button>
+        </div>
+      )}
+
+      <div className={isRing ? styles.ringGrid : styles.grid}>
         {assets.map((asset) => {
           const needsReview =
             !!asset.validationStatus && asset.validationStatus !== 'passed' && !asset.validationAccepted;
+          const shotLabel = isRing ? ringShotLabel(asset.assetType, job.generateRoseGold) : SHOT_LABELS[asset.assetType];
+          const isRegenerating = regeneratingAssetIds.has(asset.id);
           return (
             <div key={asset.id} className={styles.tile}>
               <div className={styles.tileHeader}>
+                {isRing && <span className={styles.imageNumber}>{asset.displayOrder + 1}</span>}
                 {!needsReview && (
                   <label className={styles.selectLabel}>
                     <input
@@ -160,15 +192,15 @@ export function ReviewImportStep({
                 </ul>
               )}
 
-              <p className={styles.shotLabel}>{SHOT_LABELS[asset.assetType]}</p>
+              <p className={styles.shotLabel}>{shotLabel}</p>
               <p className={styles.metaLine}>
-                {metalColorForAssetType(asset.assetType)} Gold
+                {metalColorForAssetType(asset.assetType, job.generateRoseGold)} Gold
                 {asset.assetType.startsWith('PRESENTER_') && job.presenter ? ` · ${job.presenter.displayName}` : ''}
               </p>
 
               <div className={styles.thumbWrapper}>
                 {asset.imageUrl ? (
-                  <img src={asset.imageUrl} alt={SHOT_LABELS[asset.assetType]} className={styles.thumb} />
+                  <img src={asset.imageUrl} alt={shotLabel} className={styles.thumb} />
                 ) : (
                   <span className={sharedStyles.badgeDanger}>Failed</span>
                 )}
@@ -189,14 +221,10 @@ export function ReviewImportStep({
                   <button
                     type="button"
                     className={sharedStyles.buttonLink}
-                    disabled={regeneratingAssetId === asset.id}
+                    disabled={isRegenerating}
                     onClick={() => onRegenerate(asset.id)}
                   >
-                    {regeneratingAssetId === asset.id
-                      ? 'Requesting…'
-                      : asset.status === 'FAILED'
-                        ? 'Retry'
-                        : 'Regenerate'}
+                    {isRegenerating ? 'Requesting…' : asset.status === 'FAILED' ? 'Retry' : 'Regenerate'}
                   </button>
                 )}
               </div>
@@ -206,7 +234,7 @@ export function ReviewImportStep({
                   <button
                     type="button"
                     className={sharedStyles.buttonLink}
-                    disabled={regeneratingAssetId === asset.id}
+                    disabled={isRegenerating}
                     onClick={() => onRegenerate(asset.id)}
                   >
                     Regenerate Automatically
@@ -231,26 +259,30 @@ export function ReviewImportStep({
       <div className={styles.summary}>
         <h3 className={styles.summaryTitle}>Import Summary</h3>
         <dl className={styles.summaryList}>
-          <div className={styles.summaryRow}>
-            <dt>Presenter</dt>
-            <dd>{job.presenter ? job.presenter.displayName : 'No Presenter'}</dd>
-          </div>
+          {!isRing && (
+            <div className={styles.summaryRow}>
+              <dt>Presenter</dt>
+              <dd>{job.presenter ? job.presenter.displayName : 'No Presenter'}</dd>
+            </div>
+          )}
           <div className={styles.summaryRow}>
             <dt>Rose Gold</dt>
             <dd>{job.generateRoseGold ? 'On' : 'Off'}</dd>
           </div>
           <div className={styles.summaryRow}>
             <dt>Featured Image</dt>
-            <dd>{featured ? SHOT_LABELS[featured.assetType] : '—'}</dd>
+            <dd>{featured ? (isRing ? ringShotLabel(featured.assetType, job.generateRoseGold) : SHOT_LABELS[featured.assetType]) : '—'}</dd>
           </div>
           <div className={styles.summaryRow}>
             <dt>Selected Catalogue Images</dt>
             <dd>{selected.filter((a) => CATALOGUE_TYPES.has(a.assetType)).length} / {catalogueCount(assetTypes)}</dd>
           </div>
-          <div className={styles.summaryRow}>
-            <dt>Selected Presenter Images</dt>
-            <dd>{selected.filter((a) => a.assetType.startsWith('PRESENTER_')).length} / {presenterCount(assetTypes)}</dd>
-          </div>
+          {!isRing && (
+            <div className={styles.summaryRow}>
+              <dt>Selected Presenter Images</dt>
+              <dd>{selected.filter((a) => a.assetType.startsWith('PRESENTER_')).length} / {presenterCount(assetTypes)}</dd>
+            </div>
+          )}
           <div className={styles.summaryRowTotal}>
             <dt>Total Selected</dt>
             <dd>{selected.length}</dd>
@@ -321,12 +353,18 @@ export function ReviewImportStep({
       )}
 
       {editingAsset && (
-        <Modal title={`Edit Prompt — ${SHOT_LABELS[editingAsset.assetType]}`} onClose={() => setEditingAsset(null)}>
+        <Modal
+          title={`Edit Prompt — ${isRing ? ringShotLabel(editingAsset.assetType, job.generateRoseGold) : SHOT_LABELS[editingAsset.assetType]}`}
+          onClose={() => setEditingAsset(null)}
+        >
           <p className={styles.disclaimer}>
             Only the creative fields below can be changed — the product, category, and safety rules stay locked.
           </p>
           <div className={styles.creativeFields}>
-            {CREATIVE_FIELDS.map(({ key, label }) => (
+            {(editingAsset.assetType === 'RING_HAND_1' || editingAsset.assetType === 'RING_HAND_2'
+              ? CREATIVE_FIELDS.map((f) => (f.key === 'presenterPose' ? { ...f, label: 'Hand Pose' } : f))
+              : CREATIVE_FIELDS
+            ).map(({ key, label }) => (
               <label key={key} className={sharedStyles.field}>
                 {label}
                 <textarea
