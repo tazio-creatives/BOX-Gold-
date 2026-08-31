@@ -6,16 +6,18 @@ import styles from './RelatedProducts.module.css';
 export function RelatedProducts({
   products,
   categorySlug,
+  heading = 'You May Also Like',
 }: {
   products: ProductCardType[];
   categorySlug: string | null;
+  heading?: string;
 }) {
   if (products.length === 0) return null;
 
   return (
     <section className={styles.section}>
       <div className={styles.header}>
-        <h2 className={styles.heading}>You May Also Like</h2>
+        <h2 className={styles.heading}>{heading}</h2>
         {categorySlug && (
           <Link to={`/${categorySlug}`} className={styles.viewAllLink}>
             View All →

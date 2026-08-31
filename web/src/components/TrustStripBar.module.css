@@ -59,18 +59,22 @@
   }
 }
 
-/* Boxed variant — one compact white card, equal-width columns divided by
-   vertical separators (used on the cart page, right below the item list). */
+/* Boxed variant — one compact card, equal-width columns divided by vertical
+   separators (used on the cart page, right below the item list). Given a
+   gold top accent and gold-gradient icon badges for a more premium feel than
+   the default blush/pink circle variant used elsewhere. */
 .stripBoxed {
   grid-template-columns: repeat(3, 1fr);
   margin-top: 0;
   padding: 0;
-  border-top: none;
+  border-top: 2px solid var(--color-gold);
   background: var(--color-surface);
-  border: 1px solid var(--color-border);
+  border-left: 1px solid var(--color-border);
+  border-right: 1px solid var(--color-border);
+  border-bottom: 1px solid var(--color-border);
   border-radius: 12px;
   overflow: hidden;
-  --trust-icon-size: 40px;
+  --trust-icon-size: 42px;
   --trust-title-size: 13px;
   --trust-subtitle-size: 11px;
 }
@@ -80,7 +84,7 @@
   align-items: center;
   text-align: center;
   gap: 8px;
-  padding: 16px 12px;
+  padding: 18px 10px;
   border-right: 1px solid var(--color-border);
   border-radius: 0;
 }
@@ -92,4 +96,26 @@
 .itemBoxed:hover {
   background: none;
   transform: none;
+}
+
+.stripBoxed .iconWrap {
+  background: linear-gradient(135deg, #f3e6cb, #e6cd98);
+  color: var(--color-burgundy-dark);
+}
+
+.stripBoxed .title {
+  letter-spacing: 0.01em;
+}
+
+@media (max-width: 400px) {
+  .itemBoxed {
+    padding: 14px 6px;
+    gap: 6px;
+  }
+
+  .stripBoxed {
+    --trust-icon-size: 36px;
+    --trust-title-size: 11.5px;
+    --trust-subtitle-size: 10px;
+  }
 }

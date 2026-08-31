@@ -230,13 +230,25 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
+  gap: var(--space-3);
   min-height: 32px;
+  font-family: var(--font-body);
   font-size: var(--text-base);
   color: var(--color-text);
 }
 
+.priceRow > span:last-child {
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
 .discountValue {
   color: var(--color-burgundy);
+}
+
+.savingsValue {
+  color: #1a7f37;
+  font-weight: 600;
 }
 
 .freeValue {
@@ -248,6 +260,8 @@
   display: flex;
   justify-content: space-between;
   align-items: baseline;
+  gap: var(--space-3);
+  font-family: var(--font-body);
   font-weight: 700;
   font-size: var(--text-base);
   padding: var(--space-4) 0;
@@ -256,9 +270,12 @@
 }
 
 .totalValue {
-  font-size: 22px;
+  font-family: var(--font-heading);
+  font-size: var(--text-xl);
   font-weight: 700;
   color: var(--color-burgundy);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
 }
 
 .couponRow {

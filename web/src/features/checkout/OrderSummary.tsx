@@ -23,6 +23,10 @@ interface OrderSummaryProps {
   items?: OrderSummaryItem[];
   itemCount: number;
   subtotal: number;
+  // Sum of (strike-through MRP - selling price) across every line item —
+  // a coupon discount, separately. Omitted/0 hides the row entirely, so
+  // Checkout (which never computes this) renders exactly as before.
+  savingsAmount?: number;
   discountAmount: number;
   gstAmount: number;
   gstPercent: number;
@@ -100,6 +104,7 @@ export function OrderSummary({
   items,
   itemCount,
   subtotal,
+  savingsAmount = 0,
   discountAmount,
   gstAmount,
   gstPercent,
@@ -210,6 +215,12 @@ export function OrderSummary({
           </span>
           <span>{formatPrice(subtotal)}</span>
         </div>
+        {savingsAmount > 0 && (
+          <div className={styles.priceRow}>
+            <span>You Saved</span>
+            <span className={styles.savingsValue}>{formatPrice(savingsAmount)}</span>
+          </div>
+        )}
         {discountAmount > 0 && (
           <div className={styles.priceRow}>
             <span>Discount</span>

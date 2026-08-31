@@ -47,30 +47,27 @@
   min-width: 0;
 }
 
-.cartCard {
-  background: var(--color-surface);
-  border: 1px solid var(--color-border);
-  border-radius: 12px;
-  overflow: hidden;
-}
-
+/* Each cart line is now its own card (reference design), not rows sharing
+   one bordered list — spacing lives on .list's gap, not per-row margins. */
 .list {
   list-style: none;
   margin: 0;
   padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
 }
 
 .row {
   position: relative;
   display: grid;
-  grid-template-columns: 88px 1fr;
+  grid-template-columns: 96px 1fr;
   gap: 14px;
   padding: 16px;
-  border-bottom: 1px solid #e8e2d9;
-}
-
-.row:last-child {
-  border-bottom: none;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: 14px;
+  box-shadow: var(--shadow-sm);
 }
 
 .removeButton {
@@ -108,13 +105,14 @@
 
 .imageLink {
   display: block;
-  width: 88px;
-  height: 88px;
+  width: 96px;
+  height: 96px;
 }
 
 .image {
-  width: 88px;
-  height: 88px;
+  position: relative;
+  width: 96px;
+  height: 96px;
   border-radius: 10px;
   overflow: hidden;
   background: var(--color-bg);
@@ -125,6 +123,19 @@
   height: 100%;
   object-fit: cover;
   display: block;
+}
+
+.discountBadge {
+  position: absolute;
+  left: 0;
+  bottom: 0;
+  padding: 2px 6px;
+  background: var(--color-burgundy);
+  color: var(--color-white);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  border-top-right-radius: 6px;
 }
 
 .details {
@@ -151,15 +162,24 @@
   color: var(--color-text-muted);
 }
 
+.sizeRow {
+  margin: 2px 0 0;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--color-text);
+}
+
 .price {
   display: flex;
   align-items: baseline;
   flex-wrap: wrap;
   gap: 8px;
   margin: 6px 0 0;
+  font-family: var(--font-body);
   font-size: 16px;
   font-weight: 700;
   color: var(--color-text);
+  font-variant-numeric: tabular-nums;
 }
 
 .priceOld {
@@ -169,10 +189,34 @@
   text-decoration: line-through;
 }
 
-.backorderNotice {
-  margin: 6px 0 0;
-  font-size: 12px;
-  color: var(--color-text-muted);
+/* Delivery estimate — always shown (not just for backordered items),
+   highlighted as a small pill rather than plain muted text. */
+.deliveryBadge,
+.deliveryBadgeBackorder {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  margin: 8px 0 0;
+  padding: 4px 9px;
+  border-radius: 20px;
+  font-size: 11.5px;
+  font-weight: 600;
+  line-height: 1.2;
+}
+
+.deliveryBadge {
+  background: #e6f2ee;
+  color: #1a7f56;
+}
+
+.deliveryBadgeBackorder {
+  background: #f6ecd8;
+  color: #8a6a1f;
+}
+
+.deliveryBadge svg,
+.deliveryBadgeBackorder svg {
+  flex-shrink: 0;
 }
 
 .rowFooter {
@@ -427,6 +471,10 @@
     grid-template-columns: minmax(0, 1fr) 360px;
     gap: var(--space-8);
     align-items: start;
+  }
+
+  .list {
+    gap: var(--space-4);
   }
 
   .row {
