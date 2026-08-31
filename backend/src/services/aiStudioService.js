@@ -149,47 +149,6 @@ export const RING_ASSET_TYPES = [
 ];
 const RING_ASSET_TYPE_SET = new Set(RING_ASSET_TYPES);
 
-// The 5 selectable "Hand Pose" options (renamed from "Presenter Style" for
-// Rings only — no Contemporary/Traditional, no presenter entity at all).
-// Hand Pose 2 always uses the NEXT pose in this fixed rotation from whatever
-// was picked for Hand Pose 1, guaranteeing "a visibly different pose from
-// Hand Pose 1" deterministically without a second admin choice. The default
-// (index 0, BACK_OF_HAND_HERO) pairs with index 1 (ELEGANT_DIAGONAL) — which
-// is exactly the client's described default Hand Image 1 / Hand Image 2 pair.
-export const HAND_POSES = [
-  'BACK_OF_HAND_HERO',
-  'ELEGANT_DIAGONAL',
-  'SIDE_ROTATION',
-  'SOFT_RESTING_POSE',
-  'FINGER_DETAIL_CLOSEUP',
-];
-const DEFAULT_HAND_POSE = 'BACK_OF_HAND_HERO';
-
-const HAND_POSE_DESCRIPTIONS = {
-  BACK_OF_HAND_HERO: 'a back-of-hand hero pose, viewed from behind the hand with fingers naturally separated',
-  ELEGANT_DIAGONAL: 'an elegant diagonal hand position, fingers gently curved, angled naturally across the frame',
-  SIDE_ROTATION: 'a gentle side rotation of the hand, turned to reveal the ring from a three-quarter angle',
-  SOFT_RESTING_POSE: 'a soft resting hand pose, fingers relaxed and gently curled as if resting on a surface',
-  FINGER_DETAIL_CLOSEUP: 'a close-up finger detail pose, framed tightly on the ring finger to showcase the ring design',
-};
-
-const HAND_POSE_LABELS = {
-  BACK_OF_HAND_HERO: 'Back-of-Hand Hero',
-  ELEGANT_DIAGONAL: 'Elegant Diagonal',
-  SIDE_ROTATION: 'Side Rotation',
-  SOFT_RESTING_POSE: 'Soft Resting Pose',
-  FINGER_DETAIL_CLOSEUP: 'Finger Detail Close-up',
-};
-
-export function formatHandPose(pose) {
-  return HAND_POSE_LABELS[pose] ?? pose;
-}
-
-function nextHandPose(pose) {
-  const i = HAND_POSES.indexOf(pose);
-  return HAND_POSES[(i === -1 ? 0 : i + 1) % HAND_POSES.length];
-}
-
 // Mirrors the DB CHECK constraint in the ai_studio_presenters migration —
 // must stay in lockstep with it, this is the single source of truth on the
 // JS side.
@@ -328,6 +287,26 @@ const RING_HAND_BACKGROUND_NOTE =
 const RING_HAND_LIGHTING_NOTE =
   ' Use soft, natural photographic lighting with the ring sharply focused and the complete ring design clearly visible.';
 
+// The two Ring hand shots are now always these fixed lifestyle compositions —
+// client correction: no admin pose choice, no "Choose a Hand Pose" screen;
+// generation starts immediately once the category is confirmed. Unlike the
+// old Hand Pose workflow, a face IS allowed to be visible here — only OTHER
+// jewellery (earrings, necklace, etc.) is excluded, not the model's face.
+const RING_HAND_PLACEMENT_COMPOSITION =
+  "The ring must physically wrap around the ring finger: the decorative top sits above the finger and the rear band is hidden behind the finger, with the band's angle matching the direction of the finger. Render realistic scale, lighting and contact shadows so the ring reads as genuinely worn, not composited on top of the hand.";
+
+const RING_HAND_PLACEMENT_NEGATIVES = [
+  "Show exactly one ring, worn on the correct ring finger — preserve the uploaded ring's exact design and realistic size.",
+  'Do not make the ring float above the skin.',
+  'Do not paste the complete circular band flatly over the finger.',
+  'Do not embed the ring inside the skin.',
+  'Do not place the ring on the wrong finger.',
+  'Do not add or remove any stones from the ring.',
+];
+
+const RING_HAND_NO_OTHER_JEWELLERY_NEGATIVE =
+  'Do not show earrings, a necklace, or any other distracting jewellery on the model — only the uploaded ring should be visible.';
+
 // Appended as an extra negative instruction on every Ring asset type, on top
 // of the generic FIDELITY_BLOCK every asset type already gets — Ring's
 // stricter fidelity list (no bangle/bracelet conversion, no mixing in
@@ -400,7 +379,6 @@ function buildAssetPromptSections({
   creative,
   priorFailure,
   generateRoseGold,
-  handPose,
 }) {
   const metalColor = metalColorForAssetType(assetType, generateRoseGold);
   const metalColourNote = `The metal colour is ${metalColor.toLowerCase()} gold — preserve it exactly.`;
@@ -469,28 +447,43 @@ function buildAssetPromptSections({
       negativeParts.push(rule.excluded, 'Do not replace the uploaded product with a similar design.');
       break;
     }
-    case 'RING_HAND_1':
-    case 'RING_HAND_2': {
-      const isSecondHand = assetType === 'RING_HAND_2';
-      const pose = isSecondHand ? nextHandPose(handPose || DEFAULT_HAND_POSE) : handPose || DEFAULT_HAND_POSE;
-      const poseText = HAND_POSE_DESCRIPTIONS[pose] ?? HAND_POSE_DESCRIPTIONS[DEFAULT_HAND_POSE];
-      categoryPlacement = `Place only this exact ring naturally on the ring finger of a realistic human hand, at a believable scale. Show only the hand, fingers, and a small portion of the wrist when the composition requires it — do not show a face, head, hair, upper body or any clothing-dominated composition. Pose the hand in ${poseText}, keeping the ring's top design clearly visible. Generate realistic hand anatomy with exactly five naturally proportioned fingers, realistic joints and fingernails, and a clean nude manicure. Use exactly one ring — do not add bracelets, watches, additional rings or any other jewellery. The generated ring must retain the exact product design; do not generate a generic ring that merely resembles the reference. Keep the ring on the correct ring finger, sized realistically relative to the finger, with the complete ring design clearly visible and unobstructed.`;
+    case 'RING_HAND_1': {
+      categoryPlacement =
+        "Show a young female model — her face may be visible. Position her hand naturally near her face (for example resting near her cheek or chin), with the exact uploaded ring placed on her ring finger, clearly visible and sharply focused. Use a premium jewellery-campaign composition. Generate realistic hand anatomy with exactly five naturally proportioned fingers, realistic joints and fingernails, and a clean nude manicure.";
       creativeDefaults = {
         background: RING_HAND_BACKGROUND_NOTE.trim(),
         lighting: RING_HAND_LIGHTING_NOTE.trim(),
-        composition: RING_SIZE_NOTE,
+        composition: `${RING_SIZE_NOTE} ${RING_HAND_PLACEMENT_COMPOSITION}`,
         presenterPose: '',
         cameraAngle: '',
         additionalInstructions: '',
       };
       negativeParts.push(
-        'Do not show a face, head, hair, upper body or clothing-dominated composition.',
-        'Do not add bracelets, watches, additional rings or any other jewellery.',
-        'Do not place the ring on the wrong finger or enlarge it unrealistically.',
+        RING_HAND_NO_OTHER_JEWELLERY_NEGATIVE,
         'Do not create distorted fingers or unrealistic hand anatomy.',
         'Do not apply a background colour tied to the ring\'s metal colour — the background must be a natural, neutral photographic environment, not champagne, ivory, peach or rose-coloured.',
+        ...RING_HAND_PLACEMENT_NEGATIVES,
       );
-      if (isSecondHand) negativeParts.push('Use a hand pose visibly different from Hand Pose 1 — do not reuse the same pose or camera angle.');
+      break;
+    }
+    case 'RING_HAND_2': {
+      categoryPlacement =
+        "Use a closer crop of a young female model's hand positioned near her face — the full face does not need to be visible. Keep the ring finger straight and unobstructed, with the exact uploaded ring placed naturally around it, clearly showing the ring design and band placement. Use a different hand position from Hand Image 1, keeping the composition natural and premium. Generate realistic hand anatomy with exactly five naturally proportioned fingers, realistic joints and fingernails, and a clean nude manicure.";
+      creativeDefaults = {
+        background: RING_HAND_BACKGROUND_NOTE.trim(),
+        lighting: RING_HAND_LIGHTING_NOTE.trim(),
+        composition: `${RING_SIZE_NOTE} ${RING_HAND_PLACEMENT_COMPOSITION}`,
+        presenterPose: '',
+        cameraAngle: '',
+        additionalInstructions: '',
+      };
+      negativeParts.push(
+        RING_HAND_NO_OTHER_JEWELLERY_NEGATIVE,
+        'Do not create distorted fingers or unrealistic hand anatomy.',
+        'Do not apply a background colour tied to the ring\'s metal colour — the background must be a natural, neutral photographic environment, not champagne, ivory, peach or rose-coloured.',
+        'Use a hand pose visibly different from Hand Image 1 — do not reuse the same pose or camera angle.',
+        ...RING_HAND_PLACEMENT_NEGATIVES,
+      );
       break;
     }
     case 'RING_GOLD_FRONT':
@@ -585,16 +578,16 @@ function assemblePrompt({ locked, categoryPlacement, creative, negativeInstructi
     .join(' ');
 }
 
-function buildPrompt({ assetType, confirmedType, template, presenter, creative, priorFailure, generateRoseGold, handPose }) {
+function buildPrompt({ assetType, confirmedType, template, presenter, creative, priorFailure, generateRoseGold }) {
   return assemblePrompt(
-    buildAssetPromptSections({ assetType, confirmedType, template, presenter, creative, priorFailure, generateRoseGold, handPose }),
+    buildAssetPromptSections({ assetType, confirmedType, template, presenter, creative, priorFailure, generateRoseGold }),
   );
 }
 
 // Computes every planned asset's prompt without any DB/API calls — powers
 // both the Review Prompts preview endpoint and what confirmJob persists onto
 // each asset row at confirm time (so what's shown is exactly what's sent).
-export function previewPromptsForJob({ confirmedType, template, presenter, generateRoseGold, handPose, overridesByAssetType }) {
+export function previewPromptsForJob({ confirmedType, template, presenter, generateRoseGold, overridesByAssetType }) {
   const hasPresenter = !!presenter;
   const assetTypes = resolveAssetTypesForJob({ generateRoseGold, hasPresenter, confirmedType });
   return assetTypes.map((assetType) => {
@@ -606,7 +599,6 @@ export function previewPromptsForJob({ confirmedType, template, presenter, gener
       presenter,
       creative: override,
       generateRoseGold,
-      handPose,
     });
     return {
       assetType,
@@ -645,7 +637,6 @@ export async function generateShot({
   priorFailure,
   promptOverride,
   generateRoseGold,
-  handPose,
 }) {
   const openai = getClient();
   const extension = extensionFor(mimetype);
@@ -655,8 +646,7 @@ export async function generateShot({
   // prior-failure correction to inject (a retry after failed validation) or
   // for the rare case nothing was persisted yet.
   const prompt =
-    promptOverride ??
-    buildPrompt({ assetType, confirmedType, template, presenter, creative, priorFailure, generateRoseGold, handPose });
+    promptOverride ?? buildPrompt({ assetType, confirmedType, template, presenter, creative, priorFailure, generateRoseGold });
 
   try {
     const referenceFile = await toFile(referenceBuffer, `reference.${extension}`, { type: mimetype });
@@ -712,7 +702,7 @@ const VALIDATION_SYSTEM_PROMPT = `You are a jewellery product-photo quality revi
 // validation pass.
 function ringValidationContextFor(assetType) {
   if (assetType === 'RING_HAND_1' || assetType === 'RING_HAND_2') {
-    return ' This is a Ring hand-model shot — a hand IS expected and must not be flagged as an obstruction. The background is a natural, neutral photographic environment (studio grey/white/black, soft interior, subtle beige) and must NOT be flagged just for not matching a metal-coloured catalogue background — only flag the background if it is champagne/ivory/peach/rose-tinted (i.e. tied to the metal colour), which is explicitly disallowed here. Pass only when: exactly one ring is visible; the ring closely matches the uploaded product reference (same stones, same band structure — not just a loosely similar ring); the correct metal colour is used; no face, head, hair or upper body is visible; the ring sits naturally on the correct ring finger. Set validationStatus to "failed" (not "warning") when: more than one ring appears, the metal colour is wrong for this shot (Rose Gold appearing where Yellow Gold was expected or vice versa), the stone arrangement or band structure has changed from the reference, the ring is too small/unclear to verify against the reference, or the generated ring is only loosely similar to the reference rather than an accurate reproduction.';
+    return ' This is a Ring lifestyle hand-wearing shot — a hand, and possibly the model\'s face, are expected and must not be flagged as an obstruction. The background is a natural, neutral photographic environment (studio grey/white/black, soft interior, subtle beige) and must NOT be flagged just for not matching a metal-coloured catalogue background — only flag the background if it is champagne/ivory/peach/rose-tinted (i.e. tied to the metal colour), which is explicitly disallowed here. Pass only when: the ring is physically wrapped around the ring finger — not floating above the skin, not pasted on as a flat circular shape, not embedded inside the finger; the ring sits on the correct ring finger; the ring closely matches the uploaded product reference (same stones, same band structure — not just a loosely similar ring); hand anatomy is realistic; and no other jewellery (earrings, necklace, bracelet, watch, additional ring) is visible on the model. Set validationStatus to "failed" (not "warning") when: the ring is on the wrong finger, the ring appears to float above the skin or is pasted on flat, the ring appears embedded inside the finger, more than one ring is visible, any other jewellery item is visible, hand anatomy is unrealistic (wrong finger count, malformed joints), or the generated ring is only loosely similar to the reference rather than an accurate reproduction.';
   }
   if (assetType === 'RING_GOLD_FRONT' || assetType === 'RING_ROSE_FRONT') {
     return ' This is a Ring TRUE FRONT VIEW — a direct, symmetrical view of the decorative top, not an upright three-quarter angle. It passes only when: the decorative ring face is the dominant visible element; the centre stone is centrally positioned; the left and right decorative bands are clearly visible extending outward; the ring is viewed directly from above/toward its decorative face; the image does NOT resemble an upright side view. Set validationStatus to "failed" (not "warning") if the ring is standing upright on its band, if the circular band opening is the dominant shape, or if this looks like a three-quarter/rotated angle rather than a true direct front view — this is a common and important failure mode to catch.';

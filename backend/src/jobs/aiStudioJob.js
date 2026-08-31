@@ -78,6 +78,14 @@ async function ensureDefaultFeatured(jobId, assets) {
   if (front) await updateAsset(front.id, { is_featured: true });
 }
 
+// Ring's two hand-wearing lifestyle shots get one automatic retry when
+// validation fails, before falling back to the normal manual "Accept Anyway /
+// Regenerate" flow every other asset type already has — client spec: "If
+// validation fails, regenerate the affected image automatically." Capped at
+// exactly one extra attempt (not an unbounded loop) since each attempt is a
+// real, billed OpenAI image-edit + vision call.
+const RING_HAND_AUTO_RETRY_TYPES = new Set(['RING_HAND_1', 'RING_HAND_2']);
+
 async function generateOneAsset({
   jobId,
   asset,
@@ -88,7 +96,6 @@ async function generateOneAsset({
   presenter,
   imageModel,
   generateRoseGold,
-  handPose,
 }) {
   // A cancelled job's late-arriving results are discarded, never written
   // back (plan §12) — checked immediately before each write, not just once
@@ -109,25 +116,55 @@ async function generateOneAsset({
     // prior failure folded in as a correction instruction, instead of
     // reusing the originally-confirmed assembled_final_prompt verbatim for
     // that one attempt — otherwise the same mistake just repeats.
-    const priorFailure =
+    const initialPriorFailure =
       asset.validation_status && asset.validation_status !== 'passed' && asset.validation_result
         ? (asset.validation_result.validationMessages ?? []).join('; ')
         : null;
 
-    const { buffer, prompt } = await generateShot({
-      referenceBuffer,
-      mimetype,
-      template,
-      assetType: asset.asset_type,
-      confirmedType,
-      presenter,
-      presenterReferenceBuffer,
-      creative: asset.custom_creative_instructions ?? undefined,
-      priorFailure,
-      promptOverride: priorFailure ? undefined : (asset.assembled_final_prompt ?? undefined),
-      generateRoseGold,
-      handPose,
-    });
+    async function attemptOnce(priorFailure) {
+      const { buffer, prompt } = await generateShot({
+        referenceBuffer,
+        mimetype,
+        template,
+        assetType: asset.asset_type,
+        confirmedType,
+        presenter,
+        presenterReferenceBuffer,
+        creative: asset.custom_creative_instructions ?? undefined,
+        priorFailure,
+        promptOverride: priorFailure ? undefined : (asset.assembled_final_prompt ?? undefined),
+        generateRoseGold,
+      });
+
+      // Post-generation validation (Problems 1 & 2) — never lets a failure
+      // here take down an otherwise-successful generation; the image is real
+      // and viewable either way, it just goes unvalidated (validationStatus
+      // stays null, which the frontend treats the same as "needs review").
+      let validationStatus = null;
+      let validationResult = null;
+      try {
+        const result = await validateGeneratedImage({
+          generatedBuffer: buffer,
+          referenceBuffer,
+          referenceMimetype: mimetype,
+          confirmedType,
+          metalColor: metalColorForAssetType(asset.asset_type, generateRoseGold),
+          assetType: asset.asset_type,
+        });
+        validationStatus = result.validationStatus;
+        validationResult = result;
+      } catch (validationErr) {
+        console.error('AI Image Studio post-generation validation failed:', validationErr.message);
+      }
+      return { buffer, prompt, validationStatus, validationResult };
+    }
+
+    let attempt = await attemptOnce(initialPriorFailure);
+    if (RING_HAND_AUTO_RETRY_TYPES.has(asset.asset_type) && attempt.validationStatus === 'failed') {
+      const autoRetryFailure = (attempt.validationResult?.validationMessages ?? []).join('; ') || initialPriorFailure;
+      attempt = await attemptOnce(autoRetryFailure);
+    }
+    const { buffer, prompt, validationStatus, validationResult } = attempt;
 
     const stillActive = await findJobById(jobId);
     if (stillActive.status === 'cancelled') return;
@@ -136,27 +173,6 @@ async function generateOneAsset({
       `products/ai-studio/${jobId}/${crypto.randomUUID()}.png`,
       buffer,
     );
-
-    // Post-generation validation (Problems 1 & 2) — never lets a failure
-    // here take down an otherwise-successful generation; the image is real
-    // and viewable either way, it just goes unvalidated (validation_status
-    // stays null, which the frontend treats the same as "needs review").
-    let validationStatus = null;
-    let validationResult = null;
-    try {
-      const result = await validateGeneratedImage({
-        generatedBuffer: buffer,
-        referenceBuffer,
-        referenceMimetype: mimetype,
-        confirmedType,
-        metalColor: metalColorForAssetType(asset.asset_type, generateRoseGold),
-        assetType: asset.asset_type,
-      });
-      validationStatus = result.validationStatus;
-      validationResult = result;
-    } catch (validationErr) {
-      console.error('AI Image Studio post-generation validation failed:', validationErr.message);
-    }
 
     // is_featured is deliberately NOT set here — see ensureDefaultFeatured,
     // called once per generation run in generateHandler below. Setting it
@@ -224,7 +240,6 @@ async function generateHandler(jobs) {
         presenter,
         imageModel: env.openaiImageModel,
         generateRoseGold: aiStudioJob.generate_rose_gold,
-        handPose: aiStudioJob.hand_pose,
       }),
     );
 

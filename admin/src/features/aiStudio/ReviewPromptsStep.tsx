@@ -1,13 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import {
-  fetchPromptPreview,
-  type JewelleryType,
-  type HandPoseId,
-  type PromptOverrides,
-  type PromptCreativeOverride,
-} from '../../api/aiStudio';
-import { SHOT_LABELS, ringShotLabel } from './generationRules';
+import { fetchPromptPreview, type JewelleryType, type PromptOverrides, type PromptCreativeOverride } from '../../api/aiStudio';
+import { SHOT_LABELS } from './generationRules';
 import sharedStyles from '../../styles/shared.module.css';
 import styles from './ReviewPromptsStep.module.css';
 
@@ -15,6 +9,9 @@ function formatType(type: string) {
   return type.replace(/_/g, ' ').toLowerCase().replace(/\b\w/g, (c) => c.toUpperCase());
 }
 
+// Ring never reaches this step (generation starts immediately after category
+// confirmation for Ring jobs — see AiImageStudioPage.tsx), so these fields
+// only ever describe the generic Yellow/Rose/Presenter asset types.
 const CREATIVE_FIELDS: { key: keyof PromptCreativeOverride; label: string }[] = [
   { key: 'background', label: 'Background' },
   { key: 'lighting', label: 'Lighting' },
@@ -23,9 +20,6 @@ const CREATIVE_FIELDS: { key: keyof PromptCreativeOverride; label: string }[] = 
   { key: 'cameraAngle', label: 'Camera Angle' },
   { key: 'additionalInstructions', label: 'Additional Safe Instructions' },
 ];
-// Same fields, "Presenter Pose" renamed — used for RING_HAND_* cards only,
-// which have no presenter at all.
-const RING_CREATIVE_FIELDS = CREATIVE_FIELDS.map((f) => (f.key === 'presenterPose' ? { ...f, label: 'Hand Pose' } : f));
 
 interface ReviewPromptsStepProps {
   productId: string;
@@ -34,7 +28,6 @@ interface ReviewPromptsStepProps {
   presenterId: string | null;
   presenterName: string | null;
   generateRoseGold: boolean;
-  handPose?: HandPoseId;
   promptOverrides: PromptOverrides;
   onPromptOverridesChange: (_v: PromptOverrides) => void;
 }
@@ -50,7 +43,6 @@ export function ReviewPromptsStep({
   presenterId,
   presenterName,
   generateRoseGold,
-  handPose,
   promptOverrides,
   onPromptOverridesChange,
 }: ReviewPromptsStepProps) {
@@ -74,7 +66,6 @@ export function ReviewPromptsStep({
       jewelleryType,
       presenterId,
       generateRoseGold,
-      handPose,
       debouncedOverrides,
     ],
     queryFn: () =>
@@ -82,7 +73,6 @@ export function ReviewPromptsStep({
         jewelleryType,
         presenterId,
         generateRoseGold,
-        handPose,
         promptOverrides: debouncedOverrides,
       }),
     placeholderData: (previousData) => previousData,
@@ -122,9 +112,7 @@ export function ReviewPromptsStep({
           const override = promptOverrides[p.assetType];
           const isCustomising = !!override;
           const isExpanded = expandedAssetType === p.assetType;
-          const isRingHand = p.assetType === 'RING_HAND_1' || p.assetType === 'RING_HAND_2';
-          const cardTitle = jewelleryType === 'RING' ? ringShotLabel(p.assetType, generateRoseGold) : SHOT_LABELS[p.assetType];
-          const fields = isRingHand ? RING_CREATIVE_FIELDS : CREATIVE_FIELDS;
+          const cardTitle = SHOT_LABELS[p.assetType];
           return (
             <div key={p.assetType} className={styles.card}>
               <div className={styles.cardHeader}>
@@ -157,7 +145,7 @@ export function ReviewPromptsStep({
 
               {isCustomising && (
                 <div className={styles.creativeFields}>
-                  {fields.map(({ key, label }) => (
+                  {CREATIVE_FIELDS.map(({ key, label }) => (
                     <label key={key} className={sharedStyles.field}>
                       {label}
                       <textarea

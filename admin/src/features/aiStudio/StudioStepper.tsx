@@ -9,20 +9,10 @@ const STEPS = [
   { label: 'Review & Import', statuses: ['review_ready', 'partially_failed', 'importing', 'completed'] },
 ] as const;
 
-// 'awaiting_confirmation' covers all three of step 1 (Analyse & Confirm) and
-// step 2 (Choose Presenter, which also hosts the Review Prompts screen —
-// deliberately not its own stepper dot, see AiImageStudioPage.tsx) on the
-// backend — confirmSubStep disambiguates which screen the wizard is
-// actually showing right now.
-function stepIndexForStatus(
-  status: StudioJobStatus | null,
-  confirmSubStep: 'analyse' | 'presenter' | 'prompts',
-): number {
-  if (!status) return 0;
-  if (status === 'failed' || status === 'cancelled') return -1;
-  if (status === 'awaiting_confirmation') return confirmSubStep === 'analyse' ? 1 : 2;
-  return STEPS.findIndex((s) => (s.statuses as readonly string[]).includes(status));
-}
+// Ring skips the "Choose Presenter" step entirely — generation starts
+// immediately once the category is confirmed (no pose choice, no extra
+// confirmation screen), so that dot never applies to a Ring job.
+const RING_STEPS = STEPS.filter((step) => step.label !== 'Choose Presenter');
 
 interface StudioStepperProps {
   status: StudioJobStatus | null;
@@ -32,19 +22,26 @@ interface StudioStepperProps {
 }
 
 export function StudioStepper({ status, confirmSubStep, generateCount, isRing }: StudioStepperProps) {
-  const activeIndex = stepIndexForStatus(status, confirmSubStep);
+  const steps = isRing ? RING_STEPS : STEPS;
+  const generateStepIndex = steps.findIndex((s) => s.label === 'Generate');
+
+  let activeIndex = 0;
+  if (!status) {
+    activeIndex = 0;
+  } else if (status === 'failed' || status === 'cancelled') {
+    activeIndex = -1;
+  } else if (status === 'awaiting_confirmation') {
+    activeIndex = isRing || confirmSubStep === 'analyse' ? 1 : 2;
+  } else {
+    activeIndex = steps.findIndex((s) => (s.statuses as readonly string[]).includes(status));
+  }
 
   return (
     <ol className={styles.stepper}>
-      {STEPS.map((step, i) => {
+      {steps.map((step, i) => {
         const isDone = activeIndex > i || status === 'completed';
         const isActive = activeIndex === i && status !== 'completed';
-        const label =
-          i === 3
-            ? `Generate ${generateCount} Image${generateCount === 1 ? '' : 's'}`
-            : i === 2 && isRing
-              ? 'Hand Pose'
-              : step.label;
+        const label = i === generateStepIndex ? `Generate ${generateCount} Image${generateCount === 1 ? '' : 's'}` : step.label;
         return (
           <li key={step.label} className={styles.step}>
             <span className={isActive ? styles.dotActive : isDone ? styles.dotDone : styles.dot}>{i + 1}</span>

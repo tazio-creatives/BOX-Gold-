@@ -12,7 +12,6 @@ import {
   completeStudioImport,
   cancelStudioJob,
   type JewelleryType,
-  type HandPoseId,
   type PromptOverrides,
   type PromptCreativeOverride,
 } from '../../api/aiStudio';
@@ -24,7 +23,6 @@ import { StudioStepper } from '../../features/aiStudio/StudioStepper';
 import { UploadStep } from '../../features/aiStudio/UploadStep';
 import { AnalyseConfirmStep } from '../../features/aiStudio/AnalyseConfirmStep';
 import { PresenterStep } from '../../features/aiStudio/PresenterStep';
-import { HandPoseStep } from '../../features/aiStudio/HandPoseStep';
 import { ReviewPromptsStep } from '../../features/aiStudio/ReviewPromptsStep';
 import { GenerateStep } from '../../features/aiStudio/GenerateStep';
 import { ReviewImportStep } from '../../features/aiStudio/ReviewImportStep';
@@ -62,7 +60,6 @@ export function AiImageStudioPage() {
     () => localStorage.getItem(ROSE_GOLD_PREF_KEY) !== 'false',
   );
   const [presenterId, setPresenterId] = useState<string | null>(null);
-  const [handPose, setHandPose] = useState<HandPoseId>('BACK_OF_HAND_HERO');
   const [promptOverrides, setPromptOverrides] = useState<PromptOverrides>({});
   // A Set (not a single id) so "Regenerate All" — Ring-only — can show every
   // in-flight tile's own "Requesting…" state at once, not just the last one
@@ -144,7 +141,6 @@ export function AiImageStudioPage() {
         categoryId: product?.categoryId ?? null,
         presenterId: isRing ? null : presenterId,
         generateRoseGold,
-        handPose: isRing ? handPose : undefined,
         promptOverrides,
       }),
     onSuccess: invalidateJob,
@@ -254,31 +250,32 @@ export function AiImageStudioPage() {
               generateRoseGold={generateRoseGold}
               onGenerateRoseGoldChange={handleGenerateRoseGoldChange}
             />
+            {confirmError && isRing && <p className={sharedStyles.error}>{confirmError}</p>}
             <div className={styles.actions}>
               <button
                 type="button"
                 className={sharedStyles.buttonPrimary}
-                disabled={!jewelleryType || !categoryConfirmed}
-                onClick={() => setConfirmSubStep('presenter')}
+                disabled={!jewelleryType || !categoryConfirmed || (isRing && confirmMutation.isPending)}
+                // Ring skips both the presenter/hand-pose choice and the Review
+                // Prompts screen entirely — generation starts immediately once
+                // the category is confirmed, per spec: no pose selection, no
+                // additional confirmation step in between.
+                onClick={() => (isRing ? confirmMutation.mutate() : setConfirmSubStep('presenter'))}
               >
-                Continue
+                {isRing ? (confirmMutation.isPending ? 'Starting…' : `Confirm & Generate ${generateCount} Images`) : 'Continue'}
               </button>
             </div>
           </>
         )}
 
-        {job && job.status === 'awaiting_confirmation' && confirmSubStep === 'presenter' && (
+        {job && job.status === 'awaiting_confirmation' && confirmSubStep === 'presenter' && !isRing && (
           <>
-            {isRing ? (
-              <HandPoseStep handPose={handPose} onChange={setHandPose} generateRoseGold={generateRoseGold} />
-            ) : (
-              <PresenterStep
-                jewelleryType={jewelleryType}
-                presenterId={presenterId}
-                onChange={setPresenterId}
-                generateRoseGold={generateRoseGold}
-              />
-            )}
+            <PresenterStep
+              jewelleryType={jewelleryType}
+              presenterId={presenterId}
+              onChange={setPresenterId}
+              generateRoseGold={generateRoseGold}
+            />
             <div className={styles.actions}>
               <button type="button" className={sharedStyles.button} onClick={() => setConfirmSubStep('analyse')}>
                 Back
@@ -294,16 +291,15 @@ export function AiImageStudioPage() {
           </>
         )}
 
-        {job && job.status === 'awaiting_confirmation' && confirmSubStep === 'prompts' && jewelleryType && (
+        {job && job.status === 'awaiting_confirmation' && confirmSubStep === 'prompts' && jewelleryType && !isRing && (
           <>
             <ReviewPromptsStep
               productId={productId as string}
               jobId={jobId as string}
               jewelleryType={jewelleryType as Exclude<JewelleryType, 'UNKNOWN'>}
-              presenterId={isRing ? null : presenterId}
-              presenterName={isRing ? null : presenters.find((p) => p.id === presenterId)?.displayName ?? null}
+              presenterId={presenterId}
+              presenterName={presenters.find((p) => p.id === presenterId)?.displayName ?? null}
               generateRoseGold={generateRoseGold}
-              handPose={isRing ? handPose : undefined}
               promptOverrides={promptOverrides}
               onPromptOverridesChange={setPromptOverrides}
             />

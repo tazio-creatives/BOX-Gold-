@@ -5,7 +5,7 @@ import { AppError, NotFoundError } from '../utils/AppError.js';
 import { env } from '../config/env.js';
 import { boss } from '../jobs/queue.js';
 import { JOB_AI_STUDIO_ANALYSE, JOB_AI_STUDIO_GENERATE, resetAssetForRetry } from '../jobs/aiStudioJob.js';
-import { JEWELLERY_TYPES, HAND_POSES, ASSET_DISPLAY_ORDER, previewPromptsForJob } from '../services/aiStudioService.js';
+import { JEWELLERY_TYPES, ASSET_DISPLAY_ORDER, previewPromptsForJob } from '../services/aiStudioService.js';
 import { findPresenterById } from '../repositories/presenters.repository.js';
 import { findCategoryById } from '../repositories/categories.repository.js';
 import { storageProvider } from '../providers/storage/index.js';
@@ -67,7 +67,6 @@ export const confirmSchema = z.object({
   categoryId: z.string().uuid().nullable().optional(),
   presenterId: z.string().uuid().nullable().optional(),
   generateRoseGold: z.boolean().optional(),
-  handPose: z.enum(HAND_POSES).optional(),
   promptOverrides: promptOverridesSchema.optional(),
 });
 
@@ -75,7 +74,6 @@ const promptPreviewSchema = z.object({
   jewelleryType: z.enum(JEWELLERY_TYPES.filter((t) => t !== 'UNKNOWN')).optional(),
   presenterId: z.string().uuid().nullable().optional(),
   generateRoseGold: z.boolean().optional(),
-  handPose: z.enum(HAND_POSES).optional(),
   promptOverrides: promptOverridesSchema.optional(),
 });
 
@@ -133,7 +131,6 @@ function jobDto(job, assets, presenter) {
       ? { id: presenter.id, displayName: presenter.display_name, styleLabel: presenter.style_label }
       : null,
     generateRoseGold: job.generate_rose_gold,
-    handPose: job.hand_pose,
     error: job.error,
     createdAt: job.created_at,
     confirmedAt: job.confirmed_at,
@@ -321,14 +318,12 @@ export async function confirmJob(req, res, next) {
     }
 
     const generateRoseGold = input.generateRoseGold ?? true;
-    const handPose = isRing ? input.handPose ?? 'BACK_OF_HAND_HERO' : null;
 
     await updateJob(job.id, {
       jewellery_type: input.jewelleryType,
       category_id: input.categoryId ?? null,
       presenter_id: isRing ? null : (input.presenterId ?? null),
       generate_rose_gold: generateRoseGold,
-      hand_pose: handPose,
       confirmed_at: new Date(),
       category_confirmed_at: new Date(),
       status: 'generating',
@@ -343,7 +338,6 @@ export async function confirmJob(req, res, next) {
       template,
       presenter,
       generateRoseGold,
-      handPose,
       overridesByAssetType: input.promptOverrides,
     });
 
@@ -397,14 +391,12 @@ export async function previewPrompts(req, res, next) {
     }
 
     const generateRoseGold = input.generateRoseGold ?? job.generate_rose_gold ?? true;
-    const handPose = isRing ? input.handPose ?? job.hand_pose ?? 'BACK_OF_HAND_HERO' : null;
 
     const previews = previewPromptsForJob({
       confirmedType: jewelleryType,
       template,
       presenter,
       generateRoseGold,
-      handPose,
       overridesByAssetType: input.promptOverrides,
     });
 
@@ -475,7 +467,6 @@ export async function updateAssetSelection(req, res, next) {
         template,
         presenter,
         generateRoseGold: job.generate_rose_gold,
-        handPose: job.hand_pose,
         overridesByAssetType: { [asset.asset_type]: input.customCreativeInstructions },
       });
       const preview = previews.find((p) => p.assetType === asset.asset_type);

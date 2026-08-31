@@ -4,11 +4,9 @@ import { deriveJobStatus } from '../../src/jobs/aiStudioJob.js';
 import { confirmSchema } from '../../src/controllers/aiStudio.controller.js';
 import {
   JEWELLERY_TYPES,
-  HAND_POSES,
   resolveAssetTypesForJob,
   previewPromptsForJob,
   metalColorForAssetType,
-  formatHandPose,
 } from '../../src/services/aiStudioService.js';
 import { query } from '../../src/config/db.js';
 import { insertJob, findCategoryTemplate } from '../../src/repositories/aiStudio.repository.js';
@@ -145,17 +143,6 @@ describe('metalColorForAssetType — Ring types', () => {
   });
 });
 
-describe('formatHandPose', () => {
-  test('every hand pose formats to its exact spec-mandated label', () => {
-    assert.equal(formatHandPose('BACK_OF_HAND_HERO'), 'Back-of-Hand Hero');
-    assert.equal(formatHandPose('ELEGANT_DIAGONAL'), 'Elegant Diagonal');
-    assert.equal(formatHandPose('SIDE_ROTATION'), 'Side Rotation');
-    assert.equal(formatHandPose('SOFT_RESTING_POSE'), 'Soft Resting Pose');
-    assert.equal(formatHandPose('FINGER_DETAIL_CLOSEUP'), 'Finger Detail Close-up');
-    assert.equal(HAND_POSES.length, 5);
-  });
-});
-
 describe('category templates (plan §9 — table-driven, all 12 categories)', () => {
   test('every jewellery type except UNKNOWN has a complete, active template', async () => {
     const realTypes = JEWELLERY_TYPES.filter((t) => t !== 'UNKNOWN');
@@ -239,7 +226,6 @@ describe('previewPromptsForJob (Review Prompts panel — pure, no DB/API calls)'
       template: FAKE_TEMPLATE,
       presenter: FAKE_PRESENTER,
       generateRoseGold: false,
-      handPose: 'BACK_OF_HAND_HERO',
       overridesByAssetType: undefined,
     });
     // RING now uses the dedicated hand-pose workflow, not PRESENTER_* — its
@@ -321,7 +307,6 @@ describe('previewPromptsForJob — Ring-only output structure', () => {
       template: RING_TEMPLATE,
       presenter: null,
       generateRoseGold: true,
-      handPose: 'BACK_OF_HAND_HERO',
       overridesByAssetType: undefined,
     });
     assert.deepEqual(
@@ -340,7 +325,6 @@ describe('previewPromptsForJob — Ring-only output structure', () => {
       template: RING_TEMPLATE,
       presenter: null,
       generateRoseGold: false,
-      handPose: 'BACK_OF_HAND_HERO',
       overridesByAssetType: undefined,
     });
     assert.deepEqual(
@@ -352,40 +336,58 @@ describe('previewPromptsForJob — Ring-only output structure', () => {
     assert.equal(hand2.metalColor, 'YELLOW');
   });
 
-  test('Hand Pose 2 always uses a different pose from Hand Pose 1 (cyclic rotation)', () => {
-    for (const pose of HAND_POSES) {
-      const previews = previewPromptsForJob({
-        confirmedType: 'RING',
-        template: RING_TEMPLATE,
-        presenter: null,
-        generateRoseGold: false,
-        handPose: pose,
-        overridesByAssetType: undefined,
-      });
-      const hand1 = previews.find((p) => p.assetType === 'RING_HAND_1');
-      const hand2 = previews.find((p) => p.assetType === 'RING_HAND_2');
-      assert.notEqual(
-        hand1.categoryPlacementRules[0],
-        hand2.categoryPlacementRules[0],
-        `pose text for ${pose} was reused unchanged on Hand Pose 2`,
-      );
-    }
+  test('Hand Image 1 and Hand Image 2 are always the two fixed, distinct lifestyle poses — no admin pose choice involved', () => {
+    const previews = previewPromptsForJob({
+      confirmedType: 'RING',
+      template: RING_TEMPLATE,
+      presenter: null,
+      generateRoseGold: false,
+      overridesByAssetType: undefined,
+    });
+    const hand1 = previews.find((p) => p.assetType === 'RING_HAND_1');
+    const hand2 = previews.find((p) => p.assetType === 'RING_HAND_2');
+    assert.notEqual(hand1.categoryPlacementRules[0], hand2.categoryPlacementRules[0]);
+    assert.match(hand1.categoryPlacementRules[0], /her face may be visible/i);
+    assert.match(hand2.categoryPlacementRules[0], /closer crop/i);
+    assert.match(hand2.categoryPlacementRules[0], /full face does not need to be visible/i);
+    assert.match(hand2.finalPrompt, /different hand position from Hand Image 1/i);
   });
 
-  test('hand shots never mention a face, body or clothing, and require exactly one ring', () => {
+  test('hand shots allow a visible face, exclude other jewellery, and require exactly one ring', () => {
     const previews = previewPromptsForJob({
       confirmedType: 'RING',
       template: RING_TEMPLATE,
       presenter: null,
       generateRoseGold: true,
-      handPose: 'BACK_OF_HAND_HERO',
       overridesByAssetType: undefined,
     });
     for (const assetType of ['RING_HAND_1', 'RING_HAND_2']) {
       const shot = previews.find((p) => p.assetType === assetType);
-      assert.match(shot.finalPrompt, /do not show a face, head, hair, upper body/i);
+      assert.doesNotMatch(shot.finalPrompt, /do not show a face/i);
+      assert.match(shot.finalPrompt, /do not show earrings, a necklace, or any other distracting jewellery/i);
       assert.match(shot.finalPrompt, /exactly one ring/i);
       assert.match(shot.finalPrompt, /five naturally proportioned fingers/i);
+    }
+  });
+
+  test('hand shots carry the strict physical-placement rules: wrap the finger, no floating/pasting/embedding, correct finger, no added/removed stones', () => {
+    const previews = previewPromptsForJob({
+      confirmedType: 'RING',
+      template: RING_TEMPLATE,
+      presenter: null,
+      generateRoseGold: true,
+      overridesByAssetType: undefined,
+    });
+    for (const assetType of ['RING_HAND_1', 'RING_HAND_2']) {
+      const shot = previews.find((p) => p.assetType === assetType);
+      assert.match(shot.finalPrompt, /physically wrap around the ring finger/i);
+      assert.match(shot.finalPrompt, /decorative top sits above the finger/i);
+      assert.match(shot.finalPrompt, /rear band is hidden behind the finger/i);
+      assert.match(shot.finalPrompt, /do not make the ring float above the skin/i);
+      assert.match(shot.finalPrompt, /do not paste the complete circular band flatly/i);
+      assert.match(shot.finalPrompt, /do not embed the ring inside the skin/i);
+      assert.match(shot.finalPrompt, /do not place the ring on the wrong finger/i);
+      assert.match(shot.finalPrompt, /do not add or remove any stones/i);
     }
   });
 
@@ -395,7 +397,6 @@ describe('previewPromptsForJob — Ring-only output structure', () => {
       template: RING_TEMPLATE,
       presenter: null,
       generateRoseGold: true,
-      handPose: 'BACK_OF_HAND_HERO',
       overridesByAssetType: undefined,
     });
     const hand1 = previews.find((p) => p.assetType === 'RING_HAND_1'); // Yellow Gold
@@ -413,7 +414,6 @@ describe('previewPromptsForJob — Ring-only output structure', () => {
       template: RING_TEMPLATE,
       presenter: null,
       generateRoseGold: true,
-      handPose: 'BACK_OF_HAND_HERO',
       overridesByAssetType: undefined,
     });
     const goldFront = previews.find((p) => p.assetType === 'RING_GOLD_FRONT');
@@ -429,7 +429,6 @@ describe('previewPromptsForJob — Ring-only output structure', () => {
       template: RING_TEMPLATE,
       presenter: null,
       generateRoseGold: true,
-      handPose: 'BACK_OF_HAND_HERO',
       overridesByAssetType: undefined,
     });
     const goldFront = previews.find((p) => p.assetType === 'RING_GOLD_FRONT');
@@ -451,7 +450,6 @@ describe('previewPromptsForJob — Ring-only output structure', () => {
       template: RING_TEMPLATE,
       presenter: null,
       generateRoseGold: true,
-      handPose: 'BACK_OF_HAND_HERO',
       overridesByAssetType: undefined,
     });
     for (const p of previews) {
@@ -465,7 +463,6 @@ describe('previewPromptsForJob — Ring-only output structure', () => {
       template: RING_TEMPLATE,
       presenter: null,
       generateRoseGold: true,
-      handPose: 'BACK_OF_HAND_HERO',
       overridesByAssetType: undefined,
     });
     const goldFront = previews.find((p) => p.assetType === 'RING_GOLD_FRONT');

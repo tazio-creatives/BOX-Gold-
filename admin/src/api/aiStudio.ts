@@ -54,37 +54,6 @@ export type AssetType =
   | 'RING_ROSE_FRONT'
   | 'RING_ROSE_SIDE';
 
-// Renamed from "Presenter Style" for Rings only — no presenter entity, no
-// Contemporary/Traditional choice. Hand Pose 2 is always the NEXT option in
-// this list from whatever was picked here (cyclic), guaranteeing a visibly
-// different pose without a second admin choice.
-export type HandPoseId =
-  | 'BACK_OF_HAND_HERO'
-  | 'ELEGANT_DIAGONAL'
-  | 'SIDE_ROTATION'
-  | 'SOFT_RESTING_POSE'
-  | 'FINGER_DETAIL_CLOSEUP';
-
-export const HAND_POSES: HandPoseId[] = [
-  'BACK_OF_HAND_HERO',
-  'ELEGANT_DIAGONAL',
-  'SIDE_ROTATION',
-  'SOFT_RESTING_POSE',
-  'FINGER_DETAIL_CLOSEUP',
-];
-
-const HAND_POSE_LABELS: Record<HandPoseId, string> = {
-  BACK_OF_HAND_HERO: 'Back-of-Hand Hero',
-  ELEGANT_DIAGONAL: 'Elegant Diagonal',
-  SIDE_ROTATION: 'Side Rotation',
-  SOFT_RESTING_POSE: 'Soft Resting Pose',
-  FINGER_DETAIL_CLOSEUP: 'Finger Detail Close-up',
-};
-
-export function formatHandPose(pose: HandPoseId): string {
-  return HAND_POSE_LABELS[pose];
-}
-
 export type AssetStatus = 'PENDING' | 'GENERATING' | 'READY' | 'FAILED';
 export type StudioJobStatus =
   | 'draft'
@@ -193,7 +162,6 @@ export interface StudioJob {
   presenterId: string | null;
   presenter: { id: string; displayName: string; styleLabel: string } | null;
   generateRoseGold: boolean;
-  handPose: HandPoseId | null;
   error: string | null;
   createdAt: string;
   confirmedAt: string | null;
@@ -260,7 +228,6 @@ export function confirmStudioJob(
     categoryId: string | null;
     presenterId: string | null;
     generateRoseGold: boolean;
-    handPose?: HandPoseId;
     promptOverrides?: PromptOverrides;
   },
 ) {
@@ -280,7 +247,6 @@ export function fetchPromptPreview(
     jewelleryType?: Exclude<JewelleryType, 'UNKNOWN'>;
     presenterId?: string | null;
     generateRoseGold?: boolean;
-    handPose?: HandPoseId;
     promptOverrides?: PromptOverrides;
   },
 ) {
