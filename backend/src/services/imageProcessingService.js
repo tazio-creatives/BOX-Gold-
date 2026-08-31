@@ -11,6 +11,15 @@ const VARIANT_WIDTHS = {
   large: 1600,
 };
 
+// AVIF is the format actually served (ImageGallery.tsx prefers it over
+// WebP wherever both exist) — 85 is well past the point where AV1 artifacts
+// are visible on a real screen, without the runaway file size of q90+ or
+// true lossless (measured: q60 ~24KB / q75 ~37KB / q85 ~55KB / q100 ~340KB /
+// lossless ~630KB, for one 1600px product photo). WebP stays at 75 since
+// it's now only a fallback for the rare pre-AVIF browser.
+const AVIF_QUALITY = 85;
+const WEBP_QUALITY = 75;
+
 // Derives thumbnail/small/medium/large in AVIF+WebP (plan §9) and stores
 // the original — normalized to a single high-quality JPEG rather than the
 // literal uploaded bytes, since product_images.format is constrained to
@@ -23,11 +32,11 @@ export async function processAndStoreImage(productId, sourceBuffer) {
   for (const [variant, width] of Object.entries(VARIANT_WIDTHS)) {
     const resized = sharp(sourceBuffer).resize({ width, withoutEnlargement: true });
 
-    const avifBuffer = await resized.clone().avif({ quality: 60 }).toBuffer();
+    const avifBuffer = await resized.clone().avif({ quality: AVIF_QUALITY }).toBuffer();
     const avifSaved = await storageProvider.save(`${baseKey}-${variant}.avif`, avifBuffer);
     results.push({ variant, format: 'avif', url: avifSaved.url, key: avifSaved.key });
 
-    const webpBuffer = await resized.clone().webp({ quality: 75 }).toBuffer();
+    const webpBuffer = await resized.clone().webp({ quality: WEBP_QUALITY }).toBuffer();
     const webpSaved = await storageProvider.save(`${baseKey}-${variant}.webp`, webpBuffer);
     results.push({ variant, format: 'webp', url: webpSaved.url, key: webpSaved.key });
   }

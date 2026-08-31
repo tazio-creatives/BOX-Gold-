@@ -9,10 +9,16 @@ import styles from './ImageGallery.module.css';
 // format (avif/webp). Grouping by sortOrder collapses that back into one
 // displayable photo instead of showing every format/size as a duplicate
 // thumbnail.
+// AVIF first — same visual quality at a smaller (or at worst equal) file
+// size than WebP, since it's the newer, more efficient codec; WebP is only
+// a fallback for the rare browser without AVIF support (all evergreen
+// browsers — Chrome/Firefox/Edge/Safari 16+ — decode it natively).
 function pickUrl(rows: ProductImage[], preferredVariant: string): string | undefined {
   return (
+    rows.find((r) => r.variant === preferredVariant && r.format === 'avif')?.url ??
     rows.find((r) => r.variant === preferredVariant && r.format === 'webp')?.url ??
     rows.find((r) => r.variant === preferredVariant)?.url ??
+    rows.find((r) => r.variant === 'large' && r.format === 'avif')?.url ??
     rows.find((r) => r.variant === 'large' && r.format === 'webp')?.url ??
     rows.find((r) => r.variant === 'large')?.url ??
     rows.find((r) => r.variant === 'original')?.url ??
