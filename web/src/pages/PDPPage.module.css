@@ -78,6 +78,11 @@
      .page's 16px be the only page-level inset before those cards' own
      borders and internal padding take over. */
   .hero {
+    /* .hero's base margin-top (32px) isn't covered by the "invisible layout
+       wrapper" reasoning above — it still pushed the gallery's full-bleed
+       image down from the page edge by a visible gap. The gallery is meant
+       to sit flush under the header on mobile, so this cancels it. */
+    margin-top: 0;
     padding-left: 0;
     padding-right: 0;
     border-left: none;
