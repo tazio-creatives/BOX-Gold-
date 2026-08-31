@@ -63,7 +63,7 @@ const PRESENTERS = [
     displayName: 'Studio Presenter — Traditional',
     styleLabel: 'Traditional',
     promptDescriptor: 'a traditional presenter with graceful ethnic/festive styling and warm ambient lighting',
-    supportedJewelleryTypes: ['RING', 'BANGLE', 'NECKLACE', 'PENDANT', 'EARRINGS', 'MANGALSUTRA', 'ANKLET', 'NOSE_PIN'],
+    supportedJewelleryTypes: ['RING', 'BRACELET', 'BANGLE', 'NECKLACE', 'PENDANT', 'EARRINGS', 'MANGALSUTRA', 'ANKLET', 'NOSE_PIN'],
     isDefault: false,
     displayOrder: 1,
   },

@@ -98,8 +98,20 @@ export function ReviewImportStep({
     }
   }
 
+  // Import order determines each image's sortOrder on the product, i.e. its
+  // position in the storefront gallery row — independent of displayOrder,
+  // which only controls numbering/order in this Studio review grid. Hand
+  // Pose shots are lifestyle/worn shots, not the primary catalogue views, so
+  // they're imported last regardless of their displayOrder (0/1) and end up
+  // last in the storefront gallery instead of first.
+  function importSortKey(asset: StudioAsset) {
+    if (asset.assetType === 'RING_HAND_1' || asset.assetType === 'RING_HAND_2') return asset.displayOrder + 100;
+    return asset.displayOrder;
+  }
+
   function handleImport() {
-    runImport(selected.filter((a) => !a.imported));
+    const targets = selected.filter((a) => !a.imported).slice().sort((a, b) => importSortKey(a) - importSortKey(b));
+    runImport(targets);
   }
 
   function handleRetryFailedImports() {
