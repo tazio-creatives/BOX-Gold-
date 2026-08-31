@@ -199,6 +199,40 @@ describe('previewPromptsForJob (Review Prompts panel — pure, no DB/API calls)'
     }
   });
 
+  test('Bracelet gets a clasp-hidden negative instruction on every generated view, and it does not leak to other categories', () => {
+    const braceletPreviews = previewPromptsForJob({
+      confirmedType: 'BRACELET',
+      template: FAKE_TEMPLATE,
+      presenter: FAKE_PRESENTER,
+      generateRoseGold: true,
+      overridesByAssetType: undefined,
+    });
+    // Same 6 asset types/order as any other non-Ring category — the clasp
+    // rule must not change what gets generated, only add a negative.
+    assert.deepEqual(
+      braceletPreviews.map((p) => p.assetType),
+      ['YELLOW_FRONT', 'YELLOW_HERO_45', 'ROSE_FRONT', 'ROSE_HERO_45', 'PRESENTER_YELLOW_1', 'PRESENTER_ROSE'],
+    );
+    for (const p of braceletPreviews) {
+      assert.ok(
+        p.negativeInstructions.some((n) => /clasp/i.test(n) && /lock/i.test(n)),
+        `missing clasp-hidden negative for ${p.assetType}`,
+      );
+      assert.match(p.finalPrompt, /do not show the bracelet's lock, clasp/i);
+    }
+
+    const banglePreviews = previewPromptsForJob({
+      confirmedType: 'BANGLE',
+      template: FAKE_TEMPLATE,
+      presenter: FAKE_PRESENTER,
+      generateRoseGold: true,
+      overridesByAssetType: undefined,
+    });
+    for (const p of banglePreviews) {
+      assert.ok(!p.negativeInstructions.some((n) => /clasp/i.test(n)), `clasp rule leaked into BANGLE for ${p.assetType}`);
+    }
+  });
+
   test('presenter shots include the exact spec-mandated Ring placement/exclusion wording (Problem 2) — a non-Ring category still using the generic Presenter flow', () => {
     const previews = previewPromptsForJob({
       confirmedType: 'RING',

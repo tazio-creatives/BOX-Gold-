@@ -339,6 +339,15 @@ const RING_HAND_LIGHTING_NOTE =
 const RING_FIDELITY_EXTRA =
   'The uploaded product image is the only source of truth for the ring design — preserve the exact number, shape and position of every stone, the centre-stone shape and setting, band count and structure, pavé arrangement, curves/crossings/gaps, proportions, setting height, metal thickness and every decorative detail. Do not invent additional stones, remove stones, create a second ring, change the centre stone, change the band design, simplify the construction, or mirror/symmetrise an asymmetric detail. Do not redesign the ring to suit the pose. Pose and background reference images may influence only the hand position, camera angle or background — never the jewellery design. A visually attractive but structurally inaccurate result is not acceptable — do not add, remove or move stones, change the motif or band design, add another band, invent a different setting, convert the ring into a bangle or bracelet, or mix the uploaded ring with any design elements from pose or background reference images.';
 
+// Appended as an extra negative instruction on every asset type for a
+// confirmed Bracelet, on top of whatever that asset type's own negatives
+// already are — Bracelet is otherwise just the generic (non-Ring) prompt
+// path, so this is the only Bracelet-specific rule. Applies to every
+// generated view (front, hero angle, presenter) and every metal colour,
+// without changing which asset types are generated or their order.
+const BRACELET_CLASP_HIDDEN_NOTE =
+  "This is a Bracelet — do not show the bracelet's lock, clasp, hook or fastening mechanism anywhere in this image. Position or rotate the bracelet so the locking area stays hidden behind the product itself or outside the visible angle, while keeping the bracelet looking naturally closed and continuous. Do not invent a decorative lock, clasp or connector that is not part of the original design. Preserve the bracelet's original design, stones, metal colour, proportions and pattern exactly.";
+
 const PLACEMENT_RULES = {
   RING: {
     location: "the ring finger",
@@ -410,6 +419,7 @@ function buildAssetPromptSections({
   let creativeDefaults;
   const negativeParts = ['Do not redesign, reinterpret or add/remove/resize/reposition any component.'];
   if (RING_ASSET_TYPE_SET.has(assetType)) negativeParts.push(RING_FIDELITY_EXTRA);
+  if (confirmedType === 'BRACELET') negativeParts.push(BRACELET_CLASP_HIDDEN_NOTE);
 
   switch (assetType) {
     case 'YELLOW_FRONT':
