@@ -19,6 +19,9 @@ import { OrderSummary } from '../features/checkout/OrderSummary';
 import styles from './CartPage.module.css';
 import placeholderStyles from './PlaceholderPage.module.css';
 
+// Size is shown as its own dedicated line on the cart card (matches the
+// approved reference design) — everything else (metal, diamond config)
+// stays on one combined meta line above it.
 function metaLine(item: CartItem): string {
   const parts: string[] = [];
   if (item.metalType === 'GOLD') {
@@ -27,10 +30,21 @@ function metaLine(item: CartItem): string {
   } else {
     parts.push(item.purity ? `${item.purity} Platinum` : 'Platinum');
   }
-  const size = item.sizeLabel ?? item.productSize;
-  if (size) parts.push(`Size: ${size}`);
   if (item.diamondConfigName) parts.push(item.diamondConfigName);
   return parts.join('  ·  ');
+}
+
+function sizeLabel(item: CartItem): string | null {
+  const size = item.sizeLabel ?? item.productSize;
+  return size ? `Size : ${size}` : null;
+}
+
+// Same estimate wording as the PDP's DeliveryChecker (post-pincode-check
+// state) — kept consistent across surfaces rather than inventing new copy.
+function deliveryLabel(item: CartItem): string {
+  return item.isBackordered
+    ? 'Made to order — delivery in 7–10 working days'
+    : 'Delivery in 3–7 business days';
 }
 
 function CloseIcon() {
@@ -54,6 +68,17 @@ function BagIcon() {
     <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
       <path d="M6 8h12l-1 12H7L6 8z" />
       <path d="M9 8V6a3 3 0 0 1 6 0v2" />
+    </svg>
+  );
+}
+
+function TruckIcon() {
+  return (
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75">
+      <path d="M2 7h11v10H2z" />
+      <path d="M13 10h4l4 3v4h-8z" />
+      <circle cx="6" cy="19" r="1.7" />
+      <circle cx="17" cy="19" r="1.7" />
     </svg>
   );
 }
@@ -92,8 +117,8 @@ export function CartPage() {
   const { data, isLoading } = useQuery({ queryKey: ['cart'], queryFn: fetchCart });
 
   const { data: featuredData } = useQuery({
-    queryKey: ['featured-products-cart'],
-    queryFn: () => fetchProducts({ sort: 'featured', limit: 8 }),
+    queryKey: ['best-sellers-cart'],
+    queryFn: () => fetchProducts({ sort: 'bestseller', limit: 8 }),
   });
 
   const updateMutation = useMutation({
@@ -157,20 +182,18 @@ export function CartPage() {
         <h1 className={styles.heading}>Shopping Bag</h1>
         <div className={styles.layout}>
           <div className={styles.mainColumn}>
-            <div className={styles.cartCard}>
-              <ul className={styles.list}>
-                {Array.from({ length: 3 }).map((_, i) => (
-                  <li key={i} className={styles.row}>
-                    <div className={styles.skeletonImage} />
-                    <div className={styles.skeletonDetails}>
-                      <div className={styles.skeletonLine} style={{ width: '60%', height: 18 }} />
-                      <div className={styles.skeletonLine} style={{ width: '40%' }} />
-                      <div className={styles.skeletonLine} style={{ width: '30%' }} />
-                    </div>
-                  </li>
-                ))}
-              </ul>
-            </div>
+            <ul className={styles.list}>
+              {Array.from({ length: 3 }).map((_, i) => (
+                <li key={i} className={styles.row}>
+                  <div className={styles.skeletonImage} />
+                  <div className={styles.skeletonDetails}>
+                    <div className={styles.skeletonLine} style={{ width: '60%', height: 18 }} />
+                    <div className={styles.skeletonLine} style={{ width: '40%' }} />
+                    <div className={styles.skeletonLine} style={{ width: '30%' }} />
+                  </div>
+                </li>
+              ))}
+            </ul>
           </div>
           <div className={styles.skeletonSummary} />
         </div>
@@ -198,7 +221,7 @@ export function CartPage() {
           </div>
         </div>
 
-        <RelatedProducts products={featuredData?.products ?? []} categorySlug={null} />
+        <RelatedProducts products={featuredData?.products ?? []} categorySlug={null} heading="Best Sellers" />
       </div>
     );
   }
@@ -217,6 +240,12 @@ export function CartPage() {
   const total = Math.max(data.subtotal - discountAmount, 0);
   const MAX_LINE_QUANTITY = 20; // mirrors the backend's addCartItemSchema/updateCartItemSchema cap
   const itemCountLabel = `${data.itemCount} ${data.itemCount === 1 ? 'item' : 'items'}`;
+  // Sum of every line's (strike-through MRP - selling price) — the coupon
+  // discount is tracked separately and shown as its own row.
+  const savingsAmount = data.items.reduce((sum, item) => {
+    const { strikePrice } = effectiveMrp(item.sellingPrice, item.mrp, item.sellingPriceOriginal);
+    return sum + Math.max(strikePrice - item.sellingPrice, 0) * item.quantity;
+  }, 0);
 
   return (
     <div className={styles.page}>
@@ -228,16 +257,16 @@ export function CartPage() {
 
       <div className={styles.layout}>
         <div className={styles.mainColumn}>
-          <div className={styles.cartCard}>
-            <ul className={styles.list}>
-              {data.items.map((item, i) => {
+          <ul className={styles.list}>
+            {data.items.map((item, i) => {
                 const rowKey = item.variantId;
                 const isUpdating = updateMutation.isPending && updateMutation.variables.variantId === rowKey;
                 const isRemoving = removeMutation.isPending && removeMutation.variables.variantId === rowKey;
                 const isMovingToWishlist =
                   moveToWishlistMutation.isPending && moveToWishlistMutation.variables.variantId === rowKey;
                 const rowBusy = isUpdating || isRemoving || isMovingToWishlist;
-                const { strikePrice } = effectiveMrp(item.sellingPrice, item.mrp, item.sellingPriceOriginal);
+                const { strikePrice, discountPercent } = effectiveMrp(item.sellingPrice, item.mrp, item.sellingPriceOriginal);
+                const size = sizeLabel(item);
 
                 return (
                   <li key={item.variantId} className={styles.row} aria-busy={rowBusy || undefined}>
@@ -262,6 +291,7 @@ export function CartPage() {
                         {item.primaryImageUrl && (
                           <img src={item.primaryImageUrl} alt={item.name} className={styles.imageTag} />
                         )}
+                        {discountPercent > 0 && <span className={styles.discountBadge}>{discountPercent}% OFF</span>}
                       </div>
                     </Link>
 
@@ -274,15 +304,17 @@ export function CartPage() {
                       </Link>
 
                       <p className={styles.meta}>{metaLine(item)}</p>
+                      {size && <p className={styles.sizeRow}>{size}</p>}
 
                       <p className={styles.price}>
                         {formatPrice(item.sellingPrice)}
                         {strikePrice > 0 && <span className={styles.priceOld}>{formatPrice(strikePrice)}</span>}
                       </p>
 
-                      {item.isBackordered && (
-                        <p className={styles.backorderNotice}>Make to Order — ships in 7–10 working days</p>
-                      )}
+                      <p className={item.isBackordered ? styles.deliveryBadgeBackorder : styles.deliveryBadge}>
+                        <TruckIcon />
+                        {deliveryLabel(item)}
+                      </p>
 
                       <div className={styles.rowFooter}>
                         <div className={styles.stepper}>
@@ -329,8 +361,7 @@ export function CartPage() {
                   </li>
                 );
               })}
-            </ul>
-          </div>
+          </ul>
 
           <TrustStripBar variant="boxed" items={CART_ASSURANCE_ITEMS} />
         </div>
@@ -339,6 +370,7 @@ export function CartPage() {
           <OrderSummary
             itemCount={data.itemCount}
             subtotal={preTaxSubtotal}
+            savingsAmount={savingsAmount}
             discountAmount={discountAmount}
             gstAmount={data.gstAmount}
             gstPercent={gstPercent}
@@ -371,7 +403,7 @@ export function CartPage() {
         </div>
       </div>
 
-      <RelatedProducts products={featuredData?.products ?? []} categorySlug={null} />
+      <RelatedProducts products={featuredData?.products ?? []} categorySlug={null} heading="Best Sellers" />
 
       {/* Mobile-only (CSS): the sticky checkout bar is the single source of
           truth for "Proceed to Checkout" below 768px — OrderSummary's own

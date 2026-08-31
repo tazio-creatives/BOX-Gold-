@@ -63,6 +63,13 @@ export function setFeatured(id: string, featured: boolean) {
   });
 }
 
+export function setBestSeller(id: string, bestSeller: boolean) {
+  return apiFetch<{ id: string; isBestSeller: boolean }>(`/admin/products/${id}/best-seller`, {
+    method: 'PATCH',
+    body: JSON.stringify({ bestSeller }),
+  });
+}
+
 export interface ProductVariantRow {
   id: string;
   label: string;

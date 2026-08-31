@@ -4,6 +4,7 @@ import {
   createProductSchema,
   updateProductSchema,
   featuredSchema,
+  bestSellerSchema,
   variantPricePreviewQuerySchema,
   updateVariantSchema,
   bulkUpdateVariantSchema,
@@ -88,6 +89,7 @@ export function toListDto(row) {
     ratingAvg: Number(row.rating_avg),
     ratingCount: row.rating_count,
     isFeatured: row.is_featured,
+    isBestSeller: row.is_best_seller,
     isNew: isRecentlyPublished(row.created_at),
     ...(row.status ? { status: row.status } : {}),
   };
@@ -161,6 +163,7 @@ function toDetailDto(row) {
     status: row.status,
     isPriceLocked: row.is_price_locked,
     isFeatured: row.is_featured,
+    isBestSeller: row.is_best_seller,
     showDeliveryChecker: row.show_delivery_checker,
     isNew: isRecentlyPublished(row.created_at),
 
@@ -377,6 +380,16 @@ export async function setFeatured(req, res, next) {
     const { featured } = featuredSchema.parse(req.body);
     const product = await productsService.adminUpdateProduct(req.params.id, { isFeatured: featured });
     res.json({ id: product.id, isFeatured: product.is_featured });
+  } catch (err) {
+    next(err);
+  }
+}
+
+export async function setBestSeller(req, res, next) {
+  try {
+    const { bestSeller } = bestSellerSchema.parse(req.body);
+    const product = await productsService.adminUpdateProduct(req.params.id, { isBestSeller: bestSeller });
+    res.json({ id: product.id, isBestSeller: product.is_best_seller });
   } catch (err) {
     next(err);
   }

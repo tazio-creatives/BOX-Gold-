@@ -253,7 +253,7 @@ export interface VariantPricePreview {
   offerLabel: string | null;
 }
 
-export type SortOption = 'featured' | 'newest' | 'price_asc' | 'price_desc';
+export type SortOption = 'featured' | 'newest' | 'price_asc' | 'price_desc' | 'bestseller';
 export type MetalType = 'GOLD' | 'PLATINUM';
 export type Purity = '9K' | '14K' | '18K' | '22K' | '24K';
 export type GoldColor = 'YELLOW' | 'ROSE' | 'WHITE';
@@ -415,6 +415,7 @@ export interface Order {
   contactMobile: string;
   contactEmail: string;
   shippingAddress: Omit<Address, 'id' | 'isDefault'>;
+  deliveryNote: string | null;
   subtotal: number;
   discountAmount: number;
   couponCode: string | null;
@@ -467,6 +468,7 @@ export interface CheckoutPayload {
     quantity: number;
   }[];
   couponCode?: string;
+  deliveryNote?: string;
 }
 
 export interface CouponApplyResponse {

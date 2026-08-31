@@ -26,6 +26,7 @@ export interface ProductListItem {
   ratingAvg: number;
   ratingCount: number;
   isFeatured: boolean;
+  isBestSeller: boolean;
   status?: ProductStatus;
 }
 
@@ -110,6 +111,7 @@ export interface ProductDetail {
   status: ProductStatus;
   isPriceLocked: boolean;
   isFeatured: boolean;
+  isBestSeller: boolean;
   showDeliveryChecker: boolean;
   metaTitle: string | null;
   metaDescription: string | null;
@@ -334,6 +336,7 @@ export interface OrderDetail {
   contactMobile: string;
   contactEmail: string;
   shippingAddress: ShippingAddress;
+  deliveryNote: string | null;
   subtotal: number;
   discountAmount: number;
   couponCode: string | null;

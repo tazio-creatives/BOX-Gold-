@@ -13,7 +13,7 @@ export const listProductsQuerySchema = z.object({
   goldColor: z.enum(GOLD_COLORS).optional(),
   priceMin: z.coerce.number().nonnegative().optional(),
   priceMax: z.coerce.number().nonnegative().optional(),
-  sort: z.enum(['featured', 'newest', 'price_asc', 'price_desc']).optional(),
+  sort: z.enum(['featured', 'newest', 'price_asc', 'price_desc', 'bestseller']).optional(),
   page: z.coerce.number().int().positive().optional(),
   limit: z.coerce.number().int().positive().max(100).optional(),
 });
@@ -113,6 +113,10 @@ export const updateProductSchema = createProductSchema.partial();
 
 export const featuredSchema = z.object({
   featured: z.boolean(),
+});
+
+export const bestSellerSchema = z.object({
+  bestSeller: z.boolean(),
 });
 
 export const variantPricePreviewQuerySchema = z.object({

@@ -6,6 +6,7 @@ import {
   adminUpdate,
   adminDelete,
   setFeatured,
+  setBestSeller,
   listVariants,
   updateVariant,
   bulkUpdateVariants,
@@ -54,6 +55,7 @@ adminProductsRouter.patch('/:id', adminUpdate);
 adminProductsRouter.delete('/:id', adminDelete);
 adminProductsRouter.patch('/:id/price-lock', setPriceLock);
 adminProductsRouter.patch('/:id/featured', setFeatured);
+adminProductsRouter.patch('/:id/best-seller', setBestSeller);
 
 // Variant editor (attribute + variant model) — per-combination stock/
 // weight/availability, each with its own live price.

@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useQuery, useQueryClient, useMutation } from '@tanstack/react-query';
-import { fetchAdminProducts, deleteProduct, setFeatured } from '../../api/products';
+import { fetchAdminProducts, deleteProduct, setFeatured, setBestSeller } from '../../api/products';
 import { fetchAdminCategories } from '../../api/categories';
 import type { ProductStatus } from '../../api/types';
 import { formatPrice } from '../../utils/formatPrice';
@@ -34,6 +34,23 @@ function StarIcon({ filled }: { filled: boolean }) {
       strokeLinejoin="round"
     >
       <path d="M12 3.3l2.5 5.3 5.8.6-4.3 3.9 1.2 5.7-5.2-3-5.2 3 1.2-5.7-4.3-3.9 5.8-.6L12 3.3z" />
+    </svg>
+  );
+}
+
+function FlameIcon({ filled }: { filled: boolean }) {
+  return (
+    <svg
+      width="18"
+      height="18"
+      viewBox="0 0 24 24"
+      fill={filled ? 'currentColor' : 'none'}
+      stroke="currentColor"
+      strokeWidth="1.75"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      <path d="M12 2.5c1.2 2.6-.5 4-1.6 5.3C9.2 9 8.5 10.3 8.5 12a3.5 3.5 0 0 0 7 0c0-1-.4-1.8-1-2.5.9.6 2 1.8 2 3.8a5 5 0 0 1-10 0c0-3.4 2.3-5 3.6-6.6C11 5.4 11.6 4.2 12 2.5z" />
     </svg>
   );
 }
@@ -79,6 +96,12 @@ export function ProductsListPage() {
     mutationFn: ({ id, featured }: { id: string; featured: boolean }) => setFeatured(id, featured),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['admin-products'] }),
     onError: (err) => window.alert(err instanceof Error ? err.message : 'Could not update featured status.'),
+  });
+
+  const bestSellerMutation = useMutation({
+    mutationFn: ({ id, bestSeller }: { id: string; bestSeller: boolean }) => setBestSeller(id, bestSeller),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['admin-products'] }),
+    onError: (err) => window.alert(err instanceof Error ? err.message : 'Could not update best seller status.'),
   });
 
   return (
@@ -136,6 +159,7 @@ export function ProductsListPage() {
                 <th>Stock</th>
                 <th>Status</th>
                 <th>Featured</th>
+                <th>Best Seller</th>
                 <th></th>
               </tr>
             </thead>
@@ -175,6 +199,18 @@ export function ProductsListPage() {
                       onClick={() => featuredMutation.mutate({ id: product.id, featured: !product.isFeatured })}
                     >
                       <StarIcon filled={product.isFeatured} />
+                    </button>
+                  </td>
+                  <td>
+                    <button
+                      type="button"
+                      className={`${styles.bestSellerButton} ${product.isBestSeller ? styles.bestSellerActive : ''}`}
+                      aria-label={product.isBestSeller ? `Remove ${product.name} from Best Sellers` : `Mark ${product.name} as a Best Seller`}
+                      aria-pressed={product.isBestSeller}
+                      disabled={bestSellerMutation.isPending}
+                      onClick={() => bestSellerMutation.mutate({ id: product.id, bestSeller: !product.isBestSeller })}
+                    >
+                      <FlameIcon filled={product.isBestSeller} />
                     </button>
                   </td>
                   <td>

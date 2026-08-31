@@ -43,7 +43,7 @@ const LIST_COLUMNS = `
   p.id, p.name, p.slug, p.sku, p.category_id, p.collection_id,
   p.metal_type, p.purity, p.gold_color, p.gold_value, p.diamond_value, p.making_charge,
   p.gst_percent, p.product_size, p.mrp, p.selling_price, p.status, p.stock_quantity,
-  p.rating_avg, p.rating_count, p.created_at, p.is_featured,
+  p.rating_avg, p.rating_count, p.created_at, p.is_featured, p.is_best_seller,
   p.net_weight_grams, p.gold_weight_grams, p.diamond_weight_grams, p.diamond_weight_carats, p.diamond_config_id,
   p.making_charge_discount_percent, p.diamond_discount_percent,
   p.diamond_colour, p.diamond_clarity,
@@ -118,17 +118,39 @@ const SORT_COLUMNS = {
   price_desc: 'p.selling_price DESC',
 };
 
+// "bestseller" combines the two signals the admin actually asked for:
+// (1) a manual is_best_seller flag set from the Products list, always
+// ranked first, and (2) real sales volume (units sold across non-cancelled/
+// non-failed orders) breaking ties/filling the rest — so a brand-new
+// product with zero sales can still be surfaced by an admin, while the
+// ranking among everything else reflects what's genuinely selling. Only
+// joined in for this one sort — every other listing (PLP, search, cart
+// rail on other sorts) shouldn't pay for the extra aggregation.
+const SALES_COUNT_JOIN = `
+  LEFT JOIN LATERAL (
+    SELECT COALESCE(SUM(oi.quantity), 0) AS sold_count
+    FROM order_items oi
+    JOIN orders o ON o.id = oi.order_id
+    WHERE oi.product_id = p.id
+      AND o.status NOT IN ('PENDING_PAYMENT', 'PAYMENT_FAILED', 'EXPIRED', 'CANCELLED')
+  ) sales ON true
+`;
+
 export async function listProducts(filters, { sort = 'featured', page = 1, limit = 24 } = {}) {
   const { where, params } = buildFilters(filters);
-  const orderBy = SORT_COLUMNS[sort] ?? SORT_COLUMNS.featured;
+  const isBestSeller = sort === 'bestseller';
+  const orderBy = isBestSeller
+    ? 'p.is_best_seller DESC, sales.sold_count DESC, p.created_at DESC'
+    : SORT_COLUMNS[sort] ?? SORT_COLUMNS.featured;
   const offset = (page - 1) * limit;
 
   const listParams = [...params, limit, offset];
   const { rows } = await query(
-    `SELECT ${LIST_COLUMNS} FROM products p
+    `SELECT ${LIST_COLUMNS}${isBestSeller ? ', sales.sold_count AS sold_count' : ''} FROM products p
      ${AVAILABLE_STOCK_JOIN}
      ${PRIMARY_IMAGE_JOIN}
      ${CATEGORY_JOIN}
+     ${isBestSeller ? SALES_COUNT_JOIN : ''}
      ${where}
      ORDER BY ${orderBy}
      LIMIT $${listParams.length - 1} OFFSET $${listParams.length}`,
@@ -251,6 +273,7 @@ const INSERT_COLUMNS = [
   'diamond_discount_percent',
   'is_price_locked',
   'is_featured',
+  'is_best_seller',
   'show_delivery_checker',
   'stock_quantity',
   'status',
