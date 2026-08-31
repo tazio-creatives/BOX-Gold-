@@ -6,6 +6,7 @@ import { fetchCart } from '../api/cart';
 import { fetchWishlist } from '../api/wishlist';
 import { fetchCategories } from '../api/categories';
 import { useCustomer } from '../features/auth/useCustomer';
+import { useAuthModal } from '../features/auth/AuthModalContext';
 import { MegaMenu, MobileCategoryList } from './MegaMenu';
 import styles from './Header.module.css';
 
@@ -14,6 +15,7 @@ export function Header() {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const mobileMenuRef = useRef<HTMLDivElement>(null);
   const { isLoggedIn } = useCustomer();
+  const { openLoginModal } = useAuthModal();
 
   // Deliberately client-only, not part of SSR prefetch (plan §1a scopes SSR
   // to Home/PLP/Collection/PDP content only) — badge counts populate just
@@ -83,14 +85,28 @@ export function Header() {
               >
                 Wishlist{wishlistCount > 0 ? ` (${wishlistCount})` : ''}
               </Link>
-              <Link
-                to={isLoggedIn ? '/account/orders' : '/login'}
-                className={styles.mobileMenuLink}
-                role="menuitem"
-                onClick={() => setIsMobileMenuOpen(false)}
-              >
-                {isLoggedIn ? 'Account' : 'My Account'}
-              </Link>
+              {isLoggedIn ? (
+                <Link
+                  to="/account/orders"
+                  className={styles.mobileMenuLink}
+                  role="menuitem"
+                  onClick={() => setIsMobileMenuOpen(false)}
+                >
+                  Account
+                </Link>
+              ) : (
+                <button
+                  type="button"
+                  className={`${styles.mobileMenuLink} ${styles.linkButton}`}
+                  role="menuitem"
+                  onClick={() => {
+                    setIsMobileMenuOpen(false);
+                    openLoginModal();
+                  }}
+                >
+                  My Account
+                </button>
+              )}
             </div>
           )}
         </div>
@@ -111,16 +127,26 @@ export function Header() {
             </span>
             <span className={styles.actionLabel}>Wishlist</span>
           </Link>
-          <Link
-            to={isLoggedIn ? '/account/orders' : '/login'}
-            className={styles.actionLink}
-            aria-label={isLoggedIn ? 'Account' : 'My Account'}
-          >
-            <span className={styles.iconWrap}>
-              <UserIcon />
-            </span>
-            <span className={styles.actionLabel}>{isLoggedIn ? 'Account' : 'My Account'}</span>
-          </Link>
+          {isLoggedIn ? (
+            <Link to="/account/orders" className={styles.actionLink} aria-label="Account">
+              <span className={styles.iconWrap}>
+                <UserIcon />
+              </span>
+              <span className={styles.actionLabel}>Account</span>
+            </Link>
+          ) : (
+            <button
+              type="button"
+              className={`${styles.actionLink} ${styles.linkButton}`}
+              aria-label="My Account"
+              onClick={openLoginModal}
+            >
+              <span className={styles.iconWrap}>
+                <UserIcon />
+              </span>
+              <span className={styles.actionLabel}>My Account</span>
+            </button>
+          )}
           <Link to="/cart" className={`${styles.actionLink} ${styles.cartAction}`} aria-label="Cart">
             <span className={styles.iconWrap}>
               <BagIcon />

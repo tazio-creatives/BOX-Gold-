@@ -19,13 +19,35 @@
   border: 0;
 }
 
+.headingRow {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  margin: 24px 0 16px;
+}
+
+.backChevron {
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  color: var(--color-text);
+  background: var(--color-bg-alt);
+  transition: background-color 0.15s ease;
+}
+
+.backChevron:hover {
+  background: var(--color-border);
+}
+
 .heading {
   font-family: var(--font-heading);
   font-size: 28px;
   font-weight: 700;
-  text-align: center;
   color: var(--color-text);
-  margin: 24px 0 16px;
+  margin: 0;
 }
 
 .heroPlain {
@@ -49,214 +71,6 @@
 
 .summaryColumn {
   min-width: 0;
-}
-
-.section {
-  background: var(--color-surface);
-  border: 1px solid var(--color-border);
-  border-radius: 12px;
-  padding: 20px;
-}
-
-.sectionHeadingRow {
-  display: flex;
-  align-items: center;
-  gap: var(--space-3);
-  margin-bottom: 14px;
-}
-
-.sectionNumber {
-  display: grid;
-  place-items: center;
-  width: 36px;
-  height: 36px;
-  flex-shrink: 0;
-  border-radius: 50%;
-  background: var(--color-burgundy);
-  color: var(--color-white);
-  font-size: var(--text-sm);
-  font-weight: 700;
-}
-
-.sectionHeading {
-  flex: 1;
-  min-width: 0;
-  font-size: 18px;
-  font-weight: 700;
-  margin: 0;
-  color: var(--color-text);
-}
-
-.editAction {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  flex-shrink: 0;
-  padding: var(--space-3) 2px;
-  margin: calc(var(--space-3) * -1) -2px;
-  background: none;
-  border: none;
-  color: var(--color-burgundy);
-  font-size: var(--text-sm);
-  font-weight: 600;
-  cursor: pointer;
-}
-
-/* Contact — compact summary */
-.contactSummary {
-  display: flex;
-  flex-direction: column;
-  gap: 14px;
-}
-
-.contactRow {
-  display: flex;
-  align-items: center;
-  gap: var(--space-2);
-  margin: 0;
-  font-size: var(--text-base);
-  color: var(--color-text);
-}
-
-.contactRow svg {
-  flex-shrink: 0;
-  color: var(--color-text-muted);
-}
-
-.verifiedBadge {
-  display: inline-flex;
-  align-items: center;
-  gap: 3px;
-  margin-left: var(--space-1);
-  padding: 1px 8px;
-  border-radius: 999px;
-  background: #e6f4ea;
-  color: #218838;
-  font-size: 11px;
-  font-weight: 700;
-}
-
-/* Contact — edit form */
-.contactGrid {
-  display: grid;
-  grid-template-columns: 1fr;
-  gap: var(--space-4);
-}
-
-.field {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-2);
-  font-size: var(--text-sm);
-  color: var(--color-text-muted);
-}
-
-.field input {
-  min-height: 44px;
-  padding: var(--space-3) var(--space-4);
-  border: 1.5px solid var(--color-border);
-  border-radius: 10px;
-  font-size: var(--text-base);
-  color: var(--color-text);
-  background: var(--color-bg);
-  transition:
-    border-color 0.15s ease,
-    box-shadow 0.15s ease,
-    background 0.15s ease;
-}
-
-.field input:focus-visible {
-  outline: none;
-  border-color: var(--color-burgundy);
-  background: var(--color-surface);
-  box-shadow: 0 0 0 3px rgba(0, 81, 90, 0.14);
-}
-
-.fieldInputInvalid {
-  border-color: #b42318 !important;
-}
-
-.fieldInputInvalid:focus-visible {
-  box-shadow: 0 0 0 3px rgba(180, 35, 24, 0.14);
-}
-
-.fieldError {
-  font-size: var(--text-xs);
-  color: #b42318;
-}
-
-.contactEditActions {
-  display: flex;
-  gap: var(--space-3);
-}
-
-.saveContactButton {
-  flex: 1;
-  min-height: 44px;
-  padding: 0 var(--space-5);
-  border: none;
-  border-radius: 10px;
-  background: var(--color-burgundy);
-  color: var(--color-white);
-  font-size: var(--text-sm);
-  font-weight: 600;
-  cursor: pointer;
-}
-
-.cancelContactButton {
-  min-height: 44px;
-  padding: 0 var(--space-5);
-  border: 1px solid var(--color-border);
-  border-radius: 10px;
-  background: var(--color-surface);
-  color: var(--color-text);
-  font-size: var(--text-sm);
-  font-weight: 600;
-  cursor: pointer;
-}
-
-/* Delivery address */
-.addressList {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-3);
-}
-
-.addressChangePanel {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-3);
-}
-
-.cancelChangeLink {
-  align-self: flex-start;
-  min-height: 44px;
-  padding: 0 2px;
-  background: none;
-  border: none;
-  color: var(--color-text-muted);
-  font-size: var(--text-sm);
-  font-weight: 600;
-  text-decoration: underline;
-  cursor: pointer;
-}
-
-.addAddressButton {
-  width: 100%;
-  min-height: 48px;
-  margin-top: var(--space-3);
-  border: 1.5px solid var(--color-burgundy);
-  border-radius: 10px;
-  background: var(--color-surface);
-  color: var(--color-burgundy);
-  font-size: var(--text-sm);
-  font-weight: 600;
-  cursor: pointer;
-  transition: background 0.15s ease;
-}
-
-.addAddressButton:hover {
-  background: var(--color-bg-alt);
 }
 
 .error {
@@ -422,28 +236,10 @@
 }
 
 /* Loading skeleton */
-.skeletonLine {
-  composes: shimmer from '../styles/skeleton.module.css';
-  height: 16px;
-  border-radius: var(--radius-sm);
-}
-
-.skeletonInputRow {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-4);
-}
-
-.skeletonInput {
-  composes: shimmer from '../styles/skeleton.module.css';
-  height: 46px;
-  border-radius: 10px;
-}
-
 .skeletonAddressCard {
   composes: shimmer from '../styles/skeleton.module.css';
-  height: 90px;
-  border-radius: 10px;
+  height: 420px;
+  border-radius: 12px;
 }
 
 .skeletonSummary {
@@ -459,9 +255,12 @@
     padding: 0 var(--space-4) var(--space-12);
   }
 
+  .headingRow {
+    margin-top: var(--space-6);
+  }
+
   .heading {
     font-size: var(--text-3xl);
-    margin-top: var(--space-6);
   }
 
   .layout {
@@ -489,20 +288,6 @@
     grid-row: 1 / -1;
     position: sticky;
     top: var(--space-6);
-  }
-
-  .addressList {
-    display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
-  }
-
-  .contactGrid {
-    grid-template-columns: repeat(3, 1fr);
-    align-items: start;
-  }
-
-  .contactEditActions {
-    grid-column: 1 / -1;
   }
 
   .backToBagRow {

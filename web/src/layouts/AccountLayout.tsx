@@ -1,7 +1,8 @@
 import { Suspense } from 'react';
-import { NavLink, Outlet, Navigate, useLocation, useNavigate } from 'react-router-dom';
+import { NavLink, Outlet, useNavigate } from 'react-router-dom';
 import { useQueryClient, useMutation } from '@tanstack/react-query';
 import { useCustomer } from '../features/auth/useCustomer';
+import { SignInRequired } from '../features/auth/SignInRequired';
 import { logout } from '../api/customers';
 import { Breadcrumbs } from '../components/Breadcrumbs';
 import { RouteFallback } from '../components/RouteFallback';
@@ -80,7 +81,6 @@ function SignOutIcon() {
 
 export function AccountLayout() {
   const { customer, isLoggedIn, isLoading } = useCustomer();
-  const location = useLocation();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
 
@@ -101,7 +101,11 @@ export function AccountLayout() {
   });
 
   if (!isLoading && !isLoggedIn) {
-    return <Navigate to={`/login?redirect=${encodeURIComponent(location.pathname)}`} replace />;
+    return (
+      <div className={styles.page}>
+        <SignInRequired message="Sign in to view your account, orders and saved addresses." />
+      </div>
+    );
   }
 
   if (isLoading || !customer) return null;

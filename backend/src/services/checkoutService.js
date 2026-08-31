@@ -39,7 +39,7 @@ function addressSnapshot(address) {
 // PENDING_PAYMENT order with its price snapshot + a concurrency-safe stock
 // reservation per line item, all in one transaction. Never confirms the
 // order itself — only the payment webhook (Phase 11) does that.
-export async function createOrder({ userId, contact, addressId, items, couponCode }) {
+export async function createOrder({ userId, contact, addressId, items, couponCode, deliveryNote }) {
   const address = await findAddressById(addressId);
   if (!address || address.user_id !== userId) throw new NotFoundError('Address not found');
 
@@ -163,6 +163,7 @@ export async function createOrder({ userId, contact, addressId, items, couponCod
       contactMobile: contact.mobile,
       contactEmail: contact.email,
       shippingAddress: addressSnapshot(address),
+      deliveryNote: deliveryNote || null,
       subtotal: round2(subtotal),
       discountAmount: round2(discountAmount),
       gstAmount: round2(gstTotal),

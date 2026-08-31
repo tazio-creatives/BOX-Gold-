@@ -109,6 +109,10 @@
   margin: 0 0 var(--space-4);
 }
 
+.sectionHeadingSpaced {
+  margin-top: var(--space-4);
+}
+
 .itemRow {
   display: flex;
   justify-content: space-between;

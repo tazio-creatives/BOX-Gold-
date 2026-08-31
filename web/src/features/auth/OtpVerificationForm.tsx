@@ -1,5 +1,5 @@
 import { useEffect, useRef, type ClipboardEvent, type FormEvent, type KeyboardEvent } from 'react';
-import { ArrowRightIcon, SpinnerIcon } from './AuthIcons';
+import { ArrowRightIcon, SpinnerIcon, GemOrnamentIcon } from './AuthIcons';
 import styles from './OtpVerificationForm.module.css';
 import sharedStyles from './AuthShared.module.css';
 
@@ -25,7 +25,7 @@ function formatCountdown(seconds: number) {
   return `00:${String(Math.max(0, seconds)).padStart(2, '0')}`;
 }
 
-// Purely presentational — verifyOtp()/resend are called by LoginPage, this
+// Purely presentational — verifyOtp()/resend are called by AuthModal, this
 // component only owns the OTP-box focus/paste/backspace UI mechanics.
 export function OtpVerificationForm({
   mobile,
@@ -111,6 +111,9 @@ export function OtpVerificationForm({
 
   return (
     <form className={styles.form} onSubmit={onSubmit} noValidate>
+      <span className={styles.ornament} aria-hidden="true">
+        <GemOrnamentIcon />
+      </span>
       <p className={styles.eyebrow}>Verify Your Number</p>
       <h1 className={styles.heading} ref={headingRef} tabIndex={-1}>
         Enter verification code

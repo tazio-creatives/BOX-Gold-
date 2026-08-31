@@ -8,6 +8,7 @@ export const checkoutSchema = z.object({
   }),
   addressId: z.string().uuid(),
   couponCode: z.string().trim().min(1).max(50).optional(),
+  deliveryNote: z.string().trim().max(500).optional(),
   // Items are explicit, not read server-side from the persisted cart — this
   // is what lets "Buy Now" (plan §11: "creates a single-item cart") reuse
   // the exact same endpoint without ever touching the shopper's real cart.

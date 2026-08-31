@@ -1,7 +1,7 @@
 import { useState, type FormEvent } from 'react';
 import { Link } from 'react-router-dom';
 import { AuthSecurityMessage } from './AuthSecurityMessage';
-import { ShieldCheckIcon, ChevronDownIcon, ArrowRightIcon, ErrorIcon, SpinnerIcon } from './AuthIcons';
+import { ShieldCheckIcon, ChevronDownIcon, ArrowRightIcon, ErrorIcon, SpinnerIcon, GemOrnamentIcon } from './AuthIcons';
 import styles from './PhoneNumberForm.module.css';
 import sharedStyles from './AuthShared.module.css';
 
@@ -16,7 +16,7 @@ interface PhoneNumberFormProps {
 const MOBILE_PATTERN = /^[6-9]\d{9}$/;
 
 // Purely presentational (owns only local input-touched state for validation
-// timing) — sendOtp() itself is called by LoginPage, per the "keep API calls
+// timing) — sendOtp() itself is called by AuthModal, per the "keep API calls
 // out of visual components" requirement.
 export function PhoneNumberForm({ mobile, onMobileChange, onSubmit, isSubmitting, apiError }: PhoneNumberFormProps) {
   const [touched, setTouched] = useState(false);
@@ -36,6 +36,9 @@ export function PhoneNumberForm({ mobile, onMobileChange, onSubmit, isSubmitting
 
   return (
     <form className={styles.form} onSubmit={handleSubmit} noValidate>
+      <span className={styles.ornament} aria-hidden="true">
+        <GemOrnamentIcon />
+      </span>
       <p className={styles.eyebrow}>Welcome Back</p>
       <h1 className={styles.heading}>Sign in to your account</h1>
       <p className={styles.supportRow}>
@@ -102,6 +105,9 @@ export function PhoneNumberForm({ mobile, onMobileChange, onSubmit, isSubmitting
       <AuthSecurityMessage />
 
       <div className={styles.divider2}>
+        <span className={styles.dividerGem} aria-hidden="true">
+          <GemOrnamentIcon />
+        </span>
         <span>New to BOX DIAMONDS?</span>
       </div>
       <p className={styles.newCustomer}>Your account will be created automatically after verification.</p>

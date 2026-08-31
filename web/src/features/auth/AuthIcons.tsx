@@ -71,6 +71,18 @@ export function ErrorIcon() {
   );
 }
 
+// A small faceted-gem glyph — the auth pages' one recurring ornamental motif
+// (divider lines, section markers), standing in for the plain hairline
+// dividers seen on generic sign-in forms.
+export function GemOrnamentIcon() {
+  return (
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.3" aria-hidden="true">
+      <path d="M4 9l4-6h8l4 6-10 12L4 9z" strokeLinejoin="round" />
+      <path d="M4 9h16M9.5 3L8 9l4 12M14.5 3L16 9l-4 12" strokeLinejoin="round" />
+    </svg>
+  );
+}
+
 export function SpinnerIcon() {
   return (
     <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true">

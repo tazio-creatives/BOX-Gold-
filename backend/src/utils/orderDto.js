@@ -32,6 +32,7 @@ export function toOrderDto(order, items = [], statusHistory = [], extra = {}) {
     contactMobile: order.contact_mobile,
     contactEmail: order.contact_email,
     shippingAddress: order.shipping_address,
+    deliveryNote: order.delivery_note,
     subtotal: Number(order.subtotal),
     discountAmount: Number(order.discount_amount),
     couponCode: order.coupon_code,

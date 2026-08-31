@@ -64,6 +64,7 @@ const ORDER_COLUMNS = [
   'total_amount',
   'coupon_id',
   'coupon_code',
+  'delivery_note',
 ];
 
 const ORDER_FIELD_MAP = Object.fromEntries(

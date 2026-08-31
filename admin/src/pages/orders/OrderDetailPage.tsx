@@ -221,6 +221,12 @@ export function OrderDetailPage() {
               <br />
               {order.shippingAddress.mobileNumber}
             </p>
+            {order.deliveryNote && (
+              <>
+                <h2 className={`${styles.sectionHeading} ${styles.sectionHeadingSpaced}`}>Delivery Note</h2>
+                <p className={styles.address}>{order.deliveryNote}</p>
+              </>
+            )}
           </section>
 
           <section className={sharedStyles.cardPadded}>

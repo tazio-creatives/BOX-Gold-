@@ -188,6 +188,12 @@ export function OrderConfirmationPage() {
               {order.shippingAddress.city}, {order.shippingAddress.state} {order.shippingAddress.pincode}
             </p>
           </div>
+          {order.deliveryNote && (
+            <div className={styles.infoCol}>
+              <p className={styles.infoLabel}>Delivery Note</p>
+              <p className={styles.infoValue}>{order.deliveryNote}</p>
+            </div>
+          )}
           {order.shipment && (
             <div className={styles.infoCol}>
               <p className={styles.infoLabel}>Shipment</p>

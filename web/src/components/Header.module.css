@@ -79,6 +79,18 @@
   outline-offset: 3px;
 }
 
+/* Applied alongside .actionLink/.mobileMenuLink when that spot is rendered
+   as a <button> (opens the sign-in modal) instead of a <Link> — both
+   already carry their own layout/color/spacing, this just strips the
+   native button chrome so it reads identically to the anchor version. */
+.linkButton {
+  border: none;
+  background: none;
+  font: inherit;
+  cursor: pointer;
+  text-align: left;
+}
+
 .iconWrap {
   position: relative;
   display: inline-flex;

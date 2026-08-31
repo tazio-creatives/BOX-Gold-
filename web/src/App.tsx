@@ -1,8 +1,9 @@
-import { lazy } from 'react';
-import { Routes, Route, Navigate } from 'react-router-dom';
+import { lazy, useEffect } from 'react';
+import { Routes, Route, Navigate, useNavigate } from 'react-router-dom';
 import { ScrollToTop } from './components/ScrollToTop';
 import { StorefrontLayout } from './layouts/StorefrontLayout';
 import { AccountLayout } from './layouts/AccountLayout';
+import { AuthModalProvider, useAuthModal } from './features/auth/AuthModalContext';
 import { HomePage } from './pages/HomePage';
 import { PlaceholderPage } from './pages/PlaceholderPage';
 import { PLPPage } from './pages/PLPPage';
@@ -19,7 +20,6 @@ import { PDPPage } from './pages/PDPPage';
 // four SSR page types have to parse before they're interactive.
 const CartPage = lazy(() => import('./pages/CartPage').then((m) => ({ default: m.CartPage })));
 const WishlistPage = lazy(() => import('./pages/WishlistPage').then((m) => ({ default: m.WishlistPage })));
-const LoginPage = lazy(() => import('./pages/LoginPage').then((m) => ({ default: m.LoginPage })));
 const CheckoutPage = lazy(() => import('./pages/CheckoutPage').then((m) => ({ default: m.CheckoutPage })));
 const OrderConfirmationPage = lazy(() =>
   import('./pages/OrderConfirmationPage').then((m) => ({ default: m.OrderConfirmationPage })),
@@ -35,16 +35,30 @@ const AccountProfilePage = lazy(() =>
   import('./pages/account/AccountProfilePage').then((m) => ({ default: m.AccountProfilePage })),
 );
 
+// Login is a modal (AuthModal), not a page — a stray /login link (an old
+// bookmark, a shared URL) just opens that same modal over the homepage
+// instead of 404ing via the catch-all route.
+function LoginRedirect() {
+  const navigate = useNavigate();
+  const { openLoginModal } = useAuthModal();
+  useEffect(() => {
+    openLoginModal();
+    navigate('/', { replace: true });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+  return null;
+}
+
 export function App() {
   return (
-    <>
+    <AuthModalProvider>
       <ScrollToTop />
       <Routes>
         <Route element={<StorefrontLayout />}>
           <Route path="/" element={<HomePage />} />
           <Route path="/cart" element={<CartPage />} />
           <Route path="/wishlist" element={<WishlistPage />} />
-          <Route path="/login" element={<LoginPage />} />
+          <Route path="/login" element={<LoginRedirect />} />
           <Route path="/checkout" element={<CheckoutPage />} />
           <Route path="/order-confirmation/:orderId" element={<OrderConfirmationPage />} />
 
@@ -63,6 +77,6 @@ export function App() {
           <Route path="*" element={<PlaceholderPage title="Coming Soon" />} />
         </Route>
       </Routes>
-    </>
+    </AuthModalProvider>
   );
 }

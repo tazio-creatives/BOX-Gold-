@@ -1,0 +1,197 @@
+.card {
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: 12px;
+  padding: 20px;
+}
+
+.headerRow {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  margin-bottom: var(--space-4);
+}
+
+.title {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin: 0;
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--color-text);
+}
+
+.title svg {
+  color: var(--color-burgundy);
+}
+
+.savedPills {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.savedPillWrap {
+  position: relative;
+  display: inline-flex;
+}
+
+.savedPill {
+  min-height: 36px;
+  padding: 0 var(--space-4);
+  border: 1.5px solid var(--color-border);
+  border-radius: 999px;
+  background: var(--color-surface);
+  color: var(--color-text);
+  font-size: var(--text-sm);
+  font-weight: 600;
+  cursor: pointer;
+  transition: background-color 0.15s ease, color 0.15s ease, border-color 0.15s ease;
+}
+
+.savedPillActive {
+  border-color: var(--color-burgundy);
+  background: var(--color-burgundy);
+  color: var(--color-white);
+}
+
+.savedPillDelete {
+  position: absolute;
+  top: -6px;
+  right: -6px;
+  display: grid;
+  place-items: center;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  border: 1px solid var(--color-border);
+  background: var(--color-surface);
+  color: var(--color-text-muted);
+  cursor: pointer;
+}
+
+.savedPillDelete:hover {
+  background: var(--color-blush);
+  color: var(--color-burgundy);
+}
+
+.addPill {
+  display: grid;
+  place-items: center;
+  width: 36px;
+  height: 36px;
+  flex-shrink: 0;
+  border: none;
+  border-radius: 50%;
+  background: var(--color-gold);
+  color: var(--color-burgundy-dark);
+  cursor: pointer;
+}
+
+.typeRow {
+  display: flex;
+  gap: var(--space-2);
+  margin-bottom: var(--space-5);
+}
+
+.typeTag {
+  min-height: 34px;
+  padding: 0 var(--space-4);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  background: var(--color-bg);
+  color: var(--color-text-muted);
+  font-size: var(--text-sm);
+  font-weight: 600;
+  cursor: pointer;
+  transition: background-color 0.15s ease, color 0.15s ease, border-color 0.15s ease;
+}
+
+.typeTagActive {
+  border-color: var(--color-burgundy);
+  background: var(--color-blush);
+  color: var(--color-burgundy);
+}
+
+.grid {
+  display: grid;
+  grid-template-columns: repeat(6, 1fr);
+  gap: var(--space-4);
+}
+
+.spanHalf {
+  grid-column: span 3;
+}
+
+.spanThird {
+  grid-column: span 2;
+}
+
+.spanFull {
+  grid-column: 1 / -1;
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  font-size: var(--text-sm);
+  color: var(--color-text-muted);
+  min-width: 0;
+}
+
+.field input,
+.field textarea {
+  min-height: 44px;
+  padding: var(--space-3) var(--space-4);
+  border: 1.5px solid var(--color-border);
+  border-radius: 10px;
+  font-size: var(--text-base);
+  font-family: var(--font-body);
+  color: var(--color-text);
+  background: var(--color-bg);
+  resize: none;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease, background 0.15s ease;
+}
+
+.field textarea {
+  min-height: 64px;
+  padding-top: var(--space-3);
+}
+
+.field input:focus-visible,
+.field textarea:focus-visible {
+  outline: none;
+  border-color: var(--color-burgundy);
+  background: var(--color-surface);
+  box-shadow: 0 0 0 3px rgba(0, 81, 90, 0.14);
+}
+
+.invalid {
+  border-color: #b42318 !important;
+}
+
+.invalid:focus-visible {
+  box-shadow: 0 0 0 3px rgba(180, 35, 24, 0.14) !important;
+}
+
+.fieldErrorText {
+  font-size: var(--text-xs);
+  color: #b42318;
+}
+
+@media (max-width: 640px) {
+  .grid {
+    grid-template-columns: 1fr;
+  }
+
+  .spanHalf,
+  .spanThird,
+  .spanFull {
+    grid-column: 1 / -1;
+  }
+}
