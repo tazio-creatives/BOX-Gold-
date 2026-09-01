@@ -136,7 +136,7 @@ export const ASSET_TYPES = [
 ];
 
 // Ring-only output structure — 2 hand-model shots + 4 catalogue shots
-// (Front + Side Profile, no 45° Hero), replacing the generic 7-value
+// (Front + Three-Quarter Side View, no 45° Hero), replacing the generic 7-value
 // vocabulary above whenever confirmedType === 'RING'. See RING_ASSET_TYPE_SET
 // and resolveAssetTypesForJob below for where the branch happens.
 export const RING_ASSET_TYPES = [
@@ -216,28 +216,25 @@ const PRESENTER_POSE_REFERENCE = {
   PRESENTER_YELLOW_2: 'face_45_url',
 };
 
-// Catalogue shots — exact spec supplied by the client, not an invented
-// approximation: a metal-matched ivory backdrop (warm for yellow gold, cool
-// for rose gold) with named hex values for the base/highlight/shadow, rather
-// than pure white or the templates' own vaguer "seamless neutral studio
-// background" wording.
+// Catalogue shots — every category now shares the one premium satin
+// background system originally approved for Ring only (client correction:
+// having a separate warm/cool-ivory system for every other category looked
+// inconsistent next to Ring in the storefront). See
+// RING_GOLD_CATALOGUE_BACKGROUND_NOTE / RING_ROSE_CATALOGUE_BACKGROUND_NOTE /
+// RING_CATALOGUE_LIGHTING_NOTE further below — those three constants are now
+// reused as-is for every category's FRONT and HERO_45 shots, keyed only by
+// metal colour, never by category. Model/presenter/hand/lifestyle shots are
+// unaffected — they keep their own natural photographic environments.
 const CATALOGUE_SIZE_NOTE = 'Create a premium square jewellery catalogue photograph at 816 × 816px.';
-
-const YELLOW_GOLD_BACKGROUND_NOTE =
-  ' Use a clean warm-ivory seamless studio background with base colour #F7F1E7, a subtle #FFFCF7 highlight and a soft #E7D9C6 grounding shadow.';
-
-const ROSE_GOLD_BACKGROUND_NOTE =
-  ' Use a clean cool-ivory seamless studio background with base colour #F5F2F0, a subtle #FFFAF8 highlight and a soft #DDD4D1 grounding shadow.';
-
-const CATALOGUE_LIGHTING_NOTE =
-  ' Use diffused premium studio lighting from the upper left, realistic metal reflections, controlled diamond sparkle and a soft natural shadow beneath the jewellery. Keep the product centred and occupying approximately 70-78% of the frame. Do not add props, text, hands, packaging, flowers, fabric or decorative elements.';
 
 // 45° Hero Angle — exact spec supplied by the client, replacing the generic
 // per-category template.hero_45_prompt entirely for this one asset type
-// (its own rotation/elevation/framing geometry, background, and exclusion
-// list — self-contained, not layered with CATALOGUE_SIZE_NOTE/backgroundNote/
-// CATALOGUE_LIGHTING_NOTE above, which would just contradict its numbers).
-// FRONT and presenter prompts are untouched.
+// (its own rotation/elevation/framing geometry and exclusion list —
+// self-contained, not layered with CATALOGUE_SIZE_NOTE above, which would
+// just contradict its numbers). Background/lighting are NOT embedded in this
+// string — they're filled in per metal colour from the shared Ring notes at
+// the call site, same as every other catalogue shot. FRONT and presenter
+// prompts are untouched.
 const HERO_45_PROMPT =
   'Create a premium square jewellery catalogue image at 816 × 816px using the uploaded jewellery as the exact product reference. ' +
   'Position the jewellery in a three-quarter hero view: rotate the product approximately 40 degrees horizontally from the straight front position, use approximately 15-20 degree camera elevation, keep the main decorative face directed toward the camera, and clearly show the front design, setting height, band thickness and one side profile. ' +
@@ -245,7 +242,6 @@ const HERO_45_PROMPT =
   'Centre the jewellery precisely, make the product occupy approximately 70-75% of the frame width, and minimise unnecessary empty background space. ' +
   'Add a subtle natural grounding shadow directly below the jewellery. Do not make the jewellery appear to float. ' +
   'Preserve the exact original jewellery design, metal colour, stone count, stone positions, stone shapes, prongs, settings, proportions and band structure. Do not add, remove, relocate or redesign any component. ' +
-  'Use a clean seamless warm-ivory studio background with diffused lighting, controlled diamond sparkle, sharp product focus and realistic metal reflections. ' +
   'Do not include hands, presenters, props, packaging, text, flowers, fabric or decorative elements.';
 
 // Presenter shots stay off pure white on purpose — a plain white backdrop
@@ -263,18 +259,23 @@ const PRESENTER_BACKGROUND_NOTE =
 // four categories the spec gave exact wording for use it verbatim; every
 // other type — including the two new ones, Brooch/Other — gets a generic
 // rule of the same shape rather than being left unsupported.
-// Ring-only catalogue background — a distinct premium satin system supplied
-// by the client (soft fabric folds, subtle depth), not the generic
-// warm/cool-ivory seamless-studio notes used by every other jewellery type's
-// FRONT/HERO_45 shots. The background must stay secondary to the product and
-// never tint the stones — both call out explicitly per client correction,
-// not left implicit.
+// Shared catalogue background — a premium satin system (soft fabric folds,
+// subtle depth) originally approved for Ring, now the standard background
+// for every jewellery category's FRONT/HERO_45 shots, keyed only by metal
+// colour (Gold vs Rose Gold), never by category. The background must stay
+// secondary to the product and never tint the stones — both call out
+// explicitly per client correction, not left implicit. Committed fully to
+// the fabric look (no "or a clean neutral studio background" alternative)
+// — that wording let the model legitimately pick a plain flat backdrop
+// instead of fabric, which is what caused a Front shot to render with a
+// noticeably flatter background than its matching Side shot despite both
+// using this exact same background text (client correction).
 const RING_GOLD_CATALOGUE_BACKGROUND_NOTE =
-  ' Use a soft champagne-ivory fabric or a clean neutral studio background — base colour #F4E7DA, a #FFF8F0 highlight and a #D9BDA7 grounding shadow. Keep the background lighter and less saturated than the ring itself, with clear separation between the gold and the backdrop.';
+  ' Use a soft champagne-ivory satin fabric backdrop with visible natural folds and drape — base colour #F4E7DA, a #FFF8F0 highlight and a #D9BDA7 grounding shadow. Keep the background lighter and less saturated than the jewellery itself, with clear separation between the gold and the backdrop.';
 const RING_ROSE_CATALOGUE_BACKGROUND_NOTE =
-  ' Use a soft blush-peach fabric or a clean warm-neutral studio background — base colour #E8C4B2, a #F8E7DD highlight and a #C98F76 grounding shadow. Keep sufficient contrast around the ring, and do not let the background tint the diamonds or alter their colour.';
+  ' Use a soft blush-peach satin fabric backdrop with visible natural folds and drape — base colour #E8C4B2, a #F8E7DD highlight and a #C98F76 grounding shadow. Keep sufficient contrast around the product, and do not let the background tint the diamonds or alter their colour.';
 const RING_CATALOGUE_LIGHTING_NOTE =
-  ' Use soft, premium studio lighting with natural, controlled product shadows, keeping the ring clearly separated from the background. Avoid busy props, flowers, boxes, unrelated decorative objects or hard reflections. The background must remain secondary to the product.';
+  ' Use soft, premium studio lighting with natural, controlled product shadows, keeping the jewellery clearly separated from the background. Avoid busy props, flowers, boxes, unrelated decorative objects or hard reflections. The background must remain secondary to the product.';
 const RING_SIZE_NOTE = 'Create a premium square jewellery photograph at 816 × 816px.';
 
 // Hand-pose background is a natural photographic environment picked to suit
@@ -382,7 +383,9 @@ function buildAssetPromptSections({
 }) {
   const metalColor = metalColorForAssetType(assetType, generateRoseGold);
   const metalColourNote = `The metal colour is ${metalColor.toLowerCase()} gold — preserve it exactly.`;
-  const backgroundNote = metalColor === 'ROSE' ? ROSE_GOLD_BACKGROUND_NOTE.trim() : YELLOW_GOLD_BACKGROUND_NOTE.trim();
+  const catalogueBackgroundNote = (
+    metalColor === 'ROSE' ? RING_ROSE_CATALOGUE_BACKGROUND_NOTE : RING_GOLD_CATALOGUE_BACKGROUND_NOTE
+  ).trim();
   const categoryLabel = confirmedType ? formatJewelleryType(confirmedType) : null;
 
   const locked = {
@@ -403,8 +406,8 @@ function buildAssetPromptSections({
     case 'YELLOW_FRONT':
     case 'ROSE_FRONT':
       creativeDefaults = {
-        background: backgroundNote,
-        lighting: CATALOGUE_LIGHTING_NOTE.trim(),
+        background: catalogueBackgroundNote,
+        lighting: RING_CATALOGUE_LIGHTING_NOTE.trim(),
         composition: `${CATALOGUE_SIZE_NOTE} ${template.front_prompt}`,
         presenterPose: '',
         cameraAngle: '',
@@ -415,8 +418,8 @@ function buildAssetPromptSections({
     case 'YELLOW_HERO_45':
     case 'ROSE_HERO_45':
       creativeDefaults = {
-        background: '',
-        lighting: '',
+        background: catalogueBackgroundNote,
+        lighting: RING_CATALOGUE_LIGHTING_NOTE.trim(),
         composition: HERO_45_PROMPT,
         presenterPose: '',
         cameraAngle: '',
@@ -493,11 +496,9 @@ function buildAssetPromptSections({
         background: (isRose ? RING_ROSE_CATALOGUE_BACKGROUND_NOTE : RING_GOLD_CATALOGUE_BACKGROUND_NOTE).trim(),
         lighting: RING_CATALOGUE_LIGHTING_NOTE.trim(),
         // True Front View — a direct, symmetrical view of the ring's
-        // decorative top, NOT the upright three-quarter stance used for Side
-        // Profile below. Client correction: the model previously stood the
-        // ring upright for this shot too, making Front and Side
-        // near-indistinguishable — this composition is deliberately the
-        // opposite of Side Profile's in every stated respect.
+        // decorative top, NOT the upright three-quarter stance used for the
+        // Three-Quarter Side View below. This composition is deliberately
+        // the opposite of that shot's in every stated respect.
         composition: `${RING_SIZE_NOTE} Photograph the ring's decorative top in a true, direct front view: the camera looks straight at the decorative face of the ring, as if looking down onto it, not standing it upright on its band. Position the centre stone in the exact visual centre of the frame, with the decorative bands extending clearly to the left and right so the front design reads approximately horizontal. Show the complete ring face and the full stone arrangement with minimal perspective distortion. The circular band opening may be partially visible behind the decorative face, but it must never be the dominant shape in the frame.`,
         presenterPose: '',
         cameraAngle: '',
@@ -508,36 +509,41 @@ function buildAssetPromptSections({
         'Do not stand the ring vertically upright on its band for this shot.',
         'Do not display the circular band opening as the main shape of the image.',
         'Do not rotate the ring to a 30-45 degree angle for this shot.',
-        'Do not use the same orientation as the Side Profile shot — this is a true, direct front view, not a three-quarter view.',
+        'Do not use the same orientation as the Three-Quarter Side View shot — this is a true, direct front view, not a three-quarter view.',
       );
       break;
     }
     case 'RING_GOLD_SIDE':
     case 'RING_ROSE_SIDE': {
       const isRose = assetType === 'RING_ROSE_SIDE';
-      // Hardcoded opposite rotation directions (rather than a vague "make it
-      // different" instruction) so the Gold and Rose Side Profile shots are
-      // reliably distinguishable from each other, on top of each already
-      // being required to differ sharply from its own Front View.
+      // Hardcoded opposite tilt directions (rather than a vague "make it
+      // different" instruction) so the Gold and Rose Three-Quarter Side View
+      // shots are reliably distinguishable from each other, on top of each
+      // already being required to differ sharply from its own Front View.
       const directionNote = isRose
-        ? ' Rotate the ring toward the opposite side direction from the Gold Side Profile shot (if Gold faced left, face right, and vice versa) so the two Side Profile images are clearly distinguishable.'
+        ? ' Tilt the ring toward the opposite direction from the Gold Three-Quarter Side View shot (if Gold tilts left, tilt right, and vice versa) so the two Three-Quarter Side View images are clearly distinguishable.'
         : '';
       creativeDefaults = {
         background: (isRose ? RING_ROSE_CATALOGUE_BACKGROUND_NOTE : RING_GOLD_CATALOGUE_BACKGROUND_NOTE).trim(),
         lighting: RING_CATALOGUE_LIGHTING_NOTE.trim(),
-        // True Side Profile — rotated a near-full 80-90° away from the Front
-        // View (not the softer "three-quarter" rotation used previously),
-        // since a three-quarter angle was indistinguishable from Front View
-        // in practice.
-        composition: `${RING_SIZE_NOTE} Stand the ring upright on the lower edge of its band and rotate it approximately 80-90 degrees away from the front view — a true side profile, not a slight three-quarter rotation.${directionNote} Clearly show the circular band opening, the band thickness, the height of the centre-stone setting, the side construction and under-gallery, and how the decorative upper bands connect to the main band, while preserving the complete decorative motif. Use a clean catalogue composition with different fabric folds from the matching Front View shot.`,
+        // Three-Quarter Side View — an elevated three-quarter angle with the
+        // ring tilted approximately 35-45 degrees, decorative top still
+        // facing the camera, replacing the old true 80-90° upright side
+        // profile (client correction: the upright profile hid the front
+        // motif and read as an unnatural product pose). Still required to
+        // stay visually distinct from Front View: Front stays flat with no
+        // tilt; this stays tilted, with both shoulders, the band opening and
+        // setting height all visible.
+        composition: `${RING_SIZE_NOTE} Photograph the ring from an elevated three-quarter angle with the ring tilted approximately 35-45 degrees — placed naturally, not standing completely upright on its band and not a direct front view. Keep the decorative top facing toward the camera with the complete front motif clearly visible, while also showing the circular band opening below the design, both the left and right shoulders, the band thickness and side construction, and the setting height and stone depth.${directionNote} Keep the complete ring inside the frame with safe margins and add a soft, realistic shadow directly underneath the product. Use a clean catalogue composition with different fabric folds from the matching Front View shot.`,
         presenterPose: '',
         cameraAngle: '',
         additionalInstructions: '',
       };
       negativeParts.push(
-        'Do not use a front-facing angle for this shot.',
-        'Do not use a slight three-quarter rotation — rotate close to 90 degrees so the band opening is unmistakably visible.',
-        'Do not hide the band opening or flatten the setting.',
+        'Do not use a direct front-facing angle for this shot.',
+        'Do not stand the ring completely upright on its band or generate a true 80-90 degree side profile — use the elevated three-quarter tilt (approximately 35-45 degrees) described above.',
+        'Do not hide the band opening, either shoulder, or flatten the setting.',
+        'Do not crop any part of the ring out of frame.',
         'Do not repeat the orientation used for the Front View shot — the two must be visually and structurally different.',
       );
       break;
@@ -708,7 +714,7 @@ function ringValidationContextFor(assetType) {
     return ' This is a Ring TRUE FRONT VIEW — a direct, symmetrical view of the decorative top, not an upright three-quarter angle. It passes only when: the decorative ring face is the dominant visible element; the centre stone is centrally positioned; the left and right decorative bands are clearly visible extending outward; the ring is viewed directly from above/toward its decorative face; the image does NOT resemble an upright side view. Set validationStatus to "failed" (not "warning") if the ring is standing upright on its band, if the circular band opening is the dominant shape, or if this looks like a three-quarter/rotated angle rather than a true direct front view — this is a common and important failure mode to catch.';
   }
   if (assetType === 'RING_GOLD_SIDE' || assetType === 'RING_ROSE_SIDE') {
-    return ' This is a Ring TRUE SIDE PROFILE — rotated close to 90 degrees from the front view, not a slight three-quarter rotation. It passes only when: the ring stands upright; the circular band opening is clearly visible; band thickness is visible; the centre-stone setting height is visible; the side construction/under-gallery is visible; the view reads as rotated roughly 80-90 degrees from a front-on view. Set validationStatus to "failed" (not "warning") if the shot is front-facing or only slightly rotated (a near-duplicate of a front view), if the band opening is hidden, or if the setting appears flattened rather than showing real height.';
+    return ' This is a Ring THREE-QUARTER SIDE VIEW — an elevated three-quarter angle with the ring tilted approximately 35-45 degrees, not a direct front view and not a true 80-90 degree upright side profile. It passes only when: the ring is placed naturally at that tilt rather than standing completely upright on its band; the decorative top still faces toward the camera with the complete front motif clearly visible; the circular band opening is clearly visible below the design; both the left and right shoulders are visible; band thickness and side construction are visible; the centre-stone setting height and stone depth are visible; the complete ring is inside the frame with safe margins; a soft, realistic shadow is visible underneath the product. Set validationStatus to "failed" (not "warning") if the shot is a direct front view with no tilt, if the ring stands fully upright on its band (a true 80-90 degree side profile), if the band opening or either shoulder is hidden, if the setting appears flattened rather than showing real height, or if any part of the ring is cropped out of frame.';
   }
   return '';
 }

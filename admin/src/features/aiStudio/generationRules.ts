@@ -100,9 +100,9 @@ export const SHOT_LABELS: Record<AssetType, string> = {
   RING_HAND_1: 'Yellow Gold — Hand Pose 1',
   RING_HAND_2: 'Rose Gold — Hand Pose 2',
   RING_GOLD_FRONT: 'Yellow Gold — True Front View',
-  RING_GOLD_SIDE: 'Yellow Gold — True Side Profile',
+  RING_GOLD_SIDE: 'Yellow Gold — Three-Quarter Side View',
   RING_ROSE_FRONT: 'Rose Gold — True Front View',
-  RING_ROSE_SIDE: 'Rose Gold — True Side Profile',
+  RING_ROSE_SIDE: 'Rose Gold — Three-Quarter Side View',
 };
 
 // RING_HAND_2's label depends on the Rose Gold toggle (its static SHOT_LABELS

@@ -408,7 +408,7 @@ describe('previewPromptsForJob — Ring-only output structure', () => {
     assert.doesNotMatch(hand1.finalPrompt, /#F4E7DA|#E8C4B2/);
   });
 
-  test('Front View is a true direct view, explicitly not the upright orientation used for Side Profile', () => {
+  test('Front View is a true direct view, explicitly not the tilted orientation used for the Three-Quarter Side View', () => {
     const previews = previewPromptsForJob({
       confirmedType: 'RING',
       template: RING_TEMPLATE,
@@ -423,7 +423,7 @@ describe('previewPromptsForJob — Ring-only output structure', () => {
     assert.match(goldFront.finalPrompt, /do not rotate the ring to a 30-45 degree angle/i);
   });
 
-  test('Side Profile prompts are distinct from Front View and explicitly reject a front-facing result', () => {
+  test('Three-Quarter Side View prompts are distinct from Front View and explicitly reject a front-facing or fully upright result', () => {
     const previews = previewPromptsForJob({
       confirmedType: 'RING',
       template: RING_TEMPLATE,
@@ -434,14 +434,15 @@ describe('previewPromptsForJob — Ring-only output structure', () => {
     const goldFront = previews.find((p) => p.assetType === 'RING_GOLD_FRONT');
     const goldSide = previews.find((p) => p.assetType === 'RING_GOLD_SIDE');
     assert.notEqual(goldFront.finalPrompt, goldSide.finalPrompt);
-    assert.match(goldSide.finalPrompt, /upright/i);
+    assert.match(goldSide.finalPrompt, /elevated three-quarter angle/i);
+    assert.match(goldSide.finalPrompt, /35-45 degrees/i);
     assert.match(goldSide.finalPrompt, /band opening/i);
-    assert.match(goldSide.finalPrompt, /80-90 degrees/i);
-    assert.match(goldSide.finalPrompt, /do not use a front-facing angle/i);
-    assert.match(goldSide.finalPrompt, /do not use a slight three-quarter rotation/i);
+    assert.match(goldSide.finalPrompt, /both the left and right shoulders/i);
+    assert.match(goldSide.finalPrompt, /do not use a direct front-facing angle/i);
+    assert.match(goldSide.finalPrompt, /do not stand the ring completely upright/i);
 
     const roseSide = previews.find((p) => p.assetType === 'RING_ROSE_SIDE');
-    assert.match(roseSide.finalPrompt, /opposite side direction from the gold side profile/i);
+    assert.match(roseSide.finalPrompt, /opposite direction from the gold three-quarter side view/i);
   });
 
   test('every Ring asset carries the extra Ring-only fidelity/no-bangle-conversion instruction', () => {
