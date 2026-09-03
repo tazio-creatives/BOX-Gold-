@@ -1,4 +1,6 @@
 .card {
+  display: flex;
+  flex-direction: column;
   background: var(--color-surface);
   border: 1px solid var(--color-border);
   border-radius: 12px;
@@ -28,234 +30,78 @@
   color: var(--color-burgundy);
 }
 
-.savedPills {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: var(--space-2);
-}
-
-.savedPillWrap {
-  position: relative;
+.addButton {
   display: inline-flex;
-}
-
-.savedPill {
-  min-height: 36px;
-  padding: 0 var(--space-4);
-  border: 1.5px solid var(--color-border);
-  border-radius: 999px;
-  background: var(--color-surface);
-  color: var(--color-text);
-  font-size: var(--text-sm);
-  font-weight: 600;
-  cursor: pointer;
-  transition: background-color 0.15s ease, color 0.15s ease, border-color 0.15s ease;
-}
-
-.savedPillActive {
-  border-color: var(--color-burgundy);
-  background: var(--color-burgundy);
-  color: var(--color-white);
-}
-
-.savedPillDelete {
-  position: absolute;
-  top: -6px;
-  right: -6px;
-  display: grid;
-  place-items: center;
-  width: 18px;
-  height: 18px;
-  border-radius: 50%;
-  border: 1px solid var(--color-border);
-  background: var(--color-surface);
-  color: var(--color-text-muted);
-  cursor: pointer;
-}
-
-.savedPillDelete:hover {
-  background: var(--color-blush);
-  color: var(--color-burgundy);
-}
-
-.addPill {
-  display: grid;
-  place-items: center;
-  width: 36px;
-  height: 36px;
-  flex-shrink: 0;
-  border: none;
-  border-radius: 50%;
-  background: var(--color-gold);
-  color: var(--color-burgundy-dark);
-  cursor: pointer;
-}
-
-.summary {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: var(--space-4);
-  padding: var(--space-4);
-  border: 1.5px solid var(--color-border);
-  border-radius: 10px;
-  background: var(--color-bg);
-}
-
-.summaryText {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  min-width: 0;
-}
-
-.summaryLine {
-  margin: 0;
-  font-size: var(--text-sm);
-  color: var(--color-text-muted);
-}
-
-.summaryName {
-  font-size: var(--text-base);
-  font-weight: 700;
-  color: var(--color-text);
-}
-
-.summaryTypeTag {
-  margin-left: var(--space-2);
-  padding: 2px 10px;
-  border-radius: 999px;
-  background: var(--color-blush);
-  color: var(--color-burgundy);
-  font-size: var(--text-xs);
-  font-weight: 600;
-}
-
-.editButton {
-  display: flex;
   align-items: center;
   gap: 6px;
-  flex-shrink: 0;
-  min-height: 36px;
+  min-height: 40px;
   padding: 0 var(--space-4);
-  border: 1.5px solid var(--color-border);
+  border: 1.5px solid var(--color-burgundy);
   border-radius: 999px;
   background: var(--color-surface);
   color: var(--color-burgundy);
   font-size: var(--text-sm);
-  font-weight: 600;
-  cursor: pointer;
-  transition: border-color 0.15s ease, background-color 0.15s ease;
-}
-
-.editButton:hover {
-  border-color: var(--color-burgundy);
-  background: var(--color-blush);
-}
-
-.editActions {
-  display: flex;
-  gap: var(--space-3);
-  margin-top: var(--space-4);
-}
-
-.saveButton {
-  min-height: 44px;
-  padding: 0 var(--space-5);
-  border: none;
-  border-radius: 10px;
-  background: var(--color-burgundy);
-  color: var(--color-white);
-  font-size: var(--text-sm);
   font-weight: 700;
   cursor: pointer;
-  transition: background-color 0.15s ease;
+  transition: background-color 0.15s ease, color 0.15s ease;
 }
 
-.saveButton:hover:not(:disabled) {
-  background: var(--color-burgundy-dark);
+.addButton:hover {
+  background: var(--color-burgundy);
+  color: var(--color-white);
 }
 
-.saveButton:disabled {
-  opacity: 0.6;
-  cursor: not-allowed;
+.addButton:focus-visible {
+  outline: 2px solid var(--color-burgundy);
+  outline-offset: 2px;
 }
 
-.cancelButton {
-  min-height: 44px;
-  padding: 0 var(--space-5);
-  border: 1.5px solid var(--color-border);
+.empty {
+  margin: 0 0 var(--space-4);
+  padding: var(--space-4);
+  border: 1.5px dashed var(--color-border);
   border-radius: 10px;
-  background: var(--color-surface);
-  color: var(--color-text-muted);
-  font-size: var(--text-sm);
-  font-weight: 600;
-  cursor: pointer;
-  transition: border-color 0.15s ease, background-color 0.15s ease;
-}
-
-.cancelButton:hover:not(:disabled) {
-  border-color: var(--color-burgundy);
-  color: var(--color-burgundy);
-}
-
-.cancelButton:disabled {
-  opacity: 0.6;
-  cursor: not-allowed;
-}
-
-.noteField {
-  margin-top: var(--space-5);
-}
-
-.typeRow {
-  display: flex;
-  gap: var(--space-2);
-  margin-bottom: var(--space-5);
-}
-
-.typeTag {
-  min-height: 34px;
-  padding: 0 var(--space-4);
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-sm);
   background: var(--color-bg);
   color: var(--color-text-muted);
   font-size: var(--text-sm);
-  font-weight: 600;
-  cursor: pointer;
-  transition: background-color 0.15s ease, color 0.15s ease, border-color 0.15s ease;
+  text-align: center;
 }
 
-.typeTagActive {
-  border-color: var(--color-burgundy);
-  background: var(--color-blush);
+.list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.viewAllButton {
+  align-self: flex-start;
+  margin-top: var(--space-3);
+  padding: 0;
+  border: none;
+  background: none;
   color: var(--color-burgundy);
+  font-size: var(--text-sm);
+  font-weight: 600;
+  text-decoration: underline;
+  cursor: pointer;
 }
 
-.grid {
-  display: grid;
-  grid-template-columns: repeat(6, 1fr);
-  gap: var(--space-4);
+.viewAllButton:focus-visible {
+  outline: 2px solid var(--color-burgundy);
+  outline-offset: 2px;
 }
 
-.spanHalf {
-  grid-column: span 3;
-}
-
-.spanThird {
-  grid-column: span 2;
-}
-
-.spanFull {
-  grid-column: 1 / -1;
+.error {
+  margin: var(--space-3) 0 0;
+  font-size: var(--text-sm);
+  color: #b42318;
 }
 
 .field {
   display: flex;
   flex-direction: column;
   gap: var(--space-2);
+  margin-top: var(--space-5);
   font-size: var(--text-sm);
   color: var(--color-text-muted);
   min-width: 0;
@@ -301,14 +147,6 @@
   color: #b42318;
 }
 
-@media (max-width: 640px) {
-  .grid {
-    grid-template-columns: 1fr;
-  }
-
-  .spanHalf,
-  .spanThird,
-  .spanFull {
-    grid-column: 1 / -1;
-  }
+.noteField {
+  margin-top: var(--space-4);
 }

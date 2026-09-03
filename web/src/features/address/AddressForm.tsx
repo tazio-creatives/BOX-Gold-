@@ -8,11 +8,15 @@ interface AddressFormProps {
   onSubmit: (input: AddressInput) => Promise<unknown>;
   onCancel?: () => void;
   submitLabel?: string;
+  // Drops the form's own boxed border/background/padding — used when a
+  // caller (CheckoutPage's AddressFormModal) already provides that framing
+  // via its own dialog surface, so the form doesn't render as a box-in-a-box.
+  bare?: boolean;
 }
 
 const TYPES: AddressType[] = ['HOME', 'OFFICE', 'OTHER'];
 
-export function AddressForm({ initial, onSubmit, onCancel, submitLabel = 'Save Address' }: AddressFormProps) {
+export function AddressForm({ initial, onSubmit, onCancel, submitLabel = 'Save Address', bare = false }: AddressFormProps) {
   const [type, setType] = useState<AddressType>(initial?.type ?? 'HOME');
   const [name, setName] = useState(initial?.name ?? '');
   const [mobileNumber, setMobileNumber] = useState(initial?.mobileNumber ?? '');
@@ -52,7 +56,7 @@ export function AddressForm({ initial, onSubmit, onCancel, submitLabel = 'Save A
   }
 
   return (
-    <form className={styles.form} onSubmit={handleSubmit}>
+    <form className={`${styles.form} ${bare ? styles.formBare : ''}`} onSubmit={handleSubmit}>
       <div className={styles.typeRow}>
         {TYPES.map((t) => (
           <button
@@ -77,23 +81,27 @@ export function AddressForm({ initial, onSubmit, onCancel, submitLabel = 'Save A
         </label>
       </div>
 
-      <label className={styles.field}>
-        Address
-        <input value={addressLine} onChange={(e) => setAddressLine(e.target.value)} required />
-      </label>
-
       <div className={styles.grid}>
         <label className={styles.field}>
-          Building / Floor (optional)
+          House / Flat / Building (optional)
           <input value={building} onChange={(e) => setBuilding(e.target.value)} />
         </label>
         <label className={styles.field}>
-          Landmark (optional)
-          <input value={landmark} onChange={(e) => setLandmark(e.target.value)} />
+          Street / Area
+          <input value={addressLine} onChange={(e) => setAddressLine(e.target.value)} required />
         </label>
       </div>
 
+      <label className={styles.field}>
+        Landmark (optional)
+        <input value={landmark} onChange={(e) => setLandmark(e.target.value)} />
+      </label>
+
       <div className={styles.grid3}>
+        <label className={styles.field}>
+          PIN Code
+          <input value={pincode} onChange={(e) => setPincode(e.target.value)} required />
+        </label>
         <label className={styles.field}>
           City
           <input value={city} onChange={(e) => setCity(e.target.value)} required />
@@ -102,15 +110,11 @@ export function AddressForm({ initial, onSubmit, onCancel, submitLabel = 'Save A
           State
           <input value={state} onChange={(e) => setState(e.target.value)} required />
         </label>
-        <label className={styles.field}>
-          Pincode
-          <input value={pincode} onChange={(e) => setPincode(e.target.value)} required />
-        </label>
       </div>
 
       <label className={styles.defaultCheckboxRow}>
         <input type="checkbox" checked={isDefault} onChange={(e) => setIsDefault(e.target.checked)} />
-        Set as default address
+        Make this my default address
       </label>
 
       {error && <p className={styles.error}>{error}</p>}

@@ -30,6 +30,10 @@ interface CheckoutOrderSummaryProps {
   errorMessage?: string | null;
   onPlaceOrder: () => void;
   isPlacingOrder: boolean;
+  // Distinct from isPlacingOrder (an in-flight request) — this covers a
+  // known-incomplete checkout state (no delivery address selected yet) that
+  // should keep the button inert without claiming a request is running.
+  canPlaceOrder: boolean;
 }
 
 function BagIcon() {
@@ -73,6 +77,7 @@ export function CheckoutOrderSummary({
   errorMessage,
   onPlaceOrder,
   isPlacingOrder,
+  canPlaceOrder,
 }: CheckoutOrderSummaryProps) {
   return (
     <aside className={styles.card}>
@@ -177,7 +182,7 @@ export function CheckoutOrderSummary({
         </p>
       )}
 
-      <button type="button" className={styles.primaryAction} disabled={isPlacingOrder} onClick={onPlaceOrder}>
+      <button type="button" className={styles.primaryAction} disabled={isPlacingOrder || !canPlaceOrder} onClick={onPlaceOrder}>
         <LockIcon />
         {isPlacingOrder ? 'Placing Order…' : 'Proceed to Payment'}
       </button>
