@@ -238,6 +238,8 @@ export interface VariantPricePreview {
   purity: string | null;
   diamondConfigId: string | null;
   goldColor: string | null;
+  goldWeightGrams: number | null;
+  diamondWeightCarats: number | null;
   goldValue: number;
   diamondValue: number;
   diamondValueOriginal: number;

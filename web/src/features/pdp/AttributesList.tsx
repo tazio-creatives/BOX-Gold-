@@ -1,22 +1,55 @@
 import type { ProductDetail } from '../../api/types';
 import styles from './AttributesList.module.css';
 
-export function AttributesList({ product }: { product: ProductDetail }) {
+interface AttributesListProps {
+  product: ProductDetail;
+  // Live-selection overrides — a variant picked via Purity/Gold Colour/
+  // Diamond Quality can genuinely differ from the product's own base
+  // configuration (a different weight at a different purity, say), so this
+  // panel must reflect what's actually selected/priced, not always the
+  // product's admin-set defaults. Each is optional and falls back to the
+  // matching static `product` field when not provided (e.g. the axis isn't
+  // configured at all, or nothing's been selected yet).
+  livePurity?: string | null;
+  liveGoldColor?: string | null;
+  liveDiamondConfigName?: string | null;
+  liveGoldWeightGrams?: number | null;
+  liveNetWeightGrams?: number | null;
+  liveGrossWeightGrams?: number | null;
+  liveDiamondWeightCarats?: number | null;
+}
+
+export function AttributesList({
+  product,
+  livePurity,
+  liveGoldColor,
+  liveDiamondConfigName,
+  liveGoldWeightGrams,
+  liveNetWeightGrams,
+  liveGrossWeightGrams,
+  liveDiamondWeightCarats,
+}: AttributesListProps) {
   const rows: [string, string][] = [['SKU', product.sku]];
 
-  const metalLabel = product.metalType === 'GOLD' ? 'Gold' : 'Platinum';
-  const goldColorLabel = product.goldColor
-    ? product.goldColor.charAt(0) + product.goldColor.slice(1).toLowerCase()
-    : '';
-  rows.push(['Metal', [product.purity, goldColorLabel, metalLabel].filter(Boolean).join(' ')]);
-  if (product.purity) rows.push(['Purity', product.purity]);
+  const purity = livePurity ?? product.purity;
+  const goldColor = liveGoldColor ?? product.goldColor;
+  const goldWeightGrams = liveGoldWeightGrams ?? product.goldWeightGrams;
+  const netWeightGrams = liveNetWeightGrams ?? product.netWeightGrams;
+  const grossWeightGrams = liveGrossWeightGrams ?? product.grossWeightGrams;
+  const diamondWeightCarats = liveDiamondWeightCarats ?? product.diamondWeightCarats;
+  const diamondConfigName = liveDiamondConfigName ?? product.diamondConfigName;
 
-  if (product.goldWeightGrams != null) rows.push(['Gold Weight', `${product.goldWeightGrams} g`]);
-  if (product.netWeightGrams != null) rows.push(['Net Weight', `${product.netWeightGrams} g`]);
+  const metalLabel = product.metalType === 'GOLD' ? 'Gold' : 'Platinum';
+  const goldColorLabel = goldColor ? goldColor.charAt(0) + goldColor.slice(1).toLowerCase() : '';
+  rows.push(['Metal', [purity, goldColorLabel, metalLabel].filter(Boolean).join(' ')]);
+  if (purity) rows.push(['Purity', purity]);
+
+  if (goldWeightGrams != null) rows.push(['Gold Weight', `${goldWeightGrams} g`]);
+  if (netWeightGrams != null) rows.push(['Net Weight', `${netWeightGrams} g`]);
   if (product.diamondWeightGrams != null) rows.push(['Diamond Weight', `${product.diamondWeightGrams} g`]);
-  if (product.grossWeightGrams != null) rows.push(['Gross Weight', `${product.grossWeightGrams} g`]);
-  if (product.diamondWeightCarats) rows.push(['Diamond Carat', `${product.diamondWeightCarats} ct`]);
-  if (product.diamondConfigName) rows.push(['Diamond Quality', product.diamondConfigName]);
+  if (grossWeightGrams != null) rows.push(['Gross Weight', `${grossWeightGrams} g`]);
+  if (diamondWeightCarats) rows.push(['Diamond Carat', `${diamondWeightCarats} ct`]);
+  if (diamondConfigName) rows.push(['Diamond Quality', diamondConfigName]);
   if (product.diamondCount) rows.push(['Diamond Count', String(product.diamondCount)]);
   if (product.gemstone) rows.push(['Gemstone', product.gemstone]);
 

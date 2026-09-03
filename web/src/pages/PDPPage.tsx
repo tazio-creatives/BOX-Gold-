@@ -65,6 +65,10 @@ export function PDPPage() {
     isOutOfStock,
     isLowStock,
     selectedDiamondOption,
+    displayGoldWeightGrams,
+    displayNetWeightGrams,
+    displayGrossWeightGrams,
+    displayDiamondWeightCarats,
     displayPrice,
     displayMrp,
     displayGstAmount,
@@ -231,7 +235,16 @@ export function PDPPage() {
 
         <div className={styles.detailsGrid}>
           <DetailsCard title="Product Details" className={styles.detailsCardHeading}>
-            <AttributesList product={product} />
+            <AttributesList
+              product={product}
+              livePurity={selectedPurity}
+              liveGoldColor={selectedGoldColor}
+              liveDiamondConfigName={selectedDiamondOption?.name}
+              liveGoldWeightGrams={displayGoldWeightGrams}
+              liveNetWeightGrams={displayNetWeightGrams}
+              liveGrossWeightGrams={displayGrossWeightGrams}
+              liveDiamondWeightCarats={displayDiamondWeightCarats}
+            />
           </DetailsCard>
 
           <DetailsCard title="Price Breakup" className={styles.detailsCardHeading}>

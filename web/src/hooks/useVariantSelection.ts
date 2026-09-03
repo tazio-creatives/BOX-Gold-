@@ -259,6 +259,20 @@ export function useVariantSelection(product: ProductDetail | undefined) {
   const { strikePrice: displayMrp } = effectiveMrp(displayPrice, pricePreview?.mrp ?? product?.mrp ?? 0, displaySellingPriceOriginal);
   const displayGstAmount = pricePreview?.gstAmount ?? product?.priceBreakup.gstAmount ?? 0;
   const displayOfferLabel = pricePreview?.offerLabel ?? product?.offerLabel ?? null;
+
+  // The live-resolved gold weight for whatever combination is selected (may
+  // differ from the product's own base weight — see Weight Defaults, a
+  // purity or purity+size rule can give a combination a different physical
+  // weight). Net Weight mirrors Gold Weight exactly for these gold-only
+  // products (see ProductFormPage's "Net Weight = Gold Weight only" note);
+  // Gross Weight adds the diamond's own weight in grams, which never varies
+  // by combination (no per-variant/rule mechanism exists for it), so that
+  // component always comes from the product's own base value.
+  const displayGoldWeightGrams = pricePreview?.goldWeightGrams ?? product?.goldWeightGrams ?? null;
+  const displayDiamondWeightCarats = pricePreview?.diamondWeightCarats ?? product?.diamondWeightCarats ?? null;
+  const displayNetWeightGrams = displayGoldWeightGrams;
+  const displayGrossWeightGrams =
+    displayGoldWeightGrams != null ? displayGoldWeightGrams + (product?.diamondWeightGrams ?? 0) : null;
   const displayBreakup = pricePreview
     ? {
         goldValue: pricePreview.goldValue,
@@ -301,6 +315,10 @@ export function useVariantSelection(product: ProductDetail | undefined) {
     isOutOfStock,
     isLowStock,
     selectedDiamondOption,
+    displayGoldWeightGrams,
+    displayDiamondWeightCarats,
+    displayNetWeightGrams,
+    displayGrossWeightGrams,
     displayPrice,
     displayMrp,
     displaySellingPriceOriginal,
