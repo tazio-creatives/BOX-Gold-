@@ -88,17 +88,22 @@ export async function applyExclusionRules(productId) {
 // count per size." Gated on an actual change (not just "a value is
 // present") so an unrelated save — editing the description, say, with the
 // Size rows left exactly as loaded — can never blast stock to a stale
-// number; the "currently there" baseline is the same is_available-only sum
-// the admin's own form was pre-filled with, so a same-value resubmit is
-// always a true no-op. A brand-new size (no existing variants yet) is
-// skipped here — its variants don't exist yet, so the ordinary seed-at-
-// creation path in syncProductVariants already gives them the right stock.
+// number; the "currently there" baseline must match what the admin's own
+// form was pre-filled with (products.controller.js's toDetailDto uses the
+// max across combos, not a sum — using a sum here instead used to make this
+// comparison compare a sum against a single raw number, which is essentially
+// never equal, so the UPDATE fired on every save and multiplied the stored
+// value by the combo count each time: 1000 in with 28 sibling combos became
+// 28000, then re-entering 1000 became 28000 again). A brand-new size (no
+// existing variants yet) is skipped here — its variants don't exist yet, so
+// the ordinary seed-at-creation path in syncProductVariants already gives
+// them the right stock.
 export async function applySizeStockUpdates(productId, sizesInput) {
   if (!sizesInput?.length) return;
 
   const { rows } = await query(
     `SELECT av.id AS size_value_id, av.value AS label,
-            COALESCE(SUM(pv.stock_quantity) FILTER (WHERE pv.is_available), 0) AS current_stock
+            COALESCE(MAX(pv.stock_quantity) FILTER (WHERE pv.is_available), 0) AS current_stock
      FROM attribute_values av
      JOIN attributes a ON a.id = av.attribute_id AND a.code = 'size'
      LEFT JOIN variant_attribute_values vav ON vav.attribute_value_id = av.id

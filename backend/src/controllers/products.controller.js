@@ -215,19 +215,25 @@ function toDetailDto(row) {
     // as flat lists (unchanged UI), and the storefront's SizeSelector still
     // reads a flat `sizes` prop directly — this keeps both working without
     // either needing to understand the generic attribute shape. A size's
-    // stockQuantity/availableStock is the SUM across every variant carrying
-    // that size (any color/purity/diamond combo) — real current stock for
-    // "is this size available at all," not a per-exact-combination figure
-    // (that finer-grained number lives on `variants` above). Re-saving the
-    // admin form's per-size seed values never touches already-existing
-    // variants (see syncProductVariants), so this being a live rollup rather
-    // than the raw seed is strictly more informative, not a behavior risk.
+    // stockQuantity/availableStock is ONE number shared uniformly across
+    // every Gold Colour × Purity × Diamond Quality combo carrying that size
+    // — matching applySizeStockUpdates/syncProductVariants, which both write
+    // the admin's typed value to every one of those combos as-is, not
+    // divided (the "old pre-variant-model mental model of one stock count
+    // per size"). Take the max across combos as the representative figure —
+    // exact once they're in sync (the normal case after any save), and
+    // robust rather than silently under-reporting if a combo was excluded
+    // (0) or hasn't been synced yet. Previously this summed across combos
+    // instead, which double/N-counted the same number the admin form itself
+    // re-displays and re-submits — every resave multiplied the stored value
+    // by the combo count instead of leaving it unchanged (bug: entering
+    // 1000 with 28 sibling combos round-tripped to 28000 on save).
     sizes: (row.attributes ?? [])
       .find((a) => a.code === 'size')
       ?.values.map((v) => {
         const stock = (row.variants ?? [])
           .filter((variant) => Object.values(variant.attributes ?? {}).some((a) => a.valueId === v.id))
-          .reduce((sum, variant) => sum + (variant.is_available ? variant.stock_quantity : 0), 0);
+          .reduce((max, variant) => Math.max(max, variant.is_available ? variant.stock_quantity : 0), 0);
         return { id: v.id, label: v.label, stockQuantity: stock, availableStock: stock, weightGrams: null, diamondWeightCarats: null };
       }) ?? [],
     goldColorOptions: (row.attributes ?? []).find((a) => a.code === 'gold_color')?.values.map((v) => v.value) ?? [],

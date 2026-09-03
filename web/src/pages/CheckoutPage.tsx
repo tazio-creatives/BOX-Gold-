@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useQuery, useQueryClient, useMutation } from '@tanstack/react-query';
 import { useCustomer } from '../features/auth/useCustomer';
@@ -90,22 +90,30 @@ function draftMatchesAddress(address: Address, draft: AddressDraft): boolean {
   );
 }
 
-// Mirrors the backend's own constraints (checkout.validators.js) — inline
-// feedback only; the backend validator is still the final authority (see
-// checkoutMutation's onError, which maps its field errors onto this exact
-// shape).
-function validateCheckoutFields(draft: AddressDraft, email: string): AddressFieldErrors {
+// Address-only fields — used both by the standalone "Save Address" action
+// (which has nothing to do with the checkout contact email) and as the base
+// for the full checkout validation below.
+function validateAddressFields(draft: AddressDraft): AddressFieldErrors {
   const errors: AddressFieldErrors = {};
   if (!draft.name.trim()) errors.name = 'Please enter the recipient name.';
   const digits = draft.mobileNumber.replace(/\D/g, '');
   if (!draft.mobileNumber.trim()) errors.mobileNumber = 'Please enter a mobile number.';
   else if (digits.length < 6) errors.mobileNumber = 'Please enter a valid mobile number.';
-  if (!email.trim()) errors.email = 'Please enter your email address.';
-  else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) errors.email = 'Please enter a valid email address.';
   if (!draft.addressLine.trim()) errors.addressLine = 'Please enter your address.';
   if (!draft.city.trim()) errors.city = 'Please enter your city.';
   if (!draft.state.trim()) errors.state = 'Please enter your state.';
   if (!draft.pincode.trim()) errors.pincode = 'Please enter your pincode.';
+  return errors;
+}
+
+// Mirrors the backend's own constraints (checkout.validators.js) — inline
+// feedback only; the backend validator is still the final authority (see
+// checkoutMutation's onError, which maps its field errors onto this exact
+// shape).
+function validateCheckoutFields(draft: AddressDraft, email: string): AddressFieldErrors {
+  const errors = validateAddressFields(draft);
+  if (!email.trim()) errors.email = 'Please enter your email address.';
+  else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) errors.email = 'Please enter a valid email address.';
   return errors;
 }
 
@@ -140,24 +148,37 @@ export function CheckoutPage() {
 
   const [selectedAddressId, setSelectedAddressId] = useState<string | null>(null);
   const [draft, setDraft] = useState<AddressDraft>(() => emptyDraft(null));
+  // Whether the Address card shows the live-editable grid vs. the read-only
+  // saved-address summary. Lifted up here (rather than local state inside
+  // CheckoutAddressCard) so a successful save (handleSaveAddress below) can
+  // flip it back to the summary itself — an update doesn't change
+  // selectedAddressId, so there'd be nothing else to key that transition off.
+  const [isEditingAddress, setIsEditingAddress] = useState(true);
   const [contactEmail, setContactEmail] = useState(customer?.email ?? '');
   const [deliveryNote, setDeliveryNote] = useState('');
 
   const addresses = addressesData?.addresses ?? [];
 
   // Seed the draft from the customer's default (or most recent) saved
-  // address the first time addresses load — never again after that, so it
-  // doesn't clobber whatever the shopper is actively editing.
+  // address the first time addresses load — a one-time seed tracked by this
+  // ref, not by `selectedAddressId` being null. `selectedAddressId` also
+  // goes back to null when the shopper deliberately clicks "Add a new
+  // address" (startNewAddress below) — keying this effect off that same
+  // value used to make it re-fire and silently re-select the saved address,
+  // undoing "start new" the instant it was clicked.
+  const hasSeededAddressRef = useRef(false);
   useEffect(() => {
-    if (addresses.length === 0 || selectedAddressId) return;
+    if (addresses.length === 0 || hasSeededAddressRef.current) return;
+    hasSeededAddressRef.current = true;
     const initial = addresses.find((a) => a.isDefault) ?? addresses[0];
     setSelectedAddressId(initial.id);
     setDraft(addressToDraft(initial));
+    setIsEditingAddress(false);
     // addressesData (not the `addresses` fallback-to-[] derivation, which is
     // a fresh array every render) — react-query only gives a new reference
     // on real data changes.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [addressesData, selectedAddressId]);
+  }, [addressesData]);
 
   // First-time customer with no saved address yet — pre-fill name/mobile
   // from their profile so there's less to type.
@@ -452,12 +473,90 @@ export function CheckoutPage() {
     setSelectedAddressId(id);
     setDraft(addressToDraft(address));
     setFieldErrors({});
+    setIsEditingAddress(false);
   }
 
   function startNewAddress() {
     setSelectedAddressId(null);
     setDraft(emptyDraft(customer));
     setFieldErrors({});
+    setIsEditingAddress(true);
+  }
+
+  // Cancel out of editing an existing saved address without persisting
+  // anything — reverts the draft back to that address's true saved values
+  // (discarding whatever was typed) rather than leaving stale unsaved text
+  // sitting behind the summary view.
+  function cancelEditAddress() {
+    if (selectedAddress) {
+      setDraft(addressToDraft(selectedAddress));
+    } else if (addresses.length > 0) {
+      // Cancelling out of "Add a new address" with no address of its own to
+      // revert to — fall back to an existing saved one instead of leaving
+      // the (now unreachable-via-summary) edit form as the only option.
+      const fallback = addresses.find((a) => a.isDefault) ?? addresses[0];
+      setSelectedAddressId(fallback.id);
+      setDraft(addressToDraft(fallback));
+    }
+    setFieldErrors({});
+    setIsEditingAddress(false);
+  }
+
+  // Shared by "Save Address" and "Proceed to Payment" — creates a new
+  // address, or updates the selected one only if the draft actually diverged
+  // from it (draftMatchesAddress), or does nothing if nothing changed.
+  // Returns the addressId to check out with, or null if there's still
+  // nothing to check out with (validation caller's job to have already
+  // caught that).
+  async function upsertAddressDraft(): Promise<string> {
+    if (!selectedAddress) {
+      const { address } = await createAddressMutation.mutateAsync({
+        type: draft.type,
+        name: draft.name.trim(),
+        mobileNumber: draft.mobileNumber.trim(),
+        addressLine: draft.addressLine.trim(),
+        building: null,
+        landmark: draft.landmark.trim() || null,
+        city: draft.city.trim(),
+        state: draft.state.trim(),
+        pincode: draft.pincode.trim(),
+        country: 'India',
+        isDefault: addresses.length === 0,
+      });
+      return address.id;
+    }
+    if (!draftMatchesAddress(selectedAddress, draft)) {
+      await updateAddressMutation.mutateAsync({
+        id: selectedAddress.id,
+        input: {
+          type: draft.type,
+          name: draft.name.trim(),
+          mobileNumber: draft.mobileNumber.trim(),
+          addressLine: draft.addressLine.trim(),
+          landmark: draft.landmark.trim() || null,
+          city: draft.city.trim(),
+          state: draft.state.trim(),
+          pincode: draft.pincode.trim(),
+        },
+      });
+    }
+    return selectedAddress.id;
+  }
+
+  async function handleSaveAddress() {
+    setCheckoutError(null);
+    const errors = validateAddressFields(draft);
+    setFieldErrors(errors);
+    if (Object.keys(errors).length > 0) {
+      setStatusMessage('Please complete the address details.');
+      return;
+    }
+    try {
+      await upsertAddressDraft();
+      setIsEditingAddress(false);
+    } catch (err) {
+      setCheckoutError(err instanceof ApiError ? err.message : 'Could not save your delivery address.');
+    }
   }
 
   async function handlePlaceOrder() {
@@ -473,46 +572,11 @@ export function CheckoutPage() {
       return;
     }
 
-    let addressId = selectedAddress?.id ?? null;
+    let addressId: string;
     try {
-      if (!selectedAddress) {
-        const { address } = await createAddressMutation.mutateAsync({
-          type: draft.type,
-          name: draft.name.trim(),
-          mobileNumber: draft.mobileNumber.trim(),
-          addressLine: draft.addressLine.trim(),
-          building: null,
-          landmark: draft.landmark.trim() || null,
-          city: draft.city.trim(),
-          state: draft.state.trim(),
-          pincode: draft.pincode.trim(),
-          country: 'India',
-          isDefault: addresses.length === 0,
-        });
-        addressId = address.id;
-      } else if (!draftMatchesAddress(selectedAddress, draft)) {
-        await updateAddressMutation.mutateAsync({
-          id: selectedAddress.id,
-          input: {
-            type: draft.type,
-            name: draft.name.trim(),
-            mobileNumber: draft.mobileNumber.trim(),
-            addressLine: draft.addressLine.trim(),
-            landmark: draft.landmark.trim() || null,
-            city: draft.city.trim(),
-            state: draft.state.trim(),
-            pincode: draft.pincode.trim(),
-          },
-        });
-        addressId = selectedAddress.id;
-      }
+      addressId = await upsertAddressDraft();
     } catch (err) {
       setCheckoutError(err instanceof ApiError ? err.message : 'Could not save your delivery address.');
-      return;
-    }
-
-    if (!addressId) {
-      setCheckoutError('Please add a delivery address.');
       return;
     }
 
@@ -557,6 +621,7 @@ export function CheckoutPage() {
           <CheckoutAddressCard
             addresses={addresses}
             selectedAddressId={selectedAddressId}
+            selectedAddress={selectedAddress}
             onSelectAddress={selectAddress}
             onStartNewAddress={startNewAddress}
             onDeleteAddress={(id) => deleteAddressMutation.mutate(id)}
@@ -567,6 +632,11 @@ export function CheckoutPage() {
             deliveryNote={deliveryNote}
             onDeliveryNoteChange={setDeliveryNote}
             fieldErrors={fieldErrors}
+            isEditing={isEditingAddress}
+            onStartEditing={() => setIsEditingAddress(true)}
+            onCancelEdit={cancelEditAddress}
+            onSaveAddress={handleSaveAddress}
+            isSavingAddress={createAddressMutation.isPending || updateAddressMutation.isPending}
           />
 
           {checkoutError && (

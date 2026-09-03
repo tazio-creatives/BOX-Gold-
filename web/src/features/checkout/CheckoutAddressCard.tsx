@@ -19,6 +19,7 @@ export type AddressFieldErrors = Partial<
 interface CheckoutAddressCardProps {
   addresses: Address[];
   selectedAddressId: string | null;
+  selectedAddress: Address | null;
   onSelectAddress: (_id: string) => void;
   onStartNewAddress: () => void;
   onDeleteAddress: (_id: string) => void;
@@ -29,6 +30,11 @@ interface CheckoutAddressCardProps {
   deliveryNote: string;
   onDeliveryNoteChange: (_value: string) => void;
   fieldErrors: AddressFieldErrors;
+  isEditing: boolean;
+  onStartEditing: () => void;
+  onCancelEdit: () => void;
+  onSaveAddress: () => void;
+  isSavingAddress: boolean;
 }
 
 const TYPES: AddressType[] = ['HOME', 'OFFICE', 'OTHER'];
@@ -59,17 +65,32 @@ function CloseIcon() {
   );
 }
 
+function EditIcon() {
+  return (
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <path d="M12 20h9" />
+      <path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z" />
+    </svg>
+  );
+}
+
 // Merged "Address" card (approved reference layout) — replaces the old
 // separate Contact Details + Delivery Address sections. A saved address is
 // picked via the pill row (one pill per address, labelled by its type) or a
-// brand-new one is started via "+"; the field grid below is always a live,
-// editable draft of whichever is currently selected. Nothing here writes to
-// the backend directly — CheckoutPage owns the create/update mutation and
-// resolves the final addressId once, at "Proceed to Payment" time, so
-// there's no separate "Save Address" step the reference doesn't show.
+// brand-new one is started via "+". Once a saved address is selected, it
+// shows as a compact read-only summary (client correction — the full
+// editable grid every time made it look like nothing was ever actually
+// saved) rendered from the real saved `selectedAddress` record, not the
+// live `draft` — so an unsaved in-progress edit never gets shown as if it
+// were already saved. "Edit" drops into the same live-editable grid used
+// for a brand new address; "Save Address" (CheckoutPage's handleSaveAddress)
+// persists immediately via the create/update mutation, independent of
+// "Proceed to Payment" — a shopper can build up their address book without
+// completing an order.
 export function CheckoutAddressCard({
   addresses,
   selectedAddressId,
+  selectedAddress,
   onSelectAddress,
   onStartNewAddress,
   onDeleteAddress,
@@ -80,7 +101,14 @@ export function CheckoutAddressCard({
   deliveryNote,
   onDeliveryNoteChange,
   fieldErrors,
+  isEditing,
+  onStartEditing,
+  onCancelEdit,
+  onSaveAddress,
+  isSavingAddress,
 }: CheckoutAddressCardProps) {
+  const showSummary = selectedAddress !== null && !isEditing;
+
   return (
     <section className={styles.card}>
       <div className={styles.headerRow}>
@@ -119,110 +147,149 @@ export function CheckoutAddressCard({
         )}
       </div>
 
-      <div className={styles.typeRow} role="group" aria-label="Address type">
-        {TYPES.map((t) => (
-          <button
-            key={t}
-            type="button"
-            className={`${styles.typeTag} ${draft.type === t ? styles.typeTagActive : ''}`}
-            onClick={() => onDraftChange({ type: t })}
-          >
-            {TYPE_LABEL[t]}
+      {showSummary && selectedAddress ? (
+        <div className={styles.summary}>
+          <div className={styles.summaryText}>
+            <p className={styles.summaryLine}>
+              <span className={styles.summaryName}>{selectedAddress.name}</span>
+              <span className={styles.summaryTypeTag}>{TYPE_LABEL[selectedAddress.type]}</span>
+            </p>
+            <p className={styles.summaryLine}>{selectedAddress.mobileNumber}</p>
+            <p className={styles.summaryLine}>
+              {[selectedAddress.addressLine, selectedAddress.landmark].filter(Boolean).join(', ')}
+            </p>
+            <p className={styles.summaryLine}>
+              {selectedAddress.city}, {selectedAddress.state} {selectedAddress.pincode}
+            </p>
+          </div>
+          <button type="button" className={styles.editButton} onClick={onStartEditing}>
+            <EditIcon />
+            Edit
           </button>
-        ))}
-      </div>
+        </div>
+      ) : (
+        <>
+          <div className={styles.typeRow} role="group" aria-label="Address type">
+            {TYPES.map((t) => (
+              <button
+                key={t}
+                type="button"
+                className={`${styles.typeTag} ${draft.type === t ? styles.typeTagActive : ''}`}
+                onClick={() => onDraftChange({ type: t })}
+              >
+                {TYPE_LABEL[t]}
+              </button>
+            ))}
+          </div>
 
-      <div className={styles.grid}>
-        <label className={`${styles.field} ${styles.spanHalf}`}>
-          Name
-          <input
-            className={fieldErrors.name ? styles.invalid : undefined}
-            value={draft.name}
-            placeholder="Full name"
-            onChange={(e) => onDraftChange({ name: e.target.value })}
-          />
-          {fieldErrors.name && <span className={styles.fieldErrorText}>{fieldErrors.name}</span>}
-        </label>
-        <label className={`${styles.field} ${styles.spanHalf}`}>
-          Mobile No.
-          <input
-            className={fieldErrors.mobileNumber ? styles.invalid : undefined}
-            value={draft.mobileNumber}
-            placeholder="Mobile number"
-            onChange={(e) => onDraftChange({ mobileNumber: e.target.value })}
-          />
-          {fieldErrors.mobileNumber && <span className={styles.fieldErrorText}>{fieldErrors.mobileNumber}</span>}
-        </label>
+          <div className={styles.grid}>
+            <label className={`${styles.field} ${styles.spanHalf}`}>
+              Name
+              <input
+                className={fieldErrors.name ? styles.invalid : undefined}
+                value={draft.name}
+                placeholder="Full name"
+                onChange={(e) => onDraftChange({ name: e.target.value })}
+              />
+              {fieldErrors.name && <span className={styles.fieldErrorText}>{fieldErrors.name}</span>}
+            </label>
+            <label className={`${styles.field} ${styles.spanHalf}`}>
+              Mobile No.
+              <input
+                className={fieldErrors.mobileNumber ? styles.invalid : undefined}
+                value={draft.mobileNumber}
+                placeholder="Mobile number"
+                onChange={(e) => onDraftChange({ mobileNumber: e.target.value })}
+              />
+              {fieldErrors.mobileNumber && <span className={styles.fieldErrorText}>{fieldErrors.mobileNumber}</span>}
+            </label>
 
-        <label className={`${styles.field} ${styles.spanHalf}`}>
-          Email
-          <input
-            type="email"
-            className={fieldErrors.email ? styles.invalid : undefined}
-            value={email}
-            placeholder="Email address"
-            onChange={(e) => onEmailChange(e.target.value)}
-          />
-          {fieldErrors.email && <span className={styles.fieldErrorText}>{fieldErrors.email}</span>}
-        </label>
-        <label className={`${styles.field} ${styles.spanHalf}`}>
-          City
-          <input
-            className={fieldErrors.city ? styles.invalid : undefined}
-            value={draft.city}
-            placeholder="City"
-            onChange={(e) => onDraftChange({ city: e.target.value })}
-          />
-          {fieldErrors.city && <span className={styles.fieldErrorText}>{fieldErrors.city}</span>}
-        </label>
+            <label className={`${styles.field} ${styles.spanHalf}`}>
+              Email
+              <input
+                type="email"
+                className={fieldErrors.email ? styles.invalid : undefined}
+                value={email}
+                placeholder="Email address"
+                onChange={(e) => onEmailChange(e.target.value)}
+              />
+              {fieldErrors.email && <span className={styles.fieldErrorText}>{fieldErrors.email}</span>}
+            </label>
+            <label className={`${styles.field} ${styles.spanHalf}`}>
+              City
+              <input
+                className={fieldErrors.city ? styles.invalid : undefined}
+                value={draft.city}
+                placeholder="City"
+                onChange={(e) => onDraftChange({ city: e.target.value })}
+              />
+              {fieldErrors.city && <span className={styles.fieldErrorText}>{fieldErrors.city}</span>}
+            </label>
 
-        <label className={`${styles.field} ${styles.spanThird}`}>
-          State
-          <input
-            className={fieldErrors.state ? styles.invalid : undefined}
-            value={draft.state}
-            placeholder="State"
-            onChange={(e) => onDraftChange({ state: e.target.value })}
-          />
-          {fieldErrors.state && <span className={styles.fieldErrorText}>{fieldErrors.state}</span>}
-        </label>
-        <label className={`${styles.field} ${styles.spanThird}`}>
-          Pin code
-          <input
-            className={fieldErrors.pincode ? styles.invalid : undefined}
-            value={draft.pincode}
-            placeholder="Pin code"
-            onChange={(e) => onDraftChange({ pincode: e.target.value })}
-          />
-          {fieldErrors.pincode && <span className={styles.fieldErrorText}>{fieldErrors.pincode}</span>}
-        </label>
-        <label className={`${styles.field} ${styles.spanThird}`}>
-          Landmark (optional)
-          <input value={draft.landmark} placeholder="Nearby landmark" onChange={(e) => onDraftChange({ landmark: e.target.value })} />
-        </label>
+            <label className={`${styles.field} ${styles.spanThird}`}>
+              State
+              <input
+                className={fieldErrors.state ? styles.invalid : undefined}
+                value={draft.state}
+                placeholder="State"
+                onChange={(e) => onDraftChange({ state: e.target.value })}
+              />
+              {fieldErrors.state && <span className={styles.fieldErrorText}>{fieldErrors.state}</span>}
+            </label>
+            <label className={`${styles.field} ${styles.spanThird}`}>
+              Pin code
+              <input
+                className={fieldErrors.pincode ? styles.invalid : undefined}
+                value={draft.pincode}
+                placeholder="Pin code"
+                onChange={(e) => onDraftChange({ pincode: e.target.value })}
+              />
+              {fieldErrors.pincode && <span className={styles.fieldErrorText}>{fieldErrors.pincode}</span>}
+            </label>
+            <label className={`${styles.field} ${styles.spanThird}`}>
+              Landmark (optional)
+              <input
+                value={draft.landmark}
+                placeholder="Nearby landmark"
+                onChange={(e) => onDraftChange({ landmark: e.target.value })}
+              />
+            </label>
 
-        <label className={`${styles.field} ${styles.spanFull}`}>
-          Address
-          <textarea
-            className={fieldErrors.addressLine ? styles.invalid : undefined}
-            value={draft.addressLine}
-            placeholder="House / flat no., building, street"
-            rows={2}
-            onChange={(e) => onDraftChange({ addressLine: e.target.value })}
-          />
-          {fieldErrors.addressLine && <span className={styles.fieldErrorText}>{fieldErrors.addressLine}</span>}
-        </label>
+            <label className={`${styles.field} ${styles.spanFull}`}>
+              Address
+              <textarea
+                className={fieldErrors.addressLine ? styles.invalid : undefined}
+                value={draft.addressLine}
+                placeholder="House / flat no., building, street"
+                rows={2}
+                onChange={(e) => onDraftChange({ addressLine: e.target.value })}
+              />
+              {fieldErrors.addressLine && <span className={styles.fieldErrorText}>{fieldErrors.addressLine}</span>}
+            </label>
+          </div>
 
-        <label className={`${styles.field} ${styles.spanFull}`}>
-          Note for delivery (optional)
-          <textarea
-            value={deliveryNote}
-            placeholder="E.g. Please call before delivery"
-            rows={2}
-            onChange={(e) => onDeliveryNoteChange(e.target.value)}
-          />
-        </label>
-      </div>
+          <div className={styles.editActions}>
+            <button type="button" className={styles.saveButton} disabled={isSavingAddress} onClick={onSaveAddress}>
+              {isSavingAddress ? 'Saving…' : 'Save Address'}
+            </button>
+            {(selectedAddress !== null || addresses.length > 0) && (
+              <button type="button" className={styles.cancelButton} disabled={isSavingAddress} onClick={onCancelEdit}>
+                Cancel
+              </button>
+            )}
+          </div>
+        </>
+      )}
+
+      <label className={`${styles.field} ${styles.noteField}`}>
+        Note for delivery (optional)
+        <textarea
+          value={deliveryNote}
+          placeholder="E.g. Please call before delivery"
+          rows={2}
+          onChange={(e) => onDeliveryNoteChange(e.target.value)}
+        />
+      </label>
     </section>
   );
 }
