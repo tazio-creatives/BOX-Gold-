@@ -2,7 +2,6 @@ import { useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useQuery, useQueryClient, useMutation } from '@tanstack/react-query';
 import { fetchCart, updateCartItem, removeCartItem } from '../api/cart';
-import { addWishlistItem } from '../api/wishlist';
 import { applyCoupon } from '../api/coupons';
 import { fetchProducts } from '../api/products';
 import type { Cart, CartItem } from '../api/types';
@@ -51,14 +50,6 @@ function CloseIcon() {
   return (
     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
       <path d="M6 6l12 12M18 6L6 18" strokeLinecap="round" />
-    </svg>
-  );
-}
-
-function HeartIcon() {
-  return (
-    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
-      <path d="M12 21s-7.5-4.7-10-9.3C.5 8.1 2.3 4.5 6 4c2-.3 3.7.6 6 3 2.3-2.4 4-3.3 6-3 3.7.5 5.5 4.1 4 7.7C19.5 16.3 12 21 12 21z" />
     </svg>
   );
 }
@@ -135,25 +126,6 @@ export function CartPage() {
     },
   });
 
-  const moveToWishlistMutation = useMutation({
-    mutationFn: async ({ productId, variantId }: { productId: string; variantId: string; name: string }) => {
-      await addWishlistItem(productId);
-      return removeCartItem(variantId);
-    },
-    onSuccess: (cart: Cart, { name }) => {
-      queryClient.setQueryData(['cart'], cart);
-      queryClient.invalidateQueries({ queryKey: ['wishlist'] });
-      setStatusMessage(`${name} moved to your wishlist.`);
-    },
-    onError: (err) => {
-      setStatusMessage(
-        err instanceof ApiError && err.status === 401
-          ? 'Sign in to move items to your wishlist.'
-          : 'Could not move item to wishlist.',
-      );
-    },
-  });
-
   const applyCouponMutation = useMutation({
     mutationFn: (subtotal: number) => applyCoupon(couponInput, subtotal),
     onSuccess: (result) => {
@@ -221,7 +193,12 @@ export function CartPage() {
           </div>
         </div>
 
-        <RelatedProducts products={featuredData?.products ?? []} categorySlug={null} heading="Best Sellers" />
+        <RelatedProducts
+        products={featuredData?.products ?? []}
+        categorySlug={null}
+        heading="Best Sellers"
+        className={styles.bestSellers}
+      />
       </div>
     );
   }
@@ -262,9 +239,7 @@ export function CartPage() {
                 const rowKey = item.variantId;
                 const isUpdating = updateMutation.isPending && updateMutation.variables.variantId === rowKey;
                 const isRemoving = removeMutation.isPending && removeMutation.variables.variantId === rowKey;
-                const isMovingToWishlist =
-                  moveToWishlistMutation.isPending && moveToWishlistMutation.variables.variantId === rowKey;
-                const rowBusy = isUpdating || isRemoving || isMovingToWishlist;
+                const rowBusy = isUpdating || isRemoving;
                 const { strikePrice, discountPercent } = effectiveMrp(item.sellingPrice, item.mrp, item.sellingPriceOriginal);
                 const size = sizeLabel(item);
 
@@ -280,20 +255,42 @@ export function CartPage() {
                       <CloseIcon />
                     </button>
 
-                    <Link
-                      to={productUrl({ slug: item.slug, categorySlug: item.categorySlug })}
-                      className={styles.imageLink}
-                    >
-                      <div
-                        className={styles.image}
-                        style={item.primaryImageUrl ? undefined : { background: placeholderGradient(i) }}
+                    <div className={styles.mediaColumn}>
+                      <Link
+                        to={productUrl({ slug: item.slug, categorySlug: item.categorySlug })}
+                        className={styles.imageLink}
                       >
-                        {item.primaryImageUrl && (
-                          <img src={item.primaryImageUrl} alt={item.name} className={styles.imageTag} />
-                        )}
-                        {discountPercent > 0 && <span className={styles.discountBadge}>{discountPercent}% OFF</span>}
+                        <div
+                          className={styles.image}
+                          style={item.primaryImageUrl ? undefined : { background: placeholderGradient(i) }}
+                        >
+                          {item.primaryImageUrl && (
+                            <img src={item.primaryImageUrl} alt={item.name} className={styles.imageTag} />
+                          )}
+                          {discountPercent > 0 && <span className={styles.discountBadge}>{discountPercent}% OFF</span>}
+                        </div>
+                      </Link>
+
+                      <div className={styles.stepper}>
+                        <button
+                          type="button"
+                          disabled={rowBusy}
+                          onClick={() => changeQuantity(item, item.quantity - 1)}
+                          aria-label={`Decrease quantity of ${item.name}`}
+                        >
+                          −
+                        </button>
+                        <span aria-live="polite">{isUpdating ? '…' : item.quantity}</span>
+                        <button
+                          type="button"
+                          onClick={() => changeQuantity(item, item.quantity + 1)}
+                          disabled={rowBusy || item.quantity >= MAX_LINE_QUANTITY}
+                          aria-label={`Increase quantity of ${item.name}`}
+                        >
+                          +
+                        </button>
                       </div>
-                    </Link>
+                    </div>
 
                     <div className={styles.details}>
                       <Link
@@ -316,54 +313,14 @@ export function CartPage() {
                         {deliveryLabel(item)}
                       </p>
 
-                      <div className={styles.rowFooter}>
-                        <div className={styles.stepper}>
-                          <button
-                            type="button"
-                            disabled={rowBusy}
-                            onClick={() => changeQuantity(item, item.quantity - 1)}
-                            aria-label={`Decrease quantity of ${item.name}`}
-                          >
-                            −
-                          </button>
-                          <span aria-live="polite">{isUpdating ? '…' : item.quantity}</span>
-                          <button
-                            type="button"
-                            onClick={() => changeQuantity(item, item.quantity + 1)}
-                            disabled={rowBusy || item.quantity >= MAX_LINE_QUANTITY}
-                            aria-label={`Increase quantity of ${item.name}`}
-                          >
-                            +
-                          </button>
-                        </div>
-
-                        {item.quantity > 1 && (
-                          <span className={styles.lineTotal}>{formatPrice(item.lineTotal)}</span>
-                        )}
-                      </div>
-
-                      <button
-                        type="button"
-                        className={styles.wishlistAction}
-                        disabled={rowBusy}
-                        onClick={() =>
-                          moveToWishlistMutation.mutate({
-                            productId: item.productId,
-                            variantId: item.variantId,
-                            name: item.name,
-                          })
-                        }
-                      >
-                        <HeartIcon />
-                        {isMovingToWishlist ? 'Moving…' : 'Move to Wishlist'}
-                      </button>
+                      {item.quantity > 1 && (
+                        <p className={styles.lineTotal}>{formatPrice(item.lineTotal)}</p>
+                      )}
                     </div>
                   </li>
                 );
               })}
           </ul>
-
-          <TrustStripBar variant="boxed" items={CART_ASSURANCE_ITEMS} />
         </div>
 
         <div className={styles.summaryColumn}>
@@ -401,9 +358,18 @@ export function CartPage() {
             hidePrimaryOnMobile
           />
         </div>
+
+        <div className={styles.trustSection}>
+          <TrustStripBar variant="boxed" items={CART_ASSURANCE_ITEMS} />
+        </div>
       </div>
 
-      <RelatedProducts products={featuredData?.products ?? []} categorySlug={null} heading="Best Sellers" />
+      <RelatedProducts
+        products={featuredData?.products ?? []}
+        categorySlug={null}
+        heading="Best Sellers"
+        className={styles.bestSellers}
+      />
 
       {/* Mobile-only (CSS): the sticky checkout bar is the single source of
           truth for "Proceed to Checkout" below 768px — OrderSummary's own

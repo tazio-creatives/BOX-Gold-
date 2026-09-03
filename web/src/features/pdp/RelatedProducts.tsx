@@ -7,15 +7,19 @@ export function RelatedProducts({
   products,
   categorySlug,
   heading = 'You May Also Like',
+  className,
 }: {
   products: ProductCardType[];
   categorySlug: string | null;
   heading?: string;
+  // Lets a caller (CartPage) override the section's own top spacing without
+  // changing it for every other usage (PDP's "You May Also Like").
+  className?: string;
 }) {
   if (products.length === 0) return null;
 
   return (
-    <section className={styles.section}>
+    <section className={className ? `${styles.section} ${className}` : styles.section}>
       <div className={styles.header}>
         <h2 className={styles.heading}>{heading}</h2>
         {categorySlug && (

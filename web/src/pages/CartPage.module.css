@@ -4,8 +4,15 @@
 
 .page {
   width: 100%;
-  padding: 0 16px 100px;
+  padding: 0 16px 64px;
   background: var(--color-bg);
+}
+
+/* Overrides RelatedProducts' own (larger, PDP-tuned) top margin — this page
+   already has its own trust strip directly above, so the default 96px gap
+   read as excessive here. */
+.bestSellers {
+  margin-top: var(--space-6);
 }
 
 .visuallyHidden {
@@ -22,7 +29,7 @@
 
 .heading {
   font-family: var(--font-heading);
-  font-size: 28px;
+  font-size: 22px;
   font-weight: 700;
   color: var(--color-text);
   margin: 24px 0 0;
@@ -97,10 +104,16 @@
 }
 
 .removeButton:focus-visible,
-.stepper button:focus-visible,
-.wishlistAction:focus-visible {
+.stepper button:focus-visible {
   outline: 2px solid var(--color-burgundy);
   outline-offset: 2px;
+}
+
+.mediaColumn {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 8px;
 }
 
 .imageLink {
@@ -197,20 +210,16 @@
   align-items: center;
   gap: 5px;
   margin: 8px 0 0;
-  padding: 4px 9px;
-  border-radius: 20px;
   font-size: 11.5px;
   font-weight: 600;
   line-height: 1.2;
 }
 
 .deliveryBadge {
-  background: #e6f2ee;
   color: #1a7f56;
 }
 
 .deliveryBadgeBackorder {
-  background: #f6ecd8;
   color: #8a6a1f;
 }
 
@@ -219,33 +228,28 @@
   flex-shrink: 0;
 }
 
-.rowFooter {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  margin-top: 12px;
-}
-
+/* Same corner radius as .image (10px) — the stepper sits directly under
+   the product image, at the image's own width, so it reads as one unit
+   with it rather than a separate pill control. */
 .stepper {
   display: flex;
   align-items: stretch;
-  width: 116px;
-  height: 44px;
+  width: 96px;
+  height: 34px;
   flex-shrink: 0;
   border: 1px solid #ddd6cc;
-  border-radius: 22px;
+  border-radius: 10px;
   overflow: hidden;
   background: var(--color-surface);
 }
 
 .stepper button {
-  flex: 0 0 40px;
+  flex: 1;
   display: grid;
   place-items: center;
   border: none;
   background: none;
-  font-size: 18px;
+  font-size: 15px;
   line-height: 1;
   color: var(--color-text);
   cursor: pointer;
@@ -260,38 +264,16 @@
   flex: 1;
   display: grid;
   place-items: center;
-  font-size: 14px;
+  font-size: 13px;
   font-weight: 600;
   color: var(--color-text);
 }
 
 .lineTotal {
+  margin: 6px 0 0;
   font-size: 13px;
   color: var(--color-text-muted);
   white-space: nowrap;
-}
-
-.wishlistAction {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  min-height: 44px;
-  margin-top: 4px;
-  padding: 0;
-  border: none;
-  background: none;
-  color: #667172;
-  font-size: 13px;
-  cursor: pointer;
-}
-
-.wishlistAction:hover {
-  color: var(--color-burgundy);
-}
-
-.wishlistAction:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
 }
 
 .summaryColumn {
@@ -450,11 +432,34 @@
   border-radius: 12px;
 }
 
+/* Mobile-only tightening — trims the extra vertical space between the
+   delivery pill and the wishlist action. Desktop's spacing is untouched (no
+   override exists for it there, so this block only applies below the 768px
+   breakpoint where the desktop block below takes over). */
+@media (max-width: 767px) {
+  .row {
+    padding: 12px;
+    gap: 12px;
+  }
+
+  .deliveryBadge,
+  .deliveryBadgeBackorder {
+    margin-top: 6px;
+  }
+
+  /* Targets RelatedProducts' internal <h2> by element, not by its (hashed,
+     module-scoped) class name — .bestSellers is this page's own wrapper, so
+     this only affects Cart's "Best Sellers" heading, not PDP's. */
+  .bestSellers h2 {
+    font-size: 22px;
+  }
+}
+
 @media (min-width: 768px) {
   .page {
     max-width: 1400px;
     margin: 0 auto;
-    padding: 0 var(--space-4) var(--space-12);
+    padding: 0 var(--space-4) var(--space-6);
   }
 
   .heading {
@@ -487,6 +492,11 @@
   .image {
     width: 120px;
     height: 120px;
+  }
+
+  .stepper {
+    width: 120px;
+    height: 38px;
   }
 
   .removeButton {
