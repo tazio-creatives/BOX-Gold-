@@ -1,5 +1,5 @@
 import { useEffect, useRef, type ClipboardEvent, type FormEvent, type KeyboardEvent } from 'react';
-import { ArrowRightIcon, SpinnerIcon, GemOrnamentIcon } from './AuthIcons';
+import { ArrowRightIcon, SpinnerIcon } from './AuthIcons';
 import styles from './OtpVerificationForm.module.css';
 import sharedStyles from './AuthShared.module.css';
 
@@ -111,9 +111,6 @@ export function OtpVerificationForm({
 
   return (
     <form className={styles.form} onSubmit={onSubmit} noValidate>
-      <span className={styles.ornament} aria-hidden="true">
-        <GemOrnamentIcon />
-      </span>
       <p className={styles.eyebrow}>Verify Your Number</p>
       <h1 className={styles.heading} ref={headingRef} tabIndex={-1}>
         Enter verification code

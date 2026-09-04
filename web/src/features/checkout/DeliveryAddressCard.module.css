@@ -141,7 +141,6 @@
   }
 
   .actionButton {
-    min-height: 44px;
     display: inline-flex;
     align-items: center;
   }

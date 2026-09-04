@@ -1,6 +1,14 @@
 import type { ProductDetail } from '../../api/types';
 import styles from './AttributesList.module.css';
 
+// Weight columns are NUMERIC(10,3) in the DB — admin enters up to 3 decimal
+// places (e.g. 0.580), but a plain template-literal interpolation silently
+// drops trailing zeros (JS's Number(0.580) === 0.58), so a weight the admin
+// entered with 3 decimals could render with only 1 or 2. Always show all 3.
+function formatWeight(grams: number): string {
+  return grams.toFixed(3);
+}
+
 interface AttributesListProps {
   product: ProductDetail;
   // Live-selection overrides — a variant picked via Purity/Gold Colour/
@@ -44,11 +52,11 @@ export function AttributesList({
   rows.push(['Metal', [purity, goldColorLabel, metalLabel].filter(Boolean).join(' ')]);
   if (purity) rows.push(['Purity', purity]);
 
-  if (goldWeightGrams != null) rows.push(['Gold Weight', `${goldWeightGrams} g`]);
-  if (netWeightGrams != null) rows.push(['Net Weight', `${netWeightGrams} g`]);
-  if (product.diamondWeightGrams != null) rows.push(['Diamond Weight', `${product.diamondWeightGrams} g`]);
-  if (grossWeightGrams != null) rows.push(['Gross Weight', `${grossWeightGrams} g`]);
-  if (diamondWeightCarats) rows.push(['Diamond Carat', `${diamondWeightCarats} ct`]);
+  if (goldWeightGrams != null) rows.push(['Gold Weight', `${formatWeight(goldWeightGrams)} g`]);
+  if (netWeightGrams != null) rows.push(['Net Weight', `${formatWeight(netWeightGrams)} g`]);
+  if (product.diamondWeightGrams != null) rows.push(['Diamond Weight', `${formatWeight(product.diamondWeightGrams)} g`]);
+  if (grossWeightGrams != null) rows.push(['Gross Weight', `${formatWeight(grossWeightGrams)} g`]);
+  if (diamondWeightCarats) rows.push(['Diamond Carat', `${formatWeight(diamondWeightCarats)} ct`]);
   if (diamondConfigName) rows.push(['Diamond Quality', diamondConfigName]);
   if (product.diamondCount) rows.push(['Diamond Count', String(product.diamondCount)]);
   if (product.gemstone) rows.push(['Gemstone', product.gemstone]);

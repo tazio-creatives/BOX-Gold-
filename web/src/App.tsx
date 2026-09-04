@@ -2,6 +2,7 @@ import { lazy, useEffect } from 'react';
 import { Routes, Route, Navigate, useNavigate } from 'react-router-dom';
 import { ScrollToTop } from './components/ScrollToTop';
 import { StorefrontLayout } from './layouts/StorefrontLayout';
+import { MinimalLayout } from './layouts/MinimalLayout';
 import { AccountLayout } from './layouts/AccountLayout';
 import { AuthModalProvider, useAuthModal } from './features/auth/AuthModalContext';
 import { HomePage } from './pages/HomePage';
@@ -60,7 +61,6 @@ export function App() {
           <Route path="/wishlist" element={<WishlistPage />} />
           <Route path="/login" element={<LoginRedirect />} />
           <Route path="/checkout" element={<CheckoutPage />} />
-          <Route path="/order-confirmation/:orderId" element={<OrderConfirmationPage />} />
 
           <Route path="/account" element={<AccountLayout />}>
             <Route index element={<Navigate to="orders" replace />} />
@@ -75,6 +75,10 @@ export function App() {
           <Route path="/:categorySlug" element={<PLPPage />} />
           <Route path="/:categorySlug/:productSlug" element={<PDPPage />} />
           <Route path="*" element={<PlaceholderPage title="Coming Soon" />} />
+        </Route>
+
+        <Route element={<MinimalLayout />}>
+          <Route path="/order-confirmation/:orderId" element={<OrderConfirmationPage />} />
         </Route>
       </Routes>
     </AuthModalProvider>

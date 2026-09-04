@@ -299,3 +299,14 @@
     position: static;
   }
 }
+
+/* The mobile sticky bar (CheckoutPage.module.css .stickyBar, hidden again
+   at 768px+) already shows the same total plus its own "Proceed to
+   Payment" — showing it a second and third time at the top and bottom of
+   this card was redundant on a screen this narrow. */
+@media (max-width: 767px) {
+  .totalHeader,
+  .totalRow {
+    display: none;
+  }
+}
