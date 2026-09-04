@@ -44,9 +44,11 @@ describe('computeVariantPricing — size weight override (per-size ring pricing)
     assert.equal(result.purity, '18K');
   });
 
-  test('variant with no overrides at all -> unchanged behavior', async () => {
+  test('variant with no overrides at all -> still recomputed live off the base weight/purity, not the cached column', async () => {
+    const rate = await getCurrentGoldRate('18K');
+    const expected = Math.round(10 * Number(rate.rate_per_gram) * 100) / 100;
     const result = await computeVariantPricing(baseProduct, makeVariant({}));
-    assert.equal(result.goldValue, 100000);
+    assert.equal(result.goldValue, expected);
   });
 
   test('variant weight override, same purity as product -> recomputes goldValue off the variant weight', async () => {
@@ -69,9 +71,11 @@ describe('computeVariantPricing — size weight override (per-size ring pricing)
     assert.equal(result.purity, '22K');
   });
 
-  test('variant weight override equal to the product\'s own weight -> no spurious recompute (no rate lookup needed)', async () => {
+  test('variant weight override numerically equal to the product\'s own weight -> still recomputed live, matches (not a stale-cache reuse)', async () => {
+    const rate = await getCurrentGoldRate('18K');
+    const expected = Math.round(10 * Number(rate.rate_per_gram) * 100) / 100;
     const result = await computeVariantPricing(baseProduct, makeVariant({ goldWeightGrams: 10 }));
-    assert.equal(result.goldValue, 100000);
+    assert.equal(result.goldValue, expected);
   });
 
   test('PLATINUM product ignores a gold weight override -> gold-only override, no crash', async () => {
@@ -154,9 +158,11 @@ describe('computeVariantPricing — weight resolution hierarchy (Purity / Purity
     return v;
   }
 
-  test('no matching rule at all -> falls through to base product weight, unchanged from before this feature', async () => {
+  test('no matching rule at all -> falls through to base product weight, recomputed live at that weight/purity', async () => {
+    const rate = await getCurrentGoldRate('18K');
+    const expected = Math.round(10 * Number(rate.rate_per_gram) * 100) / 100;
     const result = await computeVariantPricing(baseProduct, makeVariant({ purity: '18K' }), []);
-    assert.equal(result.goldValue, 100000); // baseProduct's cached gold_value, untouched
+    assert.equal(result.goldValue, expected);
   });
 
   test('a Purity-only rule applies when the variant has no exact weight of its own', async () => {
@@ -191,8 +197,10 @@ describe('computeVariantPricing — weight resolution hierarchy (Purity / Purity
   });
 
   test('a variant with no purity at all never consults weight rules', async () => {
+    const rate = await getCurrentGoldRate('18K');
+    const expected = Math.round(10 * Number(rate.rate_per_gram) * 100) / 100;
     const result = await computeVariantPricing(baseProduct, makeVariant({ goldColor: 'ROSE' }), [purityRule]);
-    assert.equal(result.goldValue, 100000);
+    assert.equal(result.goldValue, expected);
   });
 });
 

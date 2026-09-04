@@ -178,11 +178,17 @@ export async function computeVariantPricing(product, variant = null, weightRules
   const weightOverridden =
     variantWeightGrams != null && baseWeightGrams != null && variantWeightGrams !== baseWeightGrams;
 
+  // Recomputed live whenever a real variant is being priced — never trust
+  // the cached product.gold_value here, since applyCheapestVariantPricing
+  // overwrites that same column with whichever variant is cheapest, which
+  // is not necessarily this variant even when its own weight/purity happen
+  // to equal the product's base fields. Only the true no-variant case
+  // (variant === null) falls back to the cached column.
   let goldValue = Number(product.gold_value);
   if (
     product.metal_type === 'GOLD' &&
     effectiveWeightGrams != null &&
-    (weightOverridden || (effectivePurity && effectivePurity !== product.purity))
+    (variant != null || weightOverridden || (effectivePurity && effectivePurity !== product.purity))
   ) {
     goldValue = (await computeGoldValue(effectiveWeightGrams, effectivePurity)).goldValue;
   }
@@ -197,11 +203,12 @@ export async function computeVariantPricing(product, variant = null, weightRules
     baseDiamondWeightCarats != null &&
     variantDiamondWeightCarats !== baseDiamondWeightCarats;
 
+  // Same reasoning as goldValue above — always recompute for a real variant.
   let diamondValue = Number(product.diamond_value);
   if (
     effectiveDiamondConfigId &&
     effectiveDiamondWeightCarats != null &&
-    (diamondWeightOverridden || effectiveDiamondConfigId !== product.diamond_config_id)
+    (variant != null || diamondWeightOverridden || effectiveDiamondConfigId !== product.diamond_config_id)
   ) {
     diamondValue = (await computeDiamondValue(effectiveDiamondWeightCarats, effectiveDiamondConfigId))
       .diamondValue;
