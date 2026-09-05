@@ -1,8 +1,22 @@
 import { useEffect, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { fetchWeightRules, replaceWeightRules } from '../../api/weightRules';
+import { ApiError } from '../../api/client';
+import { fetchWeightRules, replaceWeightRules, type WeightRule } from '../../api/weightRules';
 import type { ProductAttributeGroup, Purity } from '../../api/types';
 import styles from './ProductVariations.module.css';
+
+function draftsFromRules(rules: WeightRule[]) {
+  const purityDrafts: Record<string, string> = {};
+  const matrixDrafts: Record<string, string> = {};
+  for (const rule of rules) {
+    if (rule.sizeLabel == null) {
+      purityDrafts[rule.purity] = String(rule.goldWeightGrams);
+    } else {
+      matrixDrafts[`${rule.purity}|${rule.sizeLabel}`] = String(rule.goldWeightGrams);
+    }
+  }
+  return { purityDrafts, matrixDrafts };
+}
 
 interface WeightDefaultsProps {
   productId: string;
@@ -12,11 +26,13 @@ interface WeightDefaultsProps {
 // Weight resolution hierarchy — lets an admin declare "this weighs
 // differently at this purity" and/or "...at this purity + size" as live
 // defaults, without hand-editing every exact combination. Priority, most
-// specific wins: an exact combination's own weight override (set in
-// Advanced Variant Management) > a Purity+Size default here > a Purity-only
-// default here > the product's base weight. Only shown once the product has
-// at least one Purity configured — nothing to build a default from
-// otherwise.
+// specific wins: a Purity+Size default here > a Purity-only default here >
+// a combination's own legacy weight (set in Advanced Variant Management, or
+// seeded from the old Size-level weight field) > the product's base weight.
+// These rules are the authoritative source once set — saving here always
+// takes effect immediately, even for combinations that already have their
+// own stored weight. Only shown once the product has at least one Purity
+// configured — nothing to build a default from otherwise.
 export function WeightDefaults({ productId, attributes }: WeightDefaultsProps) {
   const queryClient = useQueryClient();
   const purities = (attributes.find((a) => a.code === 'purity')?.values ?? []) as {
@@ -37,15 +53,7 @@ export function WeightDefaults({ productId, attributes }: WeightDefaultsProps) {
 
   useEffect(() => {
     if (!data) return;
-    const nextPurity: Record<string, string> = {};
-    const nextMatrix: Record<string, string> = {};
-    for (const rule of data.rules) {
-      if (rule.sizeLabel == null) {
-        nextPurity[rule.purity] = String(rule.goldWeightGrams);
-      } else {
-        nextMatrix[`${rule.purity}|${rule.sizeLabel}`] = String(rule.goldWeightGrams);
-      }
-    }
+    const { purityDrafts: nextPurity, matrixDrafts: nextMatrix } = draftsFromRules(data.rules);
     setPurityDrafts(nextPurity);
     setMatrixDrafts(nextMatrix);
   }, [data]);
@@ -63,12 +71,24 @@ export function WeightDefaults({ productId, attributes }: WeightDefaultsProps) {
         });
       return replaceWeightRules(productId, { purityRules, puritySizeRules });
     },
-    onSuccess: () => {
+    // Only fires once the server has responded — the mutation promise
+    // doesn't resolve until the PUT completes, so there's no way for this to
+    // show before the transaction committed. The response carries the
+    // freshly-saved rules straight from the DB (adminReplaceWeightRules
+    // re-queries after commit), so drafts are replaced from that directly
+    // rather than waiting on the invalidated queries to refetch — no gap
+    // where the form could still show what was typed instead of what saved.
+    onSuccess: (response) => {
+      const { purityDrafts: nextPurity, matrixDrafts: nextMatrix } = draftsFromRules(response.rules);
+      setPurityDrafts(nextPurity);
+      setMatrixDrafts(nextMatrix);
       queryClient.invalidateQueries({ queryKey: ['admin-weight-rules', productId] });
       queryClient.invalidateQueries({ queryKey: ['admin-product-variants', productId] });
       queryClient.invalidateQueries({ queryKey: ['admin-product', productId] });
     },
   });
+
+  const saveError = saveMutation.error instanceof ApiError ? saveMutation.error.message : null;
 
   if (purities.length === 0) return null;
 
@@ -76,8 +96,9 @@ export function WeightDefaults({ productId, attributes }: WeightDefaultsProps) {
     <div className={styles.rulesPanel}>
       <span className={styles.advancedTitle}>Weight Defaults</span>
       <p className={styles.advancedSub} style={{ padding: 0, marginTop: 4 }}>
-        Set how gold weight changes by purity, or by purity + size. A combination's own weight (set in Advanced
-        Variant Management) always wins over these; these only fill in where nothing exact is set.
+        Set how gold weight changes by purity, or by purity + size. These rules are authoritative — saving here
+        updates the live weight and price immediately, even for combinations that already have their own weight set
+        elsewhere.
       </p>
 
       <table className={styles.sizeTable} style={{ marginTop: 12 }}>
@@ -152,7 +173,16 @@ export function WeightDefaults({ productId, attributes }: WeightDefaultsProps) {
         <button type="button" className={styles.ruleAddBtn} disabled={saveMutation.isPending} onClick={() => saveMutation.mutate()}>
           {saveMutation.isPending ? 'Saving…' : 'Save Weight Defaults'}
         </button>
-        {saveMutation.isSuccess && <span className={styles.emptyNote} style={{ marginLeft: 10 }}>Saved ✓</span>}
+        {saveMutation.isSuccess && (
+          <span className={styles.emptyNote} style={{ marginLeft: 10 }}>
+            Purity and size weights updated successfully.
+          </span>
+        )}
+        {saveError && (
+          <span style={{ marginLeft: 10, color: '#7a1733' }}>
+            {saveError}
+          </span>
+        )}
       </div>
     </div>
   );

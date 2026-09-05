@@ -1,5 +1,6 @@
 import { query } from '../config/db.js';
 import { findExclusionPairsByProduct } from '../repositories/exclusionRules.repository.js';
+import { findWeightRuleValuesByProduct } from '../repositories/weightRules.repository.js';
 
 async function getAttributeIds() {
   const { rows } = await query('SELECT id, code FROM attributes');
@@ -323,6 +324,29 @@ export async function syncProductVariants(
   const combos = cartesian(axisLists);
   const validKeys = new Set(combos.map((combo) => combo.map((c) => c.attributeValueId).sort().join('|')));
 
+  // A newly-created variant's weight must not be seeded purity-blind from
+  // the Size row's "Gold Weight (g)" field — that field has no purity
+  // dimension, so stamping it onto every purity of a size is exactly the
+  // bug that made 9K and 18K show the same weight. Weight Defaults rules
+  // (exact Purity+Size, then Purity-only) take priority at creation time
+  // too, matching computeVariantPricing's own resolution order; the Size
+  // field is only consulted as a legacy fallback when no rule covers this
+  // purity at all.
+  const purityIdSet = new Set(purityValueIds.values());
+  const weightRulesForSeeding = await findWeightRuleValuesByProduct(productId);
+  function resolveSeedWeightFromRules(purityId, sizeId) {
+    if (purityId == null) return null;
+    const puritySizeRule =
+      sizeId != null
+        ? weightRulesForSeeding.find((r) => r.purity_value_id === purityId && r.size_value_id === sizeId)
+        : null;
+    const purityRule = weightRulesForSeeding.find((r) => r.purity_value_id === purityId && r.size_value_id === null);
+    const matched = puritySizeRule ?? purityRule;
+    if (matched == null) return null;
+    const weight = Number(matched.gold_weight_grams);
+    return Number.isFinite(weight) && weight > 0 ? weight : null;
+  }
+
   // One query for "what already exists", reused for both the
   // already-real-combination skip below and the stale-combination cleanup
   // afterward — was one SELECT per combination before.
@@ -338,7 +362,10 @@ export async function syncProductVariants(
     if (existingByKey.has(combinationKey)) continue; // already exists — leave the admin's own overrides untouched
 
     const sizeEntry = combo.find((c) => c.size);
-    const goldWeightGrams = sizeEntry ? (sizeEntry.size.weightGrams ?? null) : null;
+    const purityId = combo.map((c) => c.attributeValueId).find((id) => purityIdSet.has(id)) ?? null;
+    const sizeId = sizeEntry ? sizeEntry.attributeValueId : null;
+    const ruleWeightGrams = resolveSeedWeightFromRules(purityId, sizeId);
+    const goldWeightGrams = ruleWeightGrams ?? (sizeEntry ? (sizeEntry.size.weightGrams ?? null) : null);
     const diamondWeightCarats = sizeEntry ? (sizeEntry.size.diamondWeightCarats ?? null) : null;
     const seedStock = sizeEntry ? (sizeEntry.size.stockQuantity ?? 0) : 0;
 

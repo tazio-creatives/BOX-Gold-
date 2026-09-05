@@ -126,18 +126,17 @@ export function getCurrentRatesSnapshot() {
   return getCurrentGoldRates();
 }
 
-// Resolves a variant's gold weight through the priority chain: its own
-// exact override wins outright; otherwise a Purity+Size weight default
-// (most specific) beats a Purity-only default; otherwise there's nothing to
-// resolve and the caller falls back to the product's base weight. There is
-// no separate "Size-only" live level — a size's weight is still seeded
-// directly onto matching variants at creation time (via the product's
-// Sizes list), which already makes it an exact-variant-level value, i.e.
-// the top of this chain, not a level of its own.
+// Resolves a variant's gold weight against Weight Defaults: an exact
+// Product+Purity+Size rule (most specific) beats a Purity-only rule;
+// returns null if neither matches, so the caller can fall through to its
+// own legacy levels. A matched row's weight is still validated explicitly
+// (finite, > 0) rather than trusted blindly — the DB's CHECK constraint
+// already guarantees this for anything that made it into the table, but a
+// row is data, not a type guarantee.
 async function resolveWeightFromRules(product, variant, weightRules) {
   const purityValueId = variant?.attributes?.purity?.valueId ?? null;
   const sizeValueId = variant?.attributes?.size?.valueId ?? null;
-  if (!purityValueId) return null;
+  if (purityValueId == null) return null;
 
   const rules = weightRules ?? (await findWeightRuleValuesByProduct(product.id));
   const puritySizeRule = sizeValueId
@@ -145,7 +144,10 @@ async function resolveWeightFromRules(product, variant, weightRules) {
     : null;
   const purityRule = rules.find((r) => r.purity_value_id === purityValueId && r.size_value_id === null);
   const matched = puritySizeRule ?? purityRule;
-  return matched ? Number(matched.gold_weight_grams) : null;
+  if (matched == null) return null;
+
+  const weight = Number(matched.gold_weight_grams);
+  return Number.isFinite(weight) && weight > 0 ? weight : null;
 }
 
 // Prices a product's line for a specific product_variants row (or the
@@ -169,11 +171,18 @@ export async function computeVariantPricing(product, variant = null, weightRules
   const effectiveDiamondConfigId = resolvedDiamondConfigId(variant) || product.diamond_config_id;
   const effectiveGoldColor = resolvedGoldColor(variant) || product.gold_color;
 
+  // Priority: an exact Product+Purity+Size (or Purity-only) Weight Defaults
+  // rule is the source of truth and is always checked first — it must be
+  // able to override a variant's own historical weight, not just fill a gap
+  // left by it. A variant's own gold_weight_grams is now only a *legacy*
+  // fallback for products that predate Weight Defaults (or never adopted
+  // it); the product's own base weight remains the final fallback. Uses ??
+  // throughout, not ||, since a resolved weight is a validated number, not
+  // something to be re-tested for truthiness.
   const baseWeightGrams = product.gold_weight_grams != null ? Number(product.gold_weight_grams) : null;
-  let variantWeightGrams = variant?.gold_weight_grams != null ? Number(variant.gold_weight_grams) : null;
-  if (variantWeightGrams == null && variant) {
-    variantWeightGrams = await resolveWeightFromRules(product, variant, weightRules);
-  }
+  const legacyVariantWeightGrams = variant?.gold_weight_grams != null ? Number(variant.gold_weight_grams) : null;
+  const ruleWeightGrams = variant != null ? await resolveWeightFromRules(product, variant, weightRules) : null;
+  const variantWeightGrams = ruleWeightGrams ?? legacyVariantWeightGrams;
   const effectiveWeightGrams = variantWeightGrams ?? baseWeightGrams;
   const weightOverridden =
     variantWeightGrams != null && baseWeightGrams != null && variantWeightGrams !== baseWeightGrams;

@@ -38,6 +38,22 @@ import { findDiamondConfigById } from '../repositories/diamondConfigs.repository
 import { computeVariantPricing } from './pricingService.js';
 import { invalidateProductPages } from './pageCacheInvalidation.js';
 
+// Weight-rule and variant edits must invalidate the SSR page cache after
+// their transaction commits — never before, so a concurrent request can
+// never observe a cache miss followed by a re-render of pre-commit data.
+// Invalidation failing here must not roll back or fail an otherwise
+// successful save (the write already committed); it's logged instead, same
+// pattern as paymentService.js's invalidateOrderProductPages, so a stale
+// cache row is at least visible in logs rather than silently persisting for
+// the rest of its TTL.
+async function safeInvalidateProductPages(product, operationName, previousCategoryId) {
+  try {
+    await invalidateProductPages(product, previousCategoryId);
+  } catch (err) {
+    console.error(`Page cache invalidation after ${operationName} failed (product ${product.id}):`, err);
+  }
+}
+
 // Both net_weight_grams and gross_weight_grams are derived, not
 // admin-entered directly. Net weight is the precious-metal-only weight
 // (what pricingService.computeGoldValue actually prices against); gross
@@ -333,6 +349,7 @@ export async function adminUpdateVariant(productId, variantId, fields) {
     await applyCheapestVariantPricing(productId, product.is_price_locked);
     return u;
   });
+  await safeInvalidateProductPages(product, 'adminUpdateVariant');
   const pricing = await computeVariantPricing(product, updated.combination_key === '' ? null : updated);
   return { variant: updated, pricing };
 }
@@ -350,6 +367,7 @@ export async function adminBulkUpdateVariants(productId, variantIds, fields) {
     await applyCheapestVariantPricing(productId, product.is_price_locked);
     return rows;
   });
+  await safeInvalidateProductPages(product, 'adminBulkUpdateVariants');
 
   const weightRules = await findWeightRuleValuesByProduct(productId);
   return Promise.all(
@@ -406,6 +424,7 @@ export async function adminReplaceWeightRules(productId, { purityRules = [], pur
     await replaceWeightRules(productId, [...resolved.values()]);
     await applyCheapestVariantPricing(productId, product.is_price_locked);
   });
+  await safeInvalidateProductPages(product, 'adminReplaceWeightRules');
 
   return findWeightRulesByProduct(productId);
 }
