@@ -1,5 +1,6 @@
 import { NotFoundError } from '../utils/AppError.js';
 import { findProductById, findProductsByIds } from '../repositories/products.repository.js';
+import { toListDto } from '../controllers/products.controller.js';
 import {
   findWishlistByOwner,
   createWishlist,
@@ -16,17 +17,14 @@ async function findOrCreateWishlist(owner) {
   return createWishlist(owner);
 }
 
+// Reuses the exact same purity-rule-aware pricing/offer DTO as the PLP
+// (findProductsByIds already selects the same LIST_COLUMNS toListDto reads)
+// so a wishlist card shows the identical discount badge/strikethrough a
+// shopper saw on the listing — this used to return bare sellingPrice/mrp
+// only, silently dropping any discount.
 function toItemDto(product) {
-  return {
-    productId: product.id,
-    name: product.name,
-    slug: product.slug,
-    categorySlug: product.category_slug,
-    primaryImageUrl: product.primary_image_url,
-    sellingPrice: Number(product.selling_price),
-    mrp: Number(product.mrp),
-    availableStock: product.available_stock,
-  };
+  const card = toListDto(product);
+  return { productId: card.id, ...card };
 }
 
 export async function getWishlist(owner) {

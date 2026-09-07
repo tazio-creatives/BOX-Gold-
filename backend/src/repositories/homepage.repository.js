@@ -21,7 +21,9 @@ export async function getEnabledSectionsWithItems() {
        p.mrp AS product_mrp, p.gold_value AS product_gold_value, p.diamond_value AS product_diamond_value,
        p.making_charge AS product_making_charge, p.gst_percent AS product_gst_percent,
        p.making_charge_discount_percent AS product_making_charge_discount_percent,
-       p.diamond_discount_percent AS product_diamond_discount_percent
+       p.diamond_discount_percent AS product_diamond_discount_percent,
+       p.effective_making_charge_discount_percent AS product_effective_making_charge_discount_percent,
+       p.effective_diamond_discount_percent AS product_effective_diamond_discount_percent
      FROM homepage_items hi
      LEFT JOIN categories c ON c.id = hi.category_id
      LEFT JOIN collections col ON col.id = hi.collection_id
@@ -90,6 +92,7 @@ export async function getEnabledSectionsWithItems() {
       `SELECT p.id, p.name, p.slug, p.selling_price, p.metal_type, p.purity,
               p.mrp, p.gold_value, p.diamond_value, p.making_charge, p.gst_percent,
               p.making_charge_discount_percent, p.diamond_discount_percent,
+              p.effective_making_charge_discount_percent, p.effective_diamond_discount_percent,
               cat.slug AS category_slug, p_image.url AS product_image_url
        FROM products p
        LEFT JOIN categories cat ON cat.id = p.category_id
@@ -131,6 +134,8 @@ export async function getEnabledSectionsWithItems() {
       product_gst_percent: p.gst_percent,
       product_making_charge_discount_percent: p.making_charge_discount_percent,
       product_diamond_discount_percent: p.diamond_discount_percent,
+      product_effective_making_charge_discount_percent: p.effective_making_charge_discount_percent,
+      product_effective_diamond_discount_percent: p.effective_diamond_discount_percent,
     }));
     for (const section of newArrivalsSections) {
       itemsBySection.set(section.id, autoItems);
@@ -147,6 +152,7 @@ export async function getEnabledSectionsWithItems() {
       `SELECT p.id, p.name, p.slug, p.selling_price, p.metal_type, p.purity,
               p.mrp, p.gold_value, p.diamond_value, p.making_charge, p.gst_percent,
               p.making_charge_discount_percent, p.diamond_discount_percent,
+              p.effective_making_charge_discount_percent, p.effective_diamond_discount_percent,
               cat.slug AS category_slug, p_image.url AS product_image_url
        FROM products p
        LEFT JOIN categories cat ON cat.id = p.category_id
@@ -188,6 +194,8 @@ export async function getEnabledSectionsWithItems() {
       product_gst_percent: p.gst_percent,
       product_making_charge_discount_percent: p.making_charge_discount_percent,
       product_diamond_discount_percent: p.diamond_discount_percent,
+      product_effective_making_charge_discount_percent: p.effective_making_charge_discount_percent,
+      product_effective_diamond_discount_percent: p.effective_diamond_discount_percent,
     }));
     for (const section of featuredProductSections) {
       itemsBySection.set(section.id, autoItems);

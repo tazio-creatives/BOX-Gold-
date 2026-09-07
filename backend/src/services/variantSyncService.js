@@ -23,6 +23,46 @@ function cartesian(lists) {
   return lists.reduce((acc, list) => acc.flatMap((combo) => list.map((item) => [...combo, item])), [[]]);
 }
 
+// product_weight_rules / product_purity_pricing_rules both FK their
+// purity_value_id (and product_weight_rules its size_value_id) at the
+// GLOBAL/product-scoped attribute_values row directly — not at
+// product_attribute_values, the join table that actually tracks "what this
+// product currently offers". Removing a purity or size from a product's
+// selection therefore does NOT cascade-delete its weight/pricing rules on
+// its own; call this right after product_attribute_values is resynced
+// (syncProductVariants, or the axesChanged branch of adminUpdateProduct) to
+// drop anything left referencing a purity/size the product no longer offers.
+// A no-op for a brand-new product (nothing to prune yet) and safe to call
+// even when the caller is about to fully replace these rules anyway (see
+// productsService.js's applyWeightAndPricingRulesInTx) — replacement can
+// only reference currently-offered values in the first place.
+export async function pruneOrphanedPurityRules(productId) {
+  await query(
+    `DELETE FROM product_weight_rules r WHERE r.product_id = $1
+       AND NOT EXISTS (
+         SELECT 1 FROM product_attribute_values pav
+         WHERE pav.product_id = $1 AND pav.attribute_value_id = r.purity_value_id
+       )`,
+    [productId],
+  );
+  await query(
+    `DELETE FROM product_weight_rules r WHERE r.product_id = $1 AND r.size_value_id IS NOT NULL
+       AND NOT EXISTS (
+         SELECT 1 FROM product_attribute_values pav
+         WHERE pav.product_id = $1 AND pav.attribute_value_id = r.size_value_id
+       )`,
+    [productId],
+  );
+  await query(
+    `DELETE FROM product_purity_pricing_rules r WHERE r.product_id = $1
+       AND NOT EXISTS (
+         SELECT 1 FROM product_attribute_values pav
+         WHERE pav.product_id = $1 AND pav.attribute_value_id = r.purity_value_id
+       )`,
+    [productId],
+  );
+}
+
 // Re-evaluates every one of a product's variants against its current
 // pairwise exclusion rules (Availability Rules in the admin) and keeps
 // is_available in sync — a variant whose combination matches a rule is

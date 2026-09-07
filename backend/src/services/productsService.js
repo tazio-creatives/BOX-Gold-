@@ -18,7 +18,12 @@ import {
   updateVariantFields,
   bulkUpdateVariantFields,
 } from '../repositories/productVariants.repository.js';
-import { syncProductVariants, applyExclusionRules, applySizeStockUpdates } from './variantSyncService.js';
+import {
+  syncProductVariants,
+  applyExclusionRules,
+  applySizeStockUpdates,
+  pruneOrphanedPurityRules,
+} from './variantSyncService.js';
 import {
   findExclusionRulesByProduct,
   createExclusionRule,
@@ -30,12 +35,17 @@ import {
   replaceWeightRules,
 } from '../repositories/weightRules.repository.js';
 import {
+  findPurityPricingRulesByProduct,
+  findPurityPricingRuleValuesByProduct,
+  replacePurityPricingRules,
+} from '../repositories/purityPricingRules.repository.js';
+import {
   findCategoryBySlug,
   getCategoryAndDescendantIds,
 } from '../repositories/categories.repository.js';
 import { findCollectionBySlug } from '../repositories/collections.repository.js';
 import { findDiamondConfigById } from '../repositories/diamondConfigs.repository.js';
-import { computeVariantPricing } from './pricingService.js';
+import { computeVariantPricing, resolvePurityPricingFields } from './pricingService.js';
 import { invalidateProductPages } from './pageCacheInvalidation.js';
 
 // Weight-rule and variant edits must invalidate the SSR page cache after
@@ -68,41 +78,161 @@ function deriveGrossWeightGrams(goldWeightGrams, diamondWeightGrams) {
   return Math.round(((goldWeightGrams ?? 0) + (diamondWeightGrams ?? 0)) * 1000) / 1000;
 }
 
+// Builds a synthetic, non-persisted "variant" representing the product's own
+// base configuration (its own Purity — not any real product_variants row),
+// purely so computeVariantPricing takes its live-recompute path (every
+// branch there keys off `variant != null`) instead of trusting the
+// (possibly stale, e.g. after a gold-rate sync) cached gold_value/
+// diamond_value columns. Carries no weight/diamond overrides of its own, so
+// weight resolution still falls through the normal rule-then-base-weight
+// chain, and no price_override, so a manual override never leaks in here.
+async function buildBaseConfigVariant(product) {
+  const attributes = {};
+  if (product.purity) {
+    const catalogue = await findProductAttributeCatalogue(product.id);
+    const purityValue = catalogue.find((a) => a.code === 'purity')?.values.find((v) => v.value === product.purity);
+    if (purityValue) {
+      attributes.purity = { valueId: purityValue.id, value: purityValue.value, label: purityValue.label, refId: null };
+    }
+  }
+  return {
+    gold_weight_grams: null,
+    diamond_weight_carats: null,
+    price_override: null,
+    combination_key: 'base-config',
+    attributes,
+  };
+}
+
 // A product's listing/base price — and the PDP's price before the shopper
-// touches anything — must reflect what a shopper can actually buy for the
-// least money. Runs AFTER variants are synced (it needs real variant rows
-// to scan), computes every available variant's full live price (not just
-// weight — Purity, Diamond Quality, and now Gold Color can each move price
-// independently), and caches the cheapest one's pre-offer numbers onto the
-// product row. This intentionally supersedes the old size-only "cheapest
-// weight" heuristic — every axis can now affect price, not just size.
-export async function applyCheapestVariantPricing(productId, isPriceLocked) {
+// touches anything — reflects the product's own base configuration (the
+// Metal/Diamond/Pricing section on the admin form: its own Purity, Gold
+// Weight, Diamond Weight, Making Charge %), not whichever variant happens to
+// be cheapest. Deliberately does NOT scan product_variants at all — every
+// real variant is still priced live at read time by computeVariantPricing
+// itself (PDP price-preview, cart, checkout, admin variant list), this only
+// refreshes the cached base numbers used by listing/card views and a PDP's
+// price before anything is selected.
+// Null-safe percent comparison — null and 0 are different states (no cached
+// value yet vs. a resolved 0%), so this must not treat them as equal.
+function percentDiffers(a, b) {
+  if (a == null || b == null) return a !== b;
+  return Math.abs(a - b) > 1e-9;
+}
+
+export async function applyBaseProductPricing(productId, isPriceLocked) {
   if (isPriceLocked) return;
   const product = await findProductById(productId);
   if (!product) return;
 
-  const variants = await findAvailableVariantsByProductId(productId);
-  if (!variants.length) return;
-
-  // Fetched once and passed to every computeVariantPricing call below —
-  // otherwise each of N variants would re-query the same product's weight
-  // rules individually.
   const weightRules = await findWeightRuleValuesByProduct(productId);
+  const purityPricingRules = await findPurityPricingRuleValuesByProduct(productId);
+  const baseVariant = await buildBaseConfigVariant(product);
+  const pricing = await computeVariantPricing(product, baseVariant, weightRules, purityPricingRules);
 
-  let cheapest = null;
-  for (const variant of variants) {
-    const pricing = await computeVariantPricing(product, variant.combination_key === '' ? null : variant, weightRules);
-    if (!cheapest || pricing.sellingPrice < cheapest.sellingPrice) cheapest = pricing;
-  }
-  if (!cheapest) return;
-  if (Math.abs(cheapest.sellingPriceOriginal - Number(product.selling_price)) < 1e-9) return;
+  // effective_making_charge_discount_percent / effective_diamond_discount_percent
+  // are what list-view cards (rowOffer/toListDto) actually read for the offer
+  // badge/discounted price — resolved through the same Purity Pricing Rule as
+  // the PDP, so a purity-specific discount shows up in listings too, not just
+  // on the detail page. Deliberately separate columns from
+  // making_charge_discount_percent/diamond_discount_percent (the admin's own
+  // typed default) so editing a purity rule never silently overwrites that
+  // default field.
+  const currentEffectiveMakingDiscount =
+    product.effective_making_charge_discount_percent == null ? null : Number(product.effective_making_charge_discount_percent);
+  const currentEffectiveDiamondDiscount =
+    product.effective_diamond_discount_percent == null ? null : Number(product.effective_diamond_discount_percent);
+
+  const unchanged =
+    Math.abs(pricing.sellingPriceOriginal - Number(product.selling_price)) < 1e-9 &&
+    !percentDiffers(pricing.makingChargeDiscountPercent, currentEffectiveMakingDiscount) &&
+    !percentDiffers(pricing.diamondDiscountPercent, currentEffectiveDiamondDiscount);
+  if (unchanged) return;
 
   await updateProductRow(productId, {
-    goldValue: cheapest.goldValue,
-    diamondValue: cheapest.diamondValueOriginal,
-    makingCharge: cheapest.makingChargeOriginal,
-    sellingPrice: cheapest.sellingPriceOriginal,
+    goldValue: pricing.goldValue,
+    diamondValue: pricing.diamondValueOriginal,
+    makingCharge: pricing.makingChargeOriginal,
+    sellingPrice: pricing.sellingPriceOriginal,
+    effectiveMakingChargeDiscountPercent: pricing.makingChargeDiscountPercent,
+    effectiveDiamondDiscountPercent: pricing.diamondDiscountPercent,
   });
+}
+
+// Resolves purity/size *codes* ("9K", "6") to this product's actual
+// attribute_value UUIDs — shared by the standalone Weight Defaults / Purity
+// Pricing Rules endpoints (adminReplaceWeightRules/
+// adminReplacePurityPricingRules below) and the combined product
+// create/update save (applyWeightAndPricingRulesInTx), so both reject an
+// unconfigured purity/size identically. Must be called after
+// syncProductVariants has run for this request — that's what creates a
+// brand-new size's product-scoped attribute_value row; a purity's global row
+// always exists already (seeded once, product-independent).
+async function buildPurityAndSizeResolver(productId) {
+  const catalogue = await findProductAttributeCatalogue(productId);
+  const purityByValue = new Map(
+    (catalogue.find((a) => a.code === 'purity')?.values ?? []).map((v) => [v.value, v.id]),
+  );
+  const sizeByLabel = new Map((catalogue.find((a) => a.code === 'size')?.values ?? []).map((v) => [v.value, v.id]));
+  function resolve(purity, sizeLabel) {
+    const purityValueId = purityByValue.get(purity);
+    if (!purityValueId) throw new AppError(409, `Purity ${purity} is not offered by this product`);
+    if (sizeLabel == null) return { purityValueId, sizeValueId: null };
+    const sizeValueId = sizeByLabel.get(sizeLabel);
+    if (!sizeValueId) throw new AppError(409, `Size ${sizeLabel} is not offered by this product`);
+    return { purityValueId, sizeValueId };
+  }
+  return { purityByValue, sizeByLabel, resolve };
+}
+
+// Resolves and persists weightRules/purityPricingRules as part of the
+// combined product create/update save — called from inside the SAME
+// withTransaction as the product row insert/update and syncProductVariants,
+// so a failure here rolls back the entire save, not just these two tables.
+// replaceWeightRules/replacePurityPricingRules are the plain repository
+// functions (not adminReplaceWeightRules/adminReplacePurityPricingRules
+// below, which each open their OWN withTransaction — calling one of those
+// from inside this transaction would connect a second pool client and
+// commit independently, breaking atomicity). Both repository functions use
+// the ambient query() from config/db.js, so they transparently join
+// whichever transaction is active via AsyncLocalStorage.
+//
+// PATCH semantics: `weightRules`/`purityPricingRules` being `undefined`
+// (the key was absent from the request) leaves the saved rows completely
+// untouched — this function returns immediately for that half of the call.
+// An explicitly-sent empty collection (`{purityRules: [], puritySizeRules:
+// []}` or `[]`) intentionally clears it — replaceWeightRules/
+// replacePurityPricingRules already treat "no rows" as "delete everything,
+// insert nothing" (see their own DELETE-then-INSERT bodies).
+async function applyWeightAndPricingRulesInTx(productId, { weightRules, purityPricingRules }) {
+  if (weightRules === undefined && purityPricingRules === undefined) return;
+  const { resolve } = await buildPurityAndSizeResolver(productId);
+
+  if (weightRules !== undefined) {
+    const resolved = new Map();
+    for (const r of weightRules.purityRules) {
+      const { purityValueId, sizeValueId } = resolve(r.purity, null);
+      resolved.set(`${purityValueId}|`, { purityValueId, sizeValueId, goldWeightGrams: r.goldWeightGrams });
+    }
+    for (const r of weightRules.puritySizeRules) {
+      const { purityValueId, sizeValueId } = resolve(r.purity, r.sizeLabel);
+      resolved.set(`${purityValueId}|${sizeValueId}`, { purityValueId, sizeValueId, goldWeightGrams: r.goldWeightGrams });
+    }
+    await replaceWeightRules(productId, [...resolved.values()]);
+  }
+
+  if (purityPricingRules !== undefined) {
+    const resolved = purityPricingRules.map((r) => {
+      const { purityValueId } = resolve(r.purity, null);
+      return {
+        purityValueId,
+        makingChargePercent: r.makingChargePercent ?? null,
+        makingChargeDiscountPercent: r.makingChargeDiscountPercent ?? null,
+        diamondDiscountPercent: r.diamondDiscountPercent ?? null,
+      };
+    });
+    await replacePurityPricingRules(productId, resolved);
+  }
 }
 
 export async function resolveCategoryIds(categorySlug) {
@@ -182,15 +312,28 @@ export async function adminGetProduct(id) {
 
 export async function adminCreateProduct(input) {
   const slug = input.slug ? slugify(input.slug) : slugify(input.name);
-  const { sizes: sizesInput, goldColors, purities, diamondConfigIds, variantOverrides, ...fields } = input;
+  const {
+    sizes: sizesInput,
+    goldColors,
+    purities,
+    diamondConfigIds,
+    variantOverrides,
+    weightRules,
+    purityPricingRules,
+    ...fields
+  } = input;
   fields.netWeightGrams = deriveNetWeightGrams(fields.goldWeightGrams);
   fields.grossWeightGrams = deriveGrossWeightGrams(fields.goldWeightGrams, fields.diamondWeightGrams);
 
-  // The row insert, variant-matrix generation, rule/override application,
-  // and cheapest-price cache refresh all succeed or fail together — a
-  // mid-sequence failure (e.g. a DB hiccup after variants are created but
-  // before pricing is cached) used to leave a half-configured product
-  // behind instead of rolling back to nothing.
+  // The row insert, variant-matrix generation, weight/purity-pricing rule
+  // application, and cheapest-price cache refresh all succeed or fail
+  // together — a mid-sequence failure (e.g. a DB hiccup after variants are
+  // created but before pricing is cached) used to leave a half-configured
+  // product behind instead of rolling back to nothing. Product create/edit
+  // is a single continuous form (Product Create/Edit Architecture Report,
+  // 2026-09-07) — Weight Defaults and Purity Pricing Rules are entered and
+  // saved in this same transaction, not as separate save actions requiring
+  // the admin to reopen the product afterward.
   const product = await withTransaction(async () => {
     const created = await createProductRow({ ...fields, slug, status: input.status ?? 'DRAFT' });
     await syncProductVariants(created.id, {
@@ -201,7 +344,10 @@ export async function adminCreateProduct(input) {
       stockQuantity: fields.stockQuantity ?? created.stock_quantity,
       variantOverrides,
     });
-    await applyCheapestVariantPricing(created.id, fields.isPriceLocked ?? created.is_price_locked);
+    // Resolved against the purities/sizes syncProductVariants just created —
+    // must run after it, never before.
+    await applyWeightAndPricingRulesInTx(created.id, { weightRules, purityPricingRules });
+    await applyBaseProductPricing(created.id, fields.isPriceLocked ?? created.is_price_locked);
     // available_stock rolls up from variants, and price may have just been
     // reconciled — re-fetch so the response reflects both.
     return findProductById(created.id);
@@ -219,7 +365,16 @@ export async function adminUpdateProduct(id, input) {
   const existing = await findProductById(id);
   if (!existing) throw new NotFoundError('Product not found');
 
-  const { sizes: sizesInput, goldColors, purities, diamondConfigIds, variantOverrides, ...fields } = input;
+  const {
+    sizes: sizesInput,
+    goldColors,
+    purities,
+    diamondConfigIds,
+    variantOverrides,
+    weightRules,
+    purityPricingRules,
+    ...fields
+  } = input;
   if (Object.hasOwn(fields, 'slug') && fields.slug) {
     fields.slug = slugify(fields.slug);
   }
@@ -283,8 +438,21 @@ export async function adminUpdateProduct(id, input) {
       if (sizesInput !== undefined) {
         await applySizeStockUpdates(id, sizesInput);
       }
+      // A removed purity/size can leave orphaned product_weight_rules/
+      // product_purity_pricing_rules rows behind — both FK the attribute_value
+      // directly, not the product_attribute_values join syncProductVariants
+      // just resynced, so they don't cascade on their own. Runs regardless of
+      // whether this same request also sends weightRules/purityPricingRules
+      // (harmless no-op then — an explicit replace below can only reference
+      // currently-offered values anyway) so a request that changes axes
+      // WITHOUT touching the rule sections still cleans up correctly.
+      await pruneOrphanedPurityRules(id);
     }
-    await applyCheapestVariantPricing(id, fields.isPriceLocked ?? existing.is_price_locked);
+    // Resolved against this product's current purities/sizes — whatever
+    // syncProductVariants above just left in place, or (if axesChanged was
+    // false) whatever was already saved.
+    await applyWeightAndPricingRulesInTx(id, { weightRules, purityPricingRules });
+    await applyBaseProductPricing(id, fields.isPriceLocked ?? existing.is_price_locked);
     return findProductById(id);
   });
 
@@ -327,9 +495,15 @@ export async function adminListVariants(productId) {
   if (!product) throw new NotFoundError('Product not found');
   const variants = await findVariantsByProductId(productId);
   const weightRules = await findWeightRuleValuesByProduct(productId);
+  const purityPricingRules = await findPurityPricingRuleValuesByProduct(productId);
   return Promise.all(
     variants.map(async (variant) => {
-      const pricing = await computeVariantPricing(product, variant.combination_key === '' ? null : variant, weightRules);
+      const pricing = await computeVariantPricing(
+        product,
+        variant.combination_key === '' ? null : variant,
+        weightRules,
+        purityPricingRules,
+      );
       return { variant, pricing };
     }),
   );
@@ -346,7 +520,7 @@ export async function adminUpdateVariant(productId, variantId, fields) {
     // The product's own cached "cheapest available" price can shift once a
     // specific variant's stock/weight/availability changes (e.g. the admin
     // just made the previously-cheapest combination unavailable).
-    await applyCheapestVariantPricing(productId, product.is_price_locked);
+    await applyBaseProductPricing(productId, product.is_price_locked);
     return u;
   });
   await safeInvalidateProductPages(product, 'adminUpdateVariant');
@@ -364,16 +538,22 @@ export async function adminBulkUpdateVariants(productId, variantIds, fields) {
 
   const updated = await withTransaction(async () => {
     const rows = await bulkUpdateVariantFields(productId, variantIds, fields);
-    await applyCheapestVariantPricing(productId, product.is_price_locked);
+    await applyBaseProductPricing(productId, product.is_price_locked);
     return rows;
   });
   await safeInvalidateProductPages(product, 'adminBulkUpdateVariants');
 
   const weightRules = await findWeightRuleValuesByProduct(productId);
+  const purityPricingRules = await findPurityPricingRuleValuesByProduct(productId);
   return Promise.all(
     updated.map(async (variant) => ({
       variant,
-      pricing: await computeVariantPricing(product, variant.combination_key === '' ? null : variant, weightRules),
+      pricing: await computeVariantPricing(
+        product,
+        variant.combination_key === '' ? null : variant,
+        weightRules,
+        purityPricingRules,
+      ),
     })),
   );
 }
@@ -392,20 +572,7 @@ export async function adminReplaceWeightRules(productId, { purityRules = [], pur
   const product = await findProductById(productId);
   if (!product) throw new NotFoundError('Product not found');
 
-  const catalogue = await findProductAttributeCatalogue(productId);
-  const purityByValue = new Map(
-    (catalogue.find((a) => a.code === 'purity')?.values ?? []).map((v) => [v.value, v.id]),
-  );
-  const sizeByLabel = new Map((catalogue.find((a) => a.code === 'size')?.values ?? []).map((v) => [v.value, v.id]));
-
-  function resolve(purity, sizeLabel) {
-    const purityValueId = purityByValue.get(purity);
-    if (!purityValueId) throw new AppError(409, `Purity ${purity} is not offered by this product`);
-    if (sizeLabel == null) return { purityValueId, sizeValueId: null };
-    const sizeValueId = sizeByLabel.get(sizeLabel);
-    if (!sizeValueId) throw new AppError(409, `Size ${sizeLabel} is not offered by this product`);
-    return { purityValueId, sizeValueId };
-  }
+  const { resolve } = await buildPurityAndSizeResolver(productId);
 
   // De-duplicated by (purity, size) so a caller sending the same pair twice
   // doesn't trip the DB's unique index — last one wins, matching how a form
@@ -422,11 +589,79 @@ export async function adminReplaceWeightRules(productId, { purityRules = [], pur
 
   await withTransaction(async () => {
     await replaceWeightRules(productId, [...resolved.values()]);
-    await applyCheapestVariantPricing(productId, product.is_price_locked);
+    await applyBaseProductPricing(productId, product.is_price_locked);
   });
   await safeInvalidateProductPages(product, 'adminReplaceWeightRules');
 
   return findWeightRulesByProduct(productId);
+}
+
+// Purity Pricing Rules — Product+Purity overrides for making charge %,
+// making charge discount %, and diamond discount %, all otherwise flat
+// product-level fields (see product_purity_pricing_rules migration). Same
+// "whole-set replace" shape as Weight Defaults, but resolved per-field with
+// `??` rather than requiring every field to be set — a rule can override
+// just one of the three and inherit the other two from the product.
+export async function adminGetPurityPricingRules(productId) {
+  const product = await findProductById(productId);
+  if (!product) throw new NotFoundError('Product not found');
+
+  const catalogue = await findProductAttributeCatalogue(productId);
+  const purityValues = catalogue.find((a) => a.code === 'purity')?.values ?? [];
+  const rules = await findPurityPricingRulesByProduct(productId);
+  const ruleByPurityId = new Map(rules.map((r) => [r.purity_value_id, r]));
+
+  return purityValues.map((p) => {
+    const rule = ruleByPurityId.get(p.id) ?? null;
+    const effective = resolvePurityPricingFields(product, rule);
+    return {
+      purityValueId: p.id,
+      purity: p.value,
+      purityLabel: p.label,
+      makingChargePercent: rule ? (rule.making_charge_percent == null ? null : Number(rule.making_charge_percent)) : null,
+      makingChargeDiscountPercent: rule
+        ? rule.making_charge_discount_percent == null
+          ? null
+          : Number(rule.making_charge_discount_percent)
+        : null,
+      diamondDiscountPercent: rule
+        ? rule.diamond_discount_percent == null
+          ? null
+          : Number(rule.diamond_discount_percent)
+        : null,
+      effectiveMakingChargePercent: effective.makingChargePercent,
+      effectiveMakingChargeDiscountPercent: effective.makingChargeDiscountPercent,
+      effectiveDiamondDiscountPercent: effective.diamondDiscountPercent,
+    };
+  });
+}
+
+export async function adminReplacePurityPricingRules(productId, { purityPricingRules = [] }) {
+  const product = await findProductById(productId);
+  if (!product) throw new NotFoundError('Product not found');
+
+  const catalogue = await findProductAttributeCatalogue(productId);
+  const purityValueIds = new Set((catalogue.find((a) => a.code === 'purity')?.values ?? []).map((v) => v.id));
+  for (const r of purityPricingRules) {
+    if (!purityValueIds.has(r.purityValueId)) {
+      throw new AppError(409, 'One or more purities are not offered by this product');
+    }
+  }
+
+  const rows = purityPricingRules.map((r) => ({
+    purityValueId: r.purityValueId,
+    makingChargePercent: r.makingChargePercent ?? null,
+    makingChargeDiscountPercent: r.makingChargeDiscountPercent ?? null,
+    diamondDiscountPercent: r.diamondDiscountPercent ?? null,
+  }));
+
+  await withTransaction(async () => {
+    await replacePurityPricingRules(productId, rows);
+    await applyBaseProductPricing(productId, product.is_price_locked);
+  });
+  await safeInvalidateProductPages(product, 'adminReplacePurityPricingRules');
+
+  return adminGetPurityPricingRules(productId);
 }
 
 // Availability Rules — per-product pairwise exclusions ("this product's Rose
@@ -457,7 +692,7 @@ export async function adminCreateExclusionRule(productId, { attributeValueIdA, a
   return withTransaction(async () => {
     const rule = await createExclusionRule(productId, attributeValueIdA, attributeValueIdB);
     await applyExclusionRules(productId);
-    await applyCheapestVariantPricing(productId, product.is_price_locked);
+    await applyBaseProductPricing(productId, product.is_price_locked);
     return rule;
   });
 }
@@ -468,7 +703,7 @@ export async function adminDeleteExclusionRule(productId, ruleId) {
   await withTransaction(async () => {
     await deleteExclusionRule(productId, ruleId);
     await applyExclusionRules(productId);
-    await applyCheapestVariantPricing(productId, product.is_price_locked);
+    await applyBaseProductPricing(productId, product.is_price_locked);
   });
 }
 

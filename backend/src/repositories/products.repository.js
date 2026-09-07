@@ -46,6 +46,7 @@ const LIST_COLUMNS = `
   p.rating_avg, p.rating_count, p.created_at, p.is_featured, p.is_best_seller,
   p.net_weight_grams, p.gold_weight_grams, p.diamond_weight_grams, p.diamond_weight_carats, p.diamond_config_id,
   p.making_charge_discount_percent, p.diamond_discount_percent,
+  p.effective_making_charge_discount_percent, p.effective_diamond_discount_percent,
   p.diamond_colour, p.diamond_clarity,
   primary_image.url AS primary_image_url,
   cat.slug AS category_slug,
@@ -64,6 +65,7 @@ function buildFilters({
   priceMax,
   status,
   excludeId,
+  search,
 }) {
   const clauses = [];
   const params = [];
@@ -75,6 +77,13 @@ function buildFilters({
   if (excludeId) {
     params.push(excludeId);
     clauses.push(`p.id != $${params.length}`);
+  }
+  // Same trigram-indexed name/SKU substring match as searchProducts (admin
+  // Products list search — no status restriction, unlike the public search,
+  // so a DRAFT/AI_PROCESSING product is still findable by its own admin).
+  if (search) {
+    params.push(`%${search}%`);
+    clauses.push(`(p.name ILIKE $${params.length} OR p.sku ILIKE $${params.length})`);
   }
   if (categoryIds?.length) {
     params.push(categoryIds);
@@ -271,6 +280,8 @@ const INSERT_COLUMNS = [
   'selling_price',
   'making_charge_discount_percent',
   'diamond_discount_percent',
+  'effective_making_charge_discount_percent',
+  'effective_diamond_discount_percent',
   'is_price_locked',
   'is_featured',
   'is_best_seller',
@@ -338,10 +349,9 @@ export async function deleteProduct(id) {
 // Only the product's own cached base price needs proactive recalculation
 // here — every product_variants row is priced live via computeVariantPricing
 // at read time (always querying the current gold/diamond rate), so there's
-// no per-variant cache to go stale. pricingJobs.js re-derives the cheapest
-// variant's price via productsService.applyCheapestVariantPricing after
-// this, superseding the old "cheapest weight" heuristic that used to live
-// in this query (every axis, not just size, can move price now).
+// no per-variant cache to go stale. pricingJobs.js re-derives the product's
+// own base-configuration price via productsService.applyBaseProductPricing
+// after this.
 export async function findGoldProductsForRecalculation() {
   const { rows } = await query(
     `SELECT id, slug, category_id, gold_weight_grams, purity, diamond_value, making_charge,

@@ -370,3 +370,133 @@ describe('Required calculation scenario (Test H)', () => {
     assert.equal(finalPrice, 5223.47);
   });
 });
+
+// Purity Pricing Rules (product_purity_pricing_rules) — Product+Purity
+// overrides for making_charge_percent / making_charge_discount_percent /
+// diamond_discount_percent, independent of the (unrelated) weight
+// resolution tested above. Test letters below match the business spec's own
+// lettering (Tests A-F, H, I), not the earlier "weight-precedence Tests
+// A-D"/"Test G"/"Test H" blocks in this same file, which cover a different
+// axis (weight) and happen to reuse the same letters for their own scenarios.
+describe('Purity Pricing Rules — Product+Purity making charge/discount resolution', () => {
+  const product = {
+    metal_type: 'GOLD',
+    purity: '9K',
+    gold_weight_grams: '1.000',
+    gold_value: 0,
+    diamond_value: 0,
+    diamond_config_id: null,
+    diamond_weight_carats: null,
+    making_charge: 500,
+    making_charge_percent: 40,
+    making_charge_discount_percent: 10,
+    diamond_discount_percent: 10,
+    gst_percent: 3,
+  };
+
+  function variantFor(purityValueId, purityLabel, sizeValueId) {
+    const attributes = { purity: { valueId: purityValueId, value: purityLabel, label: purityLabel, refId: null } };
+    if (sizeValueId) attributes.size = { valueId: sizeValueId, value: sizeValueId, label: sizeValueId, refId: null };
+    return {
+      gold_weight_grams: null,
+      diamond_weight_carats: null,
+      price_override: null,
+      combination_key: 'x',
+      attributes,
+    };
+  }
+
+  test('Test A - purity override: 9K rule (60/10/5) wins over product defaults (40/10/10)', async () => {
+    const rules = [
+      { purity_value_id: 'purity-9k', making_charge_percent: '60', making_charge_discount_percent: '10', diamond_discount_percent: '5' },
+    ];
+    const result = await computeVariantPricing(product, variantFor('purity-9k', '9K'), [], rules);
+    assert.equal(result.goldValue > 0, true);
+    const expectedMakingCharge = Math.round(result.goldValue * 0.6 * 100) / 100;
+    assert.equal(result.makingChargeOriginal, expectedMakingCharge);
+    assert.equal(result.makingChargeDiscountPercent, 10);
+    assert.equal(result.diamondDiscountPercent, 5);
+  });
+
+  test('Test B - switching to 18K immediately resolves that purity\'s own rule (70/15/8), not 9K\'s', async () => {
+    const rules = [
+      { purity_value_id: 'purity-9k', making_charge_percent: '60', making_charge_discount_percent: '10', diamond_discount_percent: '5' },
+      { purity_value_id: 'purity-18k', making_charge_percent: '70', making_charge_discount_percent: '15', diamond_discount_percent: '8' },
+    ];
+    const result = await computeVariantPricing({ ...product, purity: '18K' }, variantFor('purity-18k', '18K'), [], rules);
+    const expectedMakingCharge = Math.round(result.goldValue * 0.7 * 100) / 100;
+    assert.equal(result.makingChargeOriginal, expectedMakingCharge);
+    assert.equal(result.makingChargeDiscountPercent, 15);
+    assert.equal(result.diamondDiscountPercent, 8);
+  });
+
+  test('Test C - field-level fallback: rule overrides making charge only, discount and diamond fall back independently', async () => {
+    const rules = [
+      { purity_value_id: 'purity-9k', making_charge_percent: '60', making_charge_discount_percent: null, diamond_discount_percent: '0' },
+    ];
+    const result = await computeVariantPricing(product, variantFor('purity-9k', '9K'), [], rules);
+    const expectedMakingCharge = Math.round(result.goldValue * 0.6 * 100) / 100;
+    assert.equal(result.makingChargeOriginal, expectedMakingCharge, 'making charge: rule override (60%)');
+    assert.equal(result.makingChargeDiscountPercent, 10, 'making discount: inherited from product default (10%)');
+    assert.equal(result.diamondDiscountPercent, 0, 'diamond discount: explicit rule override (0%), not product default (10%)');
+  });
+
+  test('Test D - missing rule for this purity -> all three fields fall back to product-level defaults', async () => {
+    const result = await computeVariantPricing(product, variantFor('purity-14k', '14K'), [], []);
+    const expectedMakingCharge = Math.round(result.goldValue * 0.4 * 100) / 100;
+    assert.equal(result.makingChargeOriginal, expectedMakingCharge);
+    assert.equal(result.makingChargeDiscountPercent, 10);
+    assert.equal(result.diamondDiscountPercent, 10);
+  });
+
+  test('Test E - explicit 0 on a rule field is used as-is, never replaced by a nonzero product default', async () => {
+    const rules = [{ purity_value_id: 'purity-9k', making_charge_percent: null, making_charge_discount_percent: null, diamond_discount_percent: '0' }];
+    const result = await computeVariantPricing(product, variantFor('purity-9k', '9K'), [], rules);
+    assert.equal(result.diamondDiscountPercent, 0, 'explicit rule 0% must win over the product\'s 10% default');
+  });
+
+  test('Test F - the same purity rule applies identically across different sizes (charges are Product+Purity only, never Product+Purity+Size)', async () => {
+    const rules = [
+      { purity_value_id: 'purity-9k', making_charge_percent: '60', making_charge_discount_percent: '10', diamond_discount_percent: '5' },
+    ];
+    const weightRules = [
+      { purity_value_id: 'purity-9k', size_value_id: 'size-6', gold_weight_grams: '0.256' },
+      { purity_value_id: 'purity-9k', size_value_id: 'size-8', gold_weight_grams: '0.400' },
+    ];
+    const size6 = await computeVariantPricing(product, variantFor('purity-9k', '9K', 'size-6'), weightRules, rules);
+    const size8 = await computeVariantPricing(product, variantFor('purity-9k', '9K', 'size-8'), weightRules, rules);
+
+    assert.notEqual(size6.goldWeightGrams, size8.goldWeightGrams, 'sanity check: weight does differ by size');
+    assert.equal(size6.makingChargeDiscountPercent, size8.makingChargeDiscountPercent);
+    assert.equal(size6.diamondDiscountPercent, size8.diamondDiscountPercent);
+    assert.equal(size6.makingChargeOriginal, Math.round(size6.goldValue * 0.6 * 100) / 100, 'same 60% rate applied to size 6\'s own gold value');
+    assert.equal(size8.makingChargeOriginal, Math.round(size8.goldValue * 0.6 * 100) / 100, 'same 60% rate applied to size 8\'s own gold value');
+  });
+
+  test('Test H - a variant price_override still bypasses purity-pricing rules entirely, same as today', async () => {
+    const rules = [
+      { purity_value_id: 'purity-9k', making_charge_percent: '60', making_charge_discount_percent: '10', diamond_discount_percent: '5' },
+    ];
+    const variant = { ...variantFor('purity-9k', '9K'), price_override: 12345 };
+    const result = await computeVariantPricing(product, variant, [], rules);
+    assert.equal(result.isPriceOverridden, true);
+    assert.equal(result.sellingPrice, 12345);
+    assert.equal(result.makingChargeDiscountPercent, 0);
+    assert.equal(result.diamondDiscountPercent, 0);
+  });
+
+  test('Test I - a purity rule change does not retroactively alter a price already computed/captured earlier', async () => {
+    const rulesBefore = [{ purity_value_id: 'purity-9k', making_charge_percent: '60', making_charge_discount_percent: null, diamond_discount_percent: null }];
+    const capturedAtOrderTime = await computeVariantPricing(product, variantFor('purity-9k', '9K'), [], rulesBefore);
+
+    // Simulates the rule being edited in the admin after the order above was
+    // placed — order_items stores computeVariantPricing's OUTPUT (money
+    // values), never a live reference back to this rule row, so nothing
+    // re-derives `capturedAtOrderTime` from the new rule.
+    const rulesAfter = [{ purity_value_id: 'purity-9k', making_charge_percent: '70', making_charge_discount_percent: null, diamond_discount_percent: null }];
+    const newQuote = await computeVariantPricing(product, variantFor('purity-9k', '9K'), [], rulesAfter);
+
+    assert.notEqual(newQuote.makingChargeOriginal, capturedAtOrderTime.makingChargeOriginal, 'sanity check: the rule change really does move the live price');
+    assert.equal(capturedAtOrderTime.makingChargeOriginal, Math.round(capturedAtOrderTime.goldValue * 0.6 * 100) / 100, 'the already-captured value is untouched by the later rule change');
+  });
+});

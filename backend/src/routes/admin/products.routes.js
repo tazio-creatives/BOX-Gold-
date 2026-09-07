@@ -15,6 +15,8 @@ import {
   deleteExclusionRule,
   getWeightRules,
   replaceWeightRules,
+  getPurityPricingRules,
+  replacePurityPricingRules,
 } from '../../controllers/products.controller.js';
 import { setPriceLock } from '../../controllers/pricing.controller.js';
 import {
@@ -73,6 +75,10 @@ adminProductsRouter.delete('/:id/exclusion-rules/:ruleId', deleteExclusionRule);
 // Weight Defaults — Purity and Purity+Size live weight resolution levels.
 adminProductsRouter.get('/:id/weight-rules', getWeightRules);
 adminProductsRouter.put('/:id/weight-rules', replaceWeightRules);
+
+// Purity Pricing Rules — Product+Purity making-charge/discount overrides.
+adminProductsRouter.get('/:id/purity-pricing-rules', getPurityPricingRules);
+adminProductsRouter.put('/:id/purity-pricing-rules', replacePurityPricingRules);
 
 // Product photo gallery (plan §9/§10).
 adminProductsRouter.get('/:id/images', listImages);

@@ -1,8 +1,14 @@
 import { AppError } from '../utils/AppError.js';
 import { getCurrentGoldRate, getCurrentGoldRates } from '../repositories/goldRates.repository.js';
 import { findDiamondConfigById } from '../repositories/diamondConfigs.repository.js';
-import { resolvedPurity, resolvedGoldColor, resolvedDiamondConfigId } from '../repositories/productVariants.repository.js';
+import {
+  resolvedPurity,
+  resolvedGoldColor,
+  resolvedDiamondConfigId,
+  resolvedSizeLabel,
+} from '../repositories/productVariants.repository.js';
 import { findWeightRuleValuesByProduct } from '../repositories/weightRules.repository.js';
+import { findPurityPricingRuleValuesByProduct } from '../repositories/purityPricingRules.repository.js';
 
 // karat/24 — default purity multiplier (plan §9a: "overridable in settings
 // if market convention differs"; no settings table exists in the approved
@@ -16,14 +22,18 @@ export function deriveRatesFromBase24k(rate24k) {
   }));
 }
 
-function round2(n) {
+export function round2(n) {
   return Math.round(n * 100) / 100;
 }
 
 export async function computeGoldValue(netWeightGrams, purity) {
   const rate = await getCurrentGoldRate(purity);
   if (!rate) throw new AppError(409, `No gold rate available yet for purity ${purity}`);
-  return { goldValue: round2(netWeightGrams * Number(rate.rate_per_gram)), goldRateId: rate.id };
+  return {
+    goldValue: round2(netWeightGrams * Number(rate.rate_per_gram)),
+    goldRateId: rate.id,
+    goldRatePerGram: Number(rate.rate_per_gram),
+  };
 }
 
 export async function computeDiamondValue(diamondWeightCarats, diamondConfigId) {
@@ -150,6 +160,38 @@ async function resolveWeightFromRules(product, variant, weightRules) {
   return Number.isFinite(weight) && weight > 0 ? weight : null;
 }
 
+function numOrNull(v) {
+  return v == null ? null : Number(v);
+}
+
+// Resolves a variant's Product+Purity pricing rule row (or null — total
+// inheritance) from a pre-fetched array, or fetches on demand when none was
+// passed (same "optional, fetched only when actually needed" contract as
+// resolveWeightFromRules above).
+async function resolvePurityPricingRuleRow(product, variant, purityPricingRules) {
+  const purityValueId = variant?.attributes?.purity?.valueId ?? null;
+  if (purityValueId == null) return null;
+  const rules = purityPricingRules ?? (await findPurityPricingRuleValuesByProduct(product.id));
+  return rules.find((r) => r.purity_value_id === purityValueId) ?? null;
+}
+
+// Resolves each of the three charge/discount fields independently: a
+// purity rule's own value wins if set, otherwise the product-level default,
+// otherwise (discounts only) 0. Uses `??` throughout, never `||` — 0 is a
+// valid, explicit override or default and must never be treated as "unset".
+// makingChargePercent has no final `?? 0` fallback: null here means "no
+// percent configured at all, anywhere" — computeVariantPricing's own
+// fallback to the flat `making_charge` column is what handles that case,
+// not a fabricated 0% rate.
+export function resolvePurityPricingFields(product, purityRule) {
+  const makingChargePercent = numOrNull(purityRule?.making_charge_percent) ?? numOrNull(product.making_charge_percent);
+  const makingChargeDiscountPercent =
+    numOrNull(purityRule?.making_charge_discount_percent) ?? numOrNull(product.making_charge_discount_percent) ?? 0;
+  const diamondDiscountPercent =
+    numOrNull(purityRule?.diamond_discount_percent) ?? numOrNull(product.diamond_discount_percent) ?? 0;
+  return { makingChargePercent, makingChargeDiscountPercent, diamondDiscountPercent };
+}
+
 // Prices a product's line for a specific product_variants row (or the
 // synthetic default variant with no attribute values / overrides, for a
 // product with nothing configured). Replaces the old
@@ -161,12 +203,14 @@ async function resolveWeightFromRules(product, variant, weightRules) {
 // (or a null `variant`) is byte-identical to pre-variant-model pricing —
 // zero regression for products with nothing configured.
 //
-// `weightRules` is optional — pass a pre-fetched array (from
-// findWeightRuleValuesByProduct) when pricing many variants for the same
-// product in a loop (applyCheapestVariantPricing, adminListVariants) to
-// avoid re-querying per variant; omitted, it's fetched on demand only when
-// actually needed (the variant has no exact weight override of its own).
-export async function computeVariantPricing(product, variant = null, weightRules = null) {
+// `weightRules` and `purityPricingRules` are both optional — pass a
+// pre-fetched array (from findWeightRuleValuesByProduct /
+// findPurityPricingRuleValuesByProduct) when pricing many variants for the
+// same product in a loop (adminListVariants, adminBulkUpdateVariants) to
+// avoid re-querying per variant; omitted, each
+// is fetched on demand only when actually needed (the variant carries a
+// purity at all).
+export async function computeVariantPricing(product, variant = null, weightRules = null, purityPricingRules = null) {
   const effectivePurity = resolvedPurity(variant) || product.purity;
   const effectiveDiamondConfigId = resolvedDiamondConfigId(variant) || product.diamond_config_id;
   const effectiveGoldColor = resolvedGoldColor(variant) || product.gold_color;
@@ -188,18 +232,21 @@ export async function computeVariantPricing(product, variant = null, weightRules
     variantWeightGrams != null && baseWeightGrams != null && variantWeightGrams !== baseWeightGrams;
 
   // Recomputed live whenever a real variant is being priced — never trust
-  // the cached product.gold_value here, since applyCheapestVariantPricing
-  // overwrites that same column with whichever variant is cheapest, which
-  // is not necessarily this variant even when its own weight/purity happen
-  // to equal the product's base fields. Only the true no-variant case
-  // (variant === null) falls back to the cached column.
+  // the cached product.gold_value here, since applyBaseProductPricing caches
+  // the *base* configuration's price onto that same column, which is not
+  // necessarily this variant even when its own weight/purity happen to equal
+  // the product's base fields. Only the true no-variant case (variant ===
+  // null) falls back to the cached column.
   let goldValue = Number(product.gold_value);
+  let goldRatePerGram = null;
   if (
     product.metal_type === 'GOLD' &&
     effectiveWeightGrams != null &&
     (variant != null || weightOverridden || (effectivePurity && effectivePurity !== product.purity))
   ) {
-    goldValue = (await computeGoldValue(effectiveWeightGrams, effectivePurity)).goldValue;
+    const goldResult = await computeGoldValue(effectiveWeightGrams, effectivePurity);
+    goldValue = goldResult.goldValue;
+    goldRatePerGram = goldResult.goldRatePerGram;
   }
 
   const baseDiamondWeightCarats =
@@ -223,14 +270,20 @@ export async function computeVariantPricing(product, variant = null, weightRules
       .diamondValue;
   }
 
-  // Making charge is a live % of gold value when the admin has set one
-  // (making_charge_percent) — scales automatically with goldValue above, so
-  // it's already correct for whatever purity/size was just resolved. Falls
-  // back to the flat making_charge column for products with no % set (not
-  // yet migrated) or with no gold value at all (platinum — a % of $0 is
-  // meaningless, so those stay on an admin-entered flat ₹ amount).
-  const makingChargePercent =
-    product.making_charge_percent == null ? null : Number(product.making_charge_percent);
+  // Making charge is a live % of gold value when a percent is configured —
+  // scales automatically with goldValue above, so it's already correct for
+  // whatever purity/size was just resolved. A Product+Purity pricing rule
+  // (product_purity_pricing_rules) is checked first, per field, falling back
+  // to the product-level default; falls back further to the flat
+  // making_charge column for products with no % set anywhere, or with no
+  // gold value at all (platinum — a % of $0 is meaningless, so those stay on
+  // an admin-entered flat ₹ amount).
+  const purityPricingRule =
+    variant != null ? await resolvePurityPricingRuleRow(product, variant, purityPricingRules) : null;
+  const { makingChargePercent, makingChargeDiscountPercent, diamondDiscountPercent } = resolvePurityPricingFields(
+    product,
+    purityPricingRule,
+  );
   const makingCharge =
     makingChargePercent != null && goldValue > 0
       ? round2(goldValue * (makingChargePercent / 100))
@@ -248,9 +301,11 @@ export async function computeVariantPricing(product, variant = null, weightRules
     const overridePrice = round2(Number(variant.price_override));
     return {
       purity: effectivePurity,
+      sizeLabel: resolvedSizeLabel(variant),
       diamondConfigId: effectiveDiamondConfigId,
       goldColor: effectiveGoldColor,
       goldWeightGrams: effectiveWeightGrams,
+      goldRatePerGram,
       diamondWeightCarats: effectiveDiamondWeightCarats,
       goldValue,
       diamondValue,
@@ -259,6 +314,7 @@ export async function computeVariantPricing(product, variant = null, weightRules
       makingChargeOriginal: makingCharge,
       makingChargeDiscountPercent: 0,
       diamondDiscountPercent: 0,
+      gstPercent,
       gstAmount: round2(overridePrice - goldValue - diamondValue - makingCharge),
       sellingPrice: overridePrice,
       sellingPriceOriginal: overridePrice,
@@ -272,16 +328,18 @@ export async function computeVariantPricing(product, variant = null, weightRules
     makingCharge,
     gstPercent,
     sellingPrice: baseSellingPrice,
-    makingChargeDiscountPercent: Number(product.making_charge_discount_percent ?? 0),
-    diamondDiscountPercent: Number(product.diamond_discount_percent ?? 0),
+    makingChargeDiscountPercent,
+    diamondDiscountPercent,
   });
   const gstAmount = round2(offer.sellingPrice - offer.goldValue - offer.diamondValue - offer.makingCharge);
 
   return {
     purity: effectivePurity,
+    sizeLabel: resolvedSizeLabel(variant),
     diamondConfigId: effectiveDiamondConfigId,
     goldColor: effectiveGoldColor,
     goldWeightGrams: effectiveWeightGrams,
+    goldRatePerGram,
     diamondWeightCarats: effectiveDiamondWeightCarats,
     goldValue: offer.goldValue,
     diamondValue: offer.diamondValue,
@@ -290,6 +348,7 @@ export async function computeVariantPricing(product, variant = null, weightRules
     makingChargeOriginal: offer.makingChargeOriginal,
     makingChargeDiscountPercent: offer.makingChargeDiscountPercent,
     diamondDiscountPercent: offer.diamondDiscountPercent,
+    gstPercent,
     gstAmount,
     sellingPrice: offer.sellingPrice,
     sellingPriceOriginal: offer.sellingPriceOriginal,

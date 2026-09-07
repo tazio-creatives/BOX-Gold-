@@ -5,6 +5,80 @@ const PURITIES = ['9K', '14K', '18K', '22K', '24K'];
 const GOLD_COLORS = ['YELLOW', 'ROSE', 'WHITE'];
 const STATUSES = ['DRAFT', 'AI_PROCESSING', 'AI_READY', 'PUBLISHED', 'FAILED'];
 
+// Each of the three purity-pricing fields is independently nullable — null
+// means "inherit the product-level default for this one field", 0 means an
+// explicit zero. Plain z.number() (not z.coerce.number()) so null survives
+// untouched — coerce would turn null into NaN. Mirrors
+// purityPricingRules.validators.js's identical `percent` schema; duplicated
+// here rather than imported so this validator file has no cross-feature
+// import (same convention already used for the PURITIES array above, which
+// is independently redeclared in weightRules.validators.js and
+// purityPricingRules.validators.js too).
+const percent = z.number().min(0).max(100).nullable().optional().default(null);
+
+// Combined-save shape for the product create/edit form's Weight Defaults
+// section — same field shapes as replaceWeightRulesSchema
+// (weightRules.validators.js), keyed by purity *code* (e.g. "9K") rather
+// than a database purityValueId: on create, no attribute_value row exists
+// yet for this product's purities, so the backend (productsService.js)
+// resolves purity/size codes to UUIDs itself, after syncProductVariants has
+// created them. Duplicate (purity) / (purity, sizeLabel) pairs are rejected
+// here — the DB's own partial unique indexes would also reject them, but a
+// 400 with a clear message beats a raw 23505 constraint-violation surfacing
+// mid-transaction.
+const weightRulesInputSchema = z
+  .object({
+    purityRules: z
+      .array(z.object({ purity: z.enum(PURITIES), goldWeightGrams: z.coerce.number().positive() }))
+      .default([]),
+    puritySizeRules: z
+      .array(
+        z.object({
+          purity: z.enum(PURITIES),
+          sizeLabel: z.string().trim().min(1),
+          goldWeightGrams: z.coerce.number().positive(),
+        }),
+      )
+      .default([]),
+  })
+  .refine(
+    (wr) => {
+      const purityKeys = wr.purityRules.map((r) => r.purity);
+      return new Set(purityKeys).size === purityKeys.length;
+    },
+    { message: 'Duplicate purity in weightRules.purityRules', path: ['weightRules', 'purityRules'] },
+  )
+  .refine(
+    (wr) => {
+      const sizeKeys = wr.puritySizeRules.map((r) => `${r.purity}|${r.sizeLabel}`);
+      return new Set(sizeKeys).size === sizeKeys.length;
+    },
+    { message: 'Duplicate purity + size in weightRules.puritySizeRules', path: ['weightRules', 'puritySizeRules'] },
+  );
+
+// Combined-save shape for Purity Pricing Rules — same reasoning as
+// weightRulesInputSchema: keyed by purity code, resolved to a purityValueId
+// server-side. Unlike weightRulesInputSchema this is a bare array (no
+// "purityRules"/"puritySizeRules" split — Purity Pricing Rules has no size
+// dimension), so its own duplicate check + .optional() live directly here
+// rather than needing a wrapper object.
+const purityPricingRulesInputSchema = z
+  .array(
+    z.object({
+      purity: z.enum(PURITIES),
+      makingChargePercent: percent,
+      makingChargeDiscountPercent: percent,
+      diamondDiscountPercent: percent,
+    }),
+  )
+  .refine(
+    (rules) => {
+      const keys = rules.map((r) => r.purity);
+      return new Set(keys).size === keys.length;
+    },
+    { message: 'Duplicate purity in purityPricingRules' },
+  );
+
 export const listProductsQuerySchema = z.object({
   category: z.string().trim().optional(),
   collection: z.string().trim().optional(),
@@ -20,9 +94,18 @@ export const listProductsQuerySchema = z.object({
 
 export const adminListProductsQuerySchema = listProductsQuerySchema.extend({
   status: z.enum(STATUSES).optional(),
+  // Free-text match on name/SKU (see products.repository.js's buildFilters)
+  // — admin-only for now, the public storefront has its own dedicated
+  // /search endpoint instead of filtering the listing endpoint.
+  search: z.string().trim().min(1).max(200).optional(),
 });
 
-export const createProductSchema = z.object({
+// Split from createProductSchema/updateProductSchema below so .partial() can
+// still be called on a plain ZodObject — .superRefine()/.refine() return a
+// ZodEffects, which has no .partial() method, so the cross-field check must
+// be layered on AFTER partial() is applied for the update variant, not
+// baked into one shared schema both are derived from via refinement.
+const productObjectSchema = z.object({
   name: z.string().trim().min(1).max(300),
   sku: z.string().trim().min(1).max(100),
   categoryId: z.string().uuid().nullable().optional(),
@@ -107,9 +190,76 @@ export const createProductSchema = z.object({
       }),
     )
     .optional(),
+
+  // Combined product create/edit save — Weight Defaults and Purity Pricing
+  // Rules entered in the same form, before the product's own attribute_value
+  // rows exist yet. Both optional and deliberately NOT defaulted at this
+  // level: an absent key means "don't touch the saved rules" on an update
+  // (see productsService.js's adminUpdateProduct), distinct from an
+  // explicitly-sent empty collection, which means "clear them". Only
+  // .default([]) inside weightRulesInputSchema's own two array fields, and
+  // that only applies once the `weightRules` object itself is present.
+  weightRules: weightRulesInputSchema.optional(),
+  purityPricingRules: purityPricingRulesInputSchema.optional(),
 });
 
-export const updateProductSchema = createProductSchema.partial();
+// A purity/size referenced by weightRules or purityPricingRules must be one
+// of the purities/sizes this same request is selecting — but only checked
+// when `purities`/`sizes` are actually present in this request. A partial
+// update that edits only weightRules without touching purities/sizes has
+// nothing here to check against; the service layer's own resolver
+// (productsService.js's buildPurityAndSizeResolver) throws a 409 against the
+// product's actual saved attribute catalogue in that case instead.
+function checkAxisMembership(input, ctx) {
+  const purities = input.purities;
+  const sizeLabels = input.sizes?.map((s) => s.label);
+
+  if (input.weightRules && purities) {
+    input.weightRules.purityRules.forEach((r, i) => {
+      if (!purities.includes(r.purity)) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: `Purity ${r.purity} is not in the selected purities`,
+          path: ['weightRules', 'purityRules', i, 'purity'],
+        });
+      }
+    });
+    input.weightRules.puritySizeRules.forEach((r, i) => {
+      if (!purities.includes(r.purity)) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: `Purity ${r.purity} is not in the selected purities`,
+          path: ['weightRules', 'puritySizeRules', i, 'purity'],
+        });
+      }
+    });
+  }
+  if (input.weightRules && sizeLabels) {
+    input.weightRules.puritySizeRules.forEach((r, i) => {
+      if (!sizeLabels.includes(r.sizeLabel)) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: `Size ${r.sizeLabel} is not in the selected sizes`,
+          path: ['weightRules', 'puritySizeRules', i, 'sizeLabel'],
+        });
+      }
+    });
+  }
+  if (input.purityPricingRules && purities) {
+    input.purityPricingRules.forEach((r, i) => {
+      if (!purities.includes(r.purity)) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: `Purity ${r.purity} is not in the selected purities`,
+          path: ['purityPricingRules', i, 'purity'],
+        });
+      }
+    });
+  }
+}
+
+export const createProductSchema = productObjectSchema.superRefine(checkAxisMembership);
+export const updateProductSchema = productObjectSchema.partial().superRefine(checkAxisMembership);
 
 export const featuredSchema = z.object({
   featured: z.boolean(),

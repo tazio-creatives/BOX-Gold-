@@ -6,7 +6,7 @@ import { insertGoldRates } from '../repositories/goldRates.repository.js';
 import { findDiamondConfigById } from '../repositories/diamondConfigs.repository.js';
 import { insertPriceHistory } from '../repositories/productPriceHistory.repository.js';
 import { findGoldProductsForRecalculation, findDiamondProductsForRecalculation, findProductById } from '../repositories/products.repository.js';
-import { applyCheapestVariantPricing } from '../services/productsService.js';
+import { applyBaseProductPricing } from '../services/productsService.js';
 import { invalidateProductsPagesBatch } from '../services/pageCacheInvalidation.js';
 
 export const JOB_GOLD_RATE_SYNC = 'gold-rate-sync';
@@ -26,15 +26,15 @@ async function goldRateSyncHandler() {
 // read time (always querying the current gold rate) — nothing per-variant
 // to recalculate here. What DOES need proactive recalculation is each
 // product's own cached base price (used for listing display before a
-// shopper picks a variant), re-derived as the cheapest available variant's
-// price — applyCheapestVariantPricing already does exactly that, so this
+// shopper picks a variant), re-derived from the product's own base
+// configuration — applyBaseProductPricing already does exactly that, so this
 // handler's job is just: for every affected product, re-run it and log the
 // price-history delta.
 async function recalculateGoldPricesHandler() {
   const products = await findGoldProductsForRecalculation();
   for (const product of products) {
     const oldSellingPrice = product.selling_price;
-    await applyCheapestVariantPricing(product.id, false);
+    await applyBaseProductPricing(product.id, false);
     const updated = await findProductById(product.id);
     if (!updated || Number(updated.selling_price) === Number(oldSellingPrice)) continue;
 
@@ -63,7 +63,7 @@ async function recalculateDiamondPricesHandler(jobs) {
   const products = await findDiamondProductsForRecalculation(diamondConfigId);
   for (const product of products) {
     const oldSellingPrice = product.selling_price;
-    await applyCheapestVariantPricing(product.id, false);
+    await applyBaseProductPricing(product.id, false);
     const updated = await findProductById(product.id);
     if (!updated || Number(updated.selling_price) === Number(oldSellingPrice)) continue;
 

@@ -11,8 +11,9 @@ import {
 } from '../validators/products.validators.js';
 import { createExclusionRuleSchema } from '../validators/exclusionRules.validators.js';
 import { replaceWeightRulesSchema } from '../validators/weightRules.validators.js';
+import { replacePurityPricingRulesSchema } from '../validators/purityPricingRules.validators.js';
 import * as productsService from '../services/productsService.js';
-import { applyProductOffer } from '../services/pricingService.js';
+import { applyProductOffer, round2 } from '../services/pricingService.js';
 import { AppError } from '../utils/AppError.js';
 
 // The generic "Already exists" the shared error handler falls back to for
@@ -33,6 +34,24 @@ export function discountPercent(mrp, sellingPrice) {
   return Math.round(((mrp - sellingPrice) / mrp) * 100);
 }
 
+// The server-computed "was" price for every card's strikethrough/badge: two
+// independent things can make a card's charged price lower than its "full"
+// price — an admin-set static MRP, and a live, purity-rule-aware
+// making-charge/diamond offer (sellingPriceOriginal, recomputed from the
+// current gold rate) — this picks whichever is actually higher than the
+// final sellingPrice, so every surface (PLP, homepage, search, wishlist,
+// PDP) shows the identical badge/percentage without re-deriving it
+// client-side from raw gold rates or purity rules.
+export function strikePriceInfo(mrp, sellingPrice, sellingPriceOriginal) {
+  const strikePrice = Math.max(Number(mrp) || 0, sellingPriceOriginal);
+  if (strikePrice <= sellingPrice) return { strikePrice: 0, hasDiscount: false, effectiveDiscountPercent: 0 };
+  return {
+    strikePrice,
+    hasDiscount: true,
+    effectiveDiscountPercent: Math.round(((strikePrice - sellingPrice) / strikePrice) * 100),
+  };
+}
+
 // Distinct from the MRP-vs-sellingPrice discount badge — this is the
 // specific "X% off Making Charge / Diamond" promotional offer an admin can
 // set per product (plan: "give offer making charge and diamonds"), shown on
@@ -44,15 +63,25 @@ export function offerLabel(makingChargeDiscountPercent, diamondDiscountPercent) 
   return parts.length ? parts.join(' + ') : null;
 }
 
+// The effective_* columns hold the purity-rule-resolved discount for the
+// product's base configuration (kept in sync by
+// productsService.applyBaseProductPricing) — preferred whenever populated so
+// a Purity Pricing Rule's discount shows in listings the same way it already
+// does on the detail page. Falls back to the flat admin-typed default
+// (making_charge_discount_percent/diamond_discount_percent) when null, e.g.
+// a product that hasn't been saved/recalculated since this column was added.
 export function rowOffer(row) {
+  const makingChargeDiscountPercent =
+    row.effective_making_charge_discount_percent ?? row.making_charge_discount_percent ?? 0;
+  const diamondDiscountPercent = row.effective_diamond_discount_percent ?? row.diamond_discount_percent ?? 0;
   return applyProductOffer({
     goldValue: Number(row.gold_value),
     diamondValue: Number(row.diamond_value),
     makingCharge: Number(row.making_charge),
     gstPercent: Number(row.gst_percent),
     sellingPrice: Number(row.selling_price),
-    makingChargeDiscountPercent: Number(row.making_charge_discount_percent ?? 0),
-    diamondDiscountPercent: Number(row.diamond_discount_percent ?? 0),
+    makingChargeDiscountPercent: Number(makingChargeDiscountPercent),
+    diamondDiscountPercent: Number(diamondDiscountPercent),
   });
 }
 
@@ -69,6 +98,7 @@ function isRecentlyPublished(createdAt) {
 // screen needs").
 export function toListDto(row) {
   const offer = rowOffer(row);
+  const priceInfo = strikePriceInfo(Number(row.mrp), offer.sellingPrice, offer.sellingPriceOriginal);
   return {
     id: row.id,
     slug: row.slug,
@@ -83,6 +113,11 @@ export function toListDto(row) {
     sellingPriceOriginal: offer.sellingPriceOriginal,
     mrp: Number(row.mrp),
     discountPercent: discountPercent(Number(row.mrp), offer.sellingPrice),
+    strikePrice: priceInfo.strikePrice,
+    hasDiscount: priceInfo.hasDiscount,
+    effectiveDiscountPercent: priceInfo.effectiveDiscountPercent,
+    makingChargeDiscountPercent: offer.makingChargeDiscountPercent,
+    diamondDiscountPercent: offer.diamondDiscountPercent,
     offerLabel: offerLabel(offer.makingChargeDiscountPercent, offer.diamondDiscountPercent),
     primaryImageUrl: row.primary_image_url,
     availableStock: row.available_stock,
@@ -97,6 +132,7 @@ export function toListDto(row) {
 
 function toDetailDto(row) {
   const offer = rowOffer(row);
+  const priceInfo = strikePriceInfo(Number(row.mrp), offer.sellingPrice, offer.sellingPriceOriginal);
   const gstAmount =
     Math.round((offer.sellingPrice - offer.goldValue - offer.diamondValue - offer.makingCharge) * 100) / 100;
 
@@ -156,6 +192,9 @@ function toDetailDto(row) {
     // new base and compound it further on the next read.
     sellingPriceOriginal: offer.sellingPriceOriginal,
     discountPercent: discountPercent(Number(row.mrp), offer.sellingPrice),
+    strikePrice: priceInfo.strikePrice,
+    hasDiscount: priceInfo.hasDiscount,
+    effectiveDiscountPercent: priceInfo.effectiveDiscountPercent,
     offerLabel: offerLabel(offer.makingChargeDiscountPercent, offer.diamondDiscountPercent),
 
     stockQuantity: row.stock_quantity,
@@ -285,9 +324,24 @@ export async function pricePreview(req, res, next) {
   try {
     const { variantId } = variantPricePreviewQuerySchema.parse(req.query);
     const result = await productsService.previewProductVariantPricing(req.params.id, { variantId });
+    const priceInfo = strikePriceInfo(result.mrp, result.sellingPrice, result.sellingPriceOriginal);
     res.json({
       ...result,
+      // Explicit gross/discount-amount/discounted breakdown for the
+      // customer-facing price-preview contract — the effective, already-
+      // resolved (purity rule ?? product default) percentages, not raw
+      // stored overrides. Derived from the same numbers already on
+      // `result`, not recomputed — never a second source of truth.
+      grossMakingCharge: result.makingChargeOriginal,
+      makingChargeDiscountAmount: round2(result.makingChargeOriginal - result.makingCharge),
+      discountedMakingCharge: result.makingCharge,
+      grossDiamondValue: result.diamondValueOriginal,
+      diamondDiscountAmount: round2(result.diamondValueOriginal - result.diamondValue),
+      discountedDiamondValue: result.diamondValue,
       offerLabel: offerLabel(result.makingChargeDiscountPercent, result.diamondDiscountPercent),
+      strikePrice: priceInfo.strikePrice,
+      hasDiscount: priceInfo.hasDiscount,
+      effectiveDiscountPercent: priceInfo.effectiveDiscountPercent,
     });
   } catch (err) {
     next(err);
@@ -320,6 +374,7 @@ export async function adminList(req, res, next) {
         priceMin: q.priceMin,
         priceMax: q.priceMax,
         status: q.status,
+        search: q.search,
       },
       { sort: q.sort, page: q.page ?? 1, limit: q.limit ?? 24 },
     );
@@ -485,6 +540,29 @@ export async function replaceWeightRules(req, res, next) {
     const input = replaceWeightRulesSchema.parse(req.body);
     const rules = await productsService.adminReplaceWeightRules(req.params.id, input);
     res.json({ rules: rules.map(toWeightRuleDto) });
+  } catch (err) {
+    next(err);
+  }
+}
+
+// Purity Pricing Rules — each row already carries both the saved override
+// (null if inherited) and the effective resolved value, computed in
+// adminGetPurityPricingRules/adminReplacePurityPricingRules — nothing to
+// transform here, unlike toWeightRuleDto which reshapes snake_case DB rows.
+export async function getPurityPricingRules(req, res, next) {
+  try {
+    const rules = await productsService.adminGetPurityPricingRules(req.params.id);
+    res.json({ rules });
+  } catch (err) {
+    next(err);
+  }
+}
+
+export async function replacePurityPricingRules(req, res, next) {
+  try {
+    const input = replacePurityPricingRulesSchema.parse(req.body);
+    const rules = await productsService.adminReplacePurityPricingRules(req.params.id, input);
+    res.json({ rules });
   } catch (err) {
     next(err);
   }

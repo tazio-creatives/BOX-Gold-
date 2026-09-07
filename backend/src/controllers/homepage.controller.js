@@ -1,19 +1,28 @@
 import { getEnabledSectionsWithItems } from '../repositories/homepage.repository.js';
-import { toListDto, discountPercent, offerLabel } from './products.controller.js';
-import { applyProductOffer } from '../services/pricingService.js';
+import { toListDto, rowOffer, discountPercent, offerLabel, strikePriceInfo } from './products.controller.js';
 
+// Homepage's hand-curated queries (NEW_ARRIVALS/FEATURED_PRODUCT/the single
+// linked-item join, see homepage.repository.js) select the same pricing
+// columns as everywhere else, just prefixed `product_*` to sit alongside the
+// item's own columns in one row — reshaped back to the plain names rowOffer
+// expects so this goes through the exact same purity-rule-aware discount
+// resolution as the PLP/search/wishlist, instead of re-deriving the offer
+// from the flat columns only.
 function toItemDto(row) {
   let product = null;
   if (row.product_id) {
-    const offer = applyProductOffer({
-      goldValue: Number(row.product_gold_value),
-      diamondValue: Number(row.product_diamond_value),
-      makingCharge: Number(row.product_making_charge),
-      gstPercent: Number(row.product_gst_percent),
-      sellingPrice: Number(row.product_selling_price),
-      makingChargeDiscountPercent: Number(row.product_making_charge_discount_percent ?? 0),
-      diamondDiscountPercent: Number(row.product_diamond_discount_percent ?? 0),
+    const offer = rowOffer({
+      gold_value: row.product_gold_value,
+      diamond_value: row.product_diamond_value,
+      making_charge: row.product_making_charge,
+      gst_percent: row.product_gst_percent,
+      selling_price: row.product_selling_price,
+      making_charge_discount_percent: row.product_making_charge_discount_percent,
+      diamond_discount_percent: row.product_diamond_discount_percent,
+      effective_making_charge_discount_percent: row.product_effective_making_charge_discount_percent,
+      effective_diamond_discount_percent: row.product_effective_diamond_discount_percent,
     });
+    const priceInfo = strikePriceInfo(Number(row.product_mrp), offer.sellingPrice, offer.sellingPriceOriginal);
     product = {
       id: row.product_id,
       name: row.product_name,
@@ -22,6 +31,9 @@ function toItemDto(row) {
       sellingPriceOriginal: offer.sellingPriceOriginal,
       mrp: Number(row.product_mrp),
       discountPercent: discountPercent(Number(row.product_mrp), offer.sellingPrice),
+      strikePrice: priceInfo.strikePrice,
+      hasDiscount: priceInfo.hasDiscount,
+      effectiveDiscountPercent: priceInfo.effectiveDiscountPercent,
       offerLabel: offerLabel(offer.makingChargeDiscountPercent, offer.diamondDiscountPercent),
       imageUrl: row.product_image_url,
       metalType: row.product_metal_type,
