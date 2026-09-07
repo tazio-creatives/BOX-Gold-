@@ -2,7 +2,6 @@ import { Link } from 'react-router-dom';
 import type { ProductCard as ProductCardType } from '../api/types';
 import { productUrl } from '../utils/productUrl';
 import { formatPrice } from '../utils/formatPrice';
-import { effectiveMrp } from '../utils/effectiveMrp';
 import { placeholderGradient } from '../utils/placeholderGradient';
 import { getStockStatus } from '../utils/stockStatus';
 import { COLOR_SWATCH } from '../features/pdp/goldColorSwatch';
@@ -48,7 +47,7 @@ interface PlpProductCardProps {
 
 export function PlpProductCard({ product, index = 0, onAddToCart, isAdding, justAdded, hasError }: PlpProductCardProps) {
   const stock = getStockStatus(product.availableStock);
-  const { strikePrice } = effectiveMrp(product.sellingPrice, product.mrp, product.sellingPriceOriginal);
+  const strikePrice = product.strikePrice;
 
   const metalDotColor =
     product.metalType === 'PLATINUM'

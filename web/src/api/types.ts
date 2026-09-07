@@ -12,6 +12,14 @@ export interface ProductCard {
   sellingPriceOriginal: number;
   mrp: number;
   discountPercent: number;
+  // Server-resolved badge/strikethrough info — the higher of MRP and the
+  // purity-rule-aware sellingPriceOriginal, already compared against
+  // sellingPrice, so card components never need to re-derive it.
+  strikePrice: number;
+  hasDiscount: boolean;
+  effectiveDiscountPercent: number;
+  makingChargeDiscountPercent: number;
+  diamondDiscountPercent: number;
   offerLabel: string | null;
   primaryImageUrl: string | null;
   availableStock: number;
@@ -52,6 +60,9 @@ export interface HomepageItem {
         sellingPriceOriginal: number;
         mrp: number;
         discountPercent: number;
+        strikePrice: number;
+        hasDiscount: boolean;
+        effectiveDiscountPercent: number;
         offerLabel: string | null;
         imageUrl: string | null;
         metalType: MetalType | null;
@@ -179,6 +190,9 @@ export interface ProductDetail {
   sellingPrice: number;
   sellingPriceOriginal: number;
   discountPercent: number;
+  strikePrice: number;
+  hasDiscount: boolean;
+  effectiveDiscountPercent: number;
   offerLabel: string | null;
 
   stockQuantity: number;
@@ -252,6 +266,9 @@ export interface VariantPricePreview {
   sellingPriceOriginal: number;
   mrp: number;
   discountPercent: number;
+  strikePrice: number;
+  hasDiscount: boolean;
+  effectiveDiscountPercent: number;
   offerLabel: string | null;
 }
 
@@ -304,15 +321,12 @@ export interface Cart {
   itemCount: number;
 }
 
-export interface WishlistItem {
+// Backend's wishlistService.toItemDto now reuses the same toListDto as the
+// PLP (see products.controller.js) — a wishlist card carries every field a
+// PLP card does (pricing, offer, rating, etc.), plus productId for the
+// existing move-to-bag/remove actions.
+export interface WishlistItem extends ProductCard {
   productId: string;
-  name: string;
-  slug: string;
-  categorySlug: string | null;
-  primaryImageUrl: string | null;
-  sellingPrice: number;
-  mrp: number;
-  availableStock: number;
 }
 
 export interface Wishlist {

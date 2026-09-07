@@ -1,7 +1,6 @@
 import { useEffect, useState } from 'react';
 import type { ProductDetail, GoldColor, VariantPricePreview } from '../api/types';
 import { fetchVariantPricePreview } from '../api/products';
-import { effectiveMrp } from '../utils/effectiveMrp';
 
 const LOW_STOCK_THRESHOLD = 3;
 
@@ -256,7 +255,10 @@ export function useVariantSelection(product: ProductDetail | undefined) {
   const selectedDiamondOption = product?.diamondOptions.find((d) => d.id === selectedDiamondConfigId) ?? null;
   const displayPrice = pricePreview?.sellingPrice ?? product?.sellingPrice ?? 0;
   const displaySellingPriceOriginal = pricePreview?.sellingPriceOriginal ?? product?.sellingPriceOriginal ?? 0;
-  const { strikePrice: displayMrp } = effectiveMrp(displayPrice, pricePreview?.mrp ?? product?.mrp ?? 0, displaySellingPriceOriginal);
+  // Server-resolved (pricePreview reflects the exact selected variant;
+  // product's own is the base-configuration fallback before any variant is
+  // resolved) — never re-derived client-side from raw mrp/sellingPriceOriginal.
+  const displayMrp = pricePreview?.strikePrice ?? product?.strikePrice ?? 0;
   const displayGstAmount = pricePreview?.gstAmount ?? product?.priceBreakup.gstAmount ?? 0;
   const displayOfferLabel = pricePreview?.offerLabel ?? product?.offerLabel ?? null;
 

@@ -208,74 +208,26 @@
   margin-bottom: var(--space-4);
 }
 
+/* One subtle neutral surface for the whole customization section — no
+   per-field card backgrounds inside it (ColorSelector/PillSelector/
+   SizeSelector all render bare option buttons directly on this). */
 .customizeSection {
+  padding: var(--space-4);
   margin-bottom: var(--space-4);
-}
-
-.customizeToggle {
-  display: flex;
-  align-items: center;
-  gap: var(--space-3);
-  width: 100%;
-  padding: var(--space-3) var(--space-4);
-  border: 1px solid #dfe5e3;
+  border: 1px solid #e3e7e3;
   border-radius: var(--radius-md);
-  background: #ffffff;
-  cursor: pointer;
-  text-align: left;
+  background: #f8f9f7;
 }
 
-.customizeToggleIcon {
-  display: inline-flex;
-  flex-shrink: 0;
-  color: var(--color-burgundy);
-}
-
-.customizeToggleText {
-  flex: 1;
-  min-width: 0;
-  display: flex;
-  flex-direction: column;
+.customizeSection .fieldGroup:last-child {
+  margin-bottom: 0;
 }
 
 .customizeTitle {
-  font-size: var(--text-sm);
+  display: block;
+  font-size: 16px;
   font-weight: 700;
   color: var(--color-text);
-}
-
-.customizeSubtitle {
-  font-size: var(--text-xs);
-  color: var(--color-text-muted);
-}
-
-.customizeChevron,
-.customizeChevronOpen {
-  display: inline-flex;
-  flex-shrink: 0;
-  color: var(--color-text-muted);
-  transition: transform 0.15s ease;
-}
-
-.customizeChevron svg,
-.customizeChevronOpen svg {
-  width: 22px;
-  height: 22px;
-}
-
-.customizeChevronOpen {
-  transform: rotate(180deg);
-}
-
-.customizePanel {
-  padding: var(--space-4) var(--space-4) 0;
-  border: 1px solid var(--color-border);
-  border-top: none;
-  border-radius: 0 0 var(--radius-md) var(--radius-md);
-  background: #fcfcfb;
-}
-
-.customizePanel .fieldGroup {
   margin-bottom: var(--space-4);
 }
 
@@ -283,53 +235,6 @@
   margin: var(--space-2) 0 0;
   font-size: calc(var(--text-xs) + 4px);
   color: #dc2626;
-}
-
-.selectionSummary {
-  margin: 0;
-  padding: var(--space-3) 0;
-  font-size: var(--text-sm);
-  color: var(--color-text);
-  background: #ffffff;
-  border-top: 1px solid #e8ecea;
-}
-
-.selectionSummaryLabel {
-  font-weight: 600;
-  color: var(--color-text-muted);
-}
-
-.selectionSummaryRow {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--space-3);
-  padding: var(--space-3) var(--space-4);
-  border: 1px solid var(--color-border);
-  border-top: 1px solid #e8ecea;
-  border-radius: 0 0 var(--radius-md) var(--radius-md);
-  background: #ffffff;
-}
-
-.selectionSummaryRow .selectionSummary {
-  border-top: none;
-  padding: 0;
-  flex: 1;
-  min-width: 0;
-}
-
-.editLink {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--space-1);
-  flex-shrink: 0;
-  padding: 0;
-  border: none;
-  background: none;
-  color: var(--color-burgundy);
-  font-size: var(--text-sm);
-  font-weight: 600;
-  cursor: pointer;
 }
 
 .actions {
@@ -401,41 +306,36 @@
   cursor: not-allowed;
 }
 
-@media (max-width: 767px) {
-  /* Drop the toggle's own bottom border/radius and the summary row's own
-     top border — each used to draw a full border independently, so the
-     two stacked into a visible double line right where they touch. With
-     .customizeToggle rounded on top only and this rounded on bottom only,
-     they now read as one continuous card instead of two nested ones. */
-  .selectionSummaryRow {
-    flex-direction: column;
-    align-items: flex-start;
-    gap: var(--space-2);
-    padding: 16px 20px;
-    border-top: none;
-    border-radius: 0 0 12px 12px;
-  }
+/* Price Breakup / Product Details now render inside .info (moved from a
+   separate PDPPage-level section) — DetailsCard supplies its own 20px
+   inset on mobile (DetailsCard.module.css), same as before. */
+.detailsStack {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-5);
+  margin-top: var(--space-2);
+}
 
+.detailsCardHeading {
+  --details-heading-size: 22px;
+  --details-heading-weight: 600;
+}
+
+@media (max-width: 767px) {
   /* .info's 0-left/20px-right padding only makes sense in the desktop
      2-column grid (flush against the gallery gap on the left). On mobile's
-     single-column stack, that made the customize section's right edge sit
-     20px further in than Product Details/Price Breakup (PDPPage.module.css
-     .detailsGrid, which has no extra inset of its own) — align them. Bottom
-     padding is also dropped so the gap before Product Details is controlled
-     solely by .detailsGrid's own margin-top (PDPPage.module.css), the same
-     reasoning as .customizeSection's margin-bottom below.  */
+     single-column stack, everything below relies on this being 0 so
+     DetailsCard's own self-supplied inset (not a parent padding) is what
+     lines its edges up with the rest of the page. */
   .info {
     padding-left: 0;
     padding-right: 0;
     padding-bottom: 0;
   }
 
-  /* Its own margin-bottom would stack on top of .detailsGrid's margin-top
-     (PDPPage.module.css), making this gap visibly bigger than the one
-     between Product Details and Price Breakup below — let .detailsGrid's
-     margin alone control the spacing here so both gaps actually match. */
-  .customizeSection {
-    margin-bottom: 0;
+  .detailsStack {
+    gap: var(--space-4);
+    margin-top: var(--space-4);
   }
 }
 
@@ -486,20 +386,8 @@
     text-overflow: ellipsis;
   }
 
-  /* Rounded on top only + no bottom border — always immediately followed
-     by .customizePanel or .selectionSummaryRow (never rendered alone), so
-     dropping its own bottom edge here is what lets the two merge into one
-     visual card instead of two touching, separately-bordered ones. */
-  .customizeToggle {
-    min-height: 56px;
-    padding: 18px 20px;
-    border-bottom: none;
-    border-radius: 12px 12px 0 0;
-  }
-
-  .customizePanel {
-    padding: 16px 20px 20px;
-    border-radius: 0 0 12px 12px;
+  .customizeSection {
+    padding: 16px;
   }
 }
 

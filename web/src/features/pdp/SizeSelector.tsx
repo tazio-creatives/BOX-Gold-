@@ -1,6 +1,5 @@
 import { useState } from 'react';
 import type { ProductSize } from '../../api/types';
-import { SelectDropdown } from '../../components/SelectDropdown';
 import styles from './SizeSelector.module.css';
 
 // Generic, universal reference chart — not per-product data, just a common
@@ -33,28 +32,42 @@ export function SizeSelector({ sizes, selectedSizeId, onSelect, label = 'Size' }
 
   if (sizes.length === 0) return null;
 
+  const selectedSize = sizes.find((s) => s.id === selectedSizeId) ?? null;
+
   return (
     <div className={styles.wrap}>
       <div className={styles.row}>
-        <label className={styles.label} htmlFor="pdp-size-select">
-          Select {label}
-        </label>
+        <span className={styles.label}>Select {label}</span>
         {isRingSize && (
           <button type="button" className={styles.guideLink} onClick={() => setShowGuide((v) => !v)}>
             Size Guide
           </button>
         )}
       </div>
-      <SelectDropdown
-        id="pdp-size-select"
-        value={selectedSizeId ?? ''}
-        placeholder={`Choose a ${label.toLowerCase()}`}
-        options={sizes.map((size) => ({
-          value: size.id,
-          label: size.label + (size.availableStock > 0 ? ' — In Stock' : ' — Make to Order'),
-        }))}
-        onChange={onSelect}
-      />
+
+      <div className={styles.options}>
+        {sizes.map((size) => {
+          const active = size.id === selectedSizeId;
+          return (
+            <button
+              key={size.id}
+              type="button"
+              className={active ? styles.sizeActive : styles.size}
+              aria-pressed={active}
+              onClick={() => onSelect(size.id)}
+            >
+              {size.label}
+            </button>
+          );
+        })}
+      </div>
+
+      {selectedSize && (
+        <p className={selectedSize.availableStock > 0 ? styles.stockIndicator : styles.stockIndicatorMuted}>
+          <span className={styles.stockDot} aria-hidden="true" />
+          {selectedSize.availableStock > 0 ? 'In Stock' : 'Make to Order'}
+        </p>
+      )}
 
       {isRingSize && showGuide && (
         <div className={styles.guidePopover} role="dialog" aria-label="Size guide">

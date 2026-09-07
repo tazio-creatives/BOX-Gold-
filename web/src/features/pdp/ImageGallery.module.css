@@ -8,6 +8,14 @@
   flex-direction: column;
   gap: var(--space-3);
   min-width: 0;
+  /* Sticks alongside the (taller) product-info column on desktop, using
+     normal document scroll — not an inner scroll pane. Stops on its own
+     once it reaches the bottom of .layout (PDPPage.module.css), i.e. before
+     ProductTabs/RelatedProducts, since sticky containment never exceeds the
+     containing grid item's own row height. */
+  position: sticky;
+  top: 120px;
+  align-self: start;
 }
 
 .main {
@@ -223,6 +231,7 @@
      Vertically still cancels .hero's own top padding, which mobile keeps
      unchanged. */
   .gallery {
+    position: static;
     margin: calc(-1 * var(--space-6)) calc(-1 * var(--space-4)) 0;
     width: calc(100% + 2 * var(--space-4));
   }

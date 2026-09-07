@@ -68,7 +68,7 @@
 
 .duoSubtitle {
   margin: 0 0 18px;
-  font-family: Inter, Arial, sans-serif;
+  font-family: var(--font-body);
   font-size: 15px;
   font-weight: 400;
   color: #fdf6ee;
@@ -81,7 +81,7 @@
   border-radius: 999px;
   background: #fdf6ee;
   color: #2c1c17;
-  font-family: Inter, Arial, sans-serif;
+  font-family: var(--font-body);
   font-size: 12px;
   font-weight: 600;
   text-transform: uppercase;

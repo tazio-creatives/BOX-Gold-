@@ -12,9 +12,6 @@ import { useHead, defaultHead } from '../seo/head';
 import { breadcrumbJsonLd, organizationJsonLd, productJsonLd } from '../seo/jsonLd';
 import { ImageGallery } from '../features/pdp/ImageGallery';
 import { ProductInfo } from '../features/pdp/ProductInfo';
-import { PriceBreakupTable } from '../features/pdp/PriceBreakupTable';
-import { AttributesList } from '../features/pdp/AttributesList';
-import { DetailsCard } from '../features/pdp/DetailsCard';
 import { ProductTabs } from '../features/pdp/ProductTabs';
 import { RelatedProducts } from '../features/pdp/RelatedProducts';
 import styles from './PDPPage.module.css';
@@ -200,6 +197,11 @@ export function PDPPage() {
             displayPrice={displayPrice}
             displayMrp={displayMrp}
             offerLabel={displayOfferLabel}
+            displayBreakup={displayBreakup ?? product.priceBreakup}
+            displayGoldWeightGrams={displayGoldWeightGrams}
+            displayNetWeightGrams={displayNetWeightGrams}
+            displayGrossWeightGrams={displayGrossWeightGrams}
+            displayDiamondWeightCarats={displayDiamondWeightCarats}
             onAddToCart={() =>
               addToCartMutation.mutate({
                 productId: product.id,
@@ -231,25 +233,6 @@ export function PDPPage() {
               })
             }
           />
-        </div>
-
-        <div className={styles.detailsGrid}>
-          <DetailsCard title="Product Details" className={styles.detailsCardHeading}>
-            <AttributesList
-              product={product}
-              livePurity={selectedPurity}
-              liveGoldColor={selectedGoldColor}
-              liveDiamondConfigName={selectedDiamondOption?.name}
-              liveGoldWeightGrams={displayGoldWeightGrams}
-              liveNetWeightGrams={displayNetWeightGrams}
-              liveGrossWeightGrams={displayGrossWeightGrams}
-              liveDiamondWeightCarats={displayDiamondWeightCarats}
-            />
-          </DetailsCard>
-
-          <DetailsCard title="Price Breakup" className={styles.detailsCardHeading}>
-            <PriceBreakupTable breakup={displayBreakup ?? product.priceBreakup} metalType={product.metalType} />
-          </DetailsCard>
         </div>
       </div>
 

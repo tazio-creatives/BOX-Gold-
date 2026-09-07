@@ -16,21 +16,19 @@
 
 .layout {
   display: grid;
-  grid-template-columns: minmax(0, 1.08fr) minmax(0, 1fr);
-  column-gap: 40px;
+  grid-template-columns: minmax(0, 1.1fr) minmax(380px, 0.9fr);
+  column-gap: 32px;
   align-items: start;
 }
 
+/* Loading-skeleton only now — the real Product Details/Price Breakup cards
+   render inside ProductInfo (see ProductInfo.module.css .detailsStack)
+   since the redesign moved them into the sticky-gallery's right column. */
 .detailsGrid {
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: var(--space-6);
   margin-top: var(--space-10);
-}
-
-.detailsCardHeading {
-  --details-heading-size: 22px;
-  --details-heading-weight: 600;
 }
 
 @media (max-width: 1280px) {

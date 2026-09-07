@@ -81,7 +81,11 @@ export function WishlistPage() {
               >
                 {item.name}
               </Link>
-              <p className={styles.price}>{formatPrice(item.sellingPrice)}</p>
+              <p className={styles.price}>
+                {formatPrice(item.sellingPrice)}
+                {item.strikePrice > 0 && <span className={styles.mrp}>{formatPrice(item.strikePrice)}</span>}
+              </p>
+              {item.offerLabel && <span className={styles.offerLabel}>{item.offerLabel}</span>}
 
               <button
                 type="button"

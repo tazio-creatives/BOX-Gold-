@@ -2,7 +2,6 @@ import { Link } from 'react-router-dom';
 import type { ProductCard as ProductCardType } from '../api/types';
 import { productUrl } from '../utils/productUrl';
 import { formatPrice } from '../utils/formatPrice';
-import { effectiveMrp } from '../utils/effectiveMrp';
 import { placeholderGradient } from '../utils/placeholderGradient';
 import { WishlistButton } from './WishlistButton';
 import styles from './ProductCard.module.css';
@@ -35,11 +34,7 @@ export function ProductCard({
 }) {
   const isOutOfStock = product.availableStock <= 0;
   const isLowStock = !isOutOfStock && product.availableStock <= LOW_STOCK_THRESHOLD;
-  const { strikePrice } = effectiveMrp(
-    product.sellingPrice,
-    product.mrp,
-    product.sellingPriceOriginal,
-  );
+  const strikePrice = product.strikePrice;
 
   return (
     <Link to={productUrl(product)} className={`${styles.card} ${layout === 'list' ? styles.cardList : ''}`}>

@@ -117,7 +117,7 @@
 
 .productName {
   margin: 0 0 3px;
-  font-family: Inter, Arial, sans-serif;
+  font-family: var(--font-body);
   font-size: 15px;
   font-weight: 500;
   line-height: 1.25;
@@ -129,7 +129,7 @@
 
 .productMaterial {
   margin: 0 0 4px;
-  font-family: Inter, Arial, sans-serif;
+  font-family: var(--font-body);
   font-size: 13px;
   font-weight: 400;
   line-height: 1.2;
@@ -138,7 +138,7 @@
 
 .productPrice {
   margin: 0;
-  font-family: Inter, Arial, sans-serif;
+  font-family: var(--font-body);
   font-size: 16px;
   font-weight: 600;
   line-height: 1.2;
@@ -200,7 +200,7 @@
   padding: 10px 24px;
   border: 1px solid #65051e;
   border-radius: 999px;
-  font-family: Inter, Arial, sans-serif;
+  font-family: var(--font-body);
   font-size: 13px;
   font-weight: 600;
   color: #65051e;

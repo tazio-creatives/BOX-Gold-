@@ -15,7 +15,9 @@
 
 .totalRow td {
   border-bottom: none;
-  font-weight: 800;
+  /* 700 is the heaviest weight loaded for Sora — 800 is deliberately not
+     used, it reads too heavy for this jewellery interface. */
+  font-weight: 700;
   font-size: var(--text-xl);
   padding-top: var(--space-3);
 }

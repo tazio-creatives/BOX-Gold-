@@ -3,7 +3,6 @@ import { Link } from 'react-router-dom';
 import type { HomepageItem } from '../../api/types';
 import { WishlistButton } from '../../components/WishlistButton';
 import { formatPrice } from '../../utils/formatPrice';
-import { effectiveMrp } from '../../utils/effectiveMrp';
 import { placeholderGradient } from '../../utils/placeholderGradient';
 import styles from './ProductCarousel.module.css';
 
@@ -108,11 +107,7 @@ export function ProductCarousel({ items, heading, viewAllHref, cardsPerViewDeskt
             const product = item.product;
             if (!product) return null;
             const material = materialFor(product);
-            const { strikePrice } = effectiveMrp(
-              product.sellingPrice,
-              product.mrp,
-              product.sellingPriceOriginal,
-            );
+            const strikePrice = product.strikePrice;
             return (
               <Link key={item.id} to={item.ctaUrl ?? `/${product.slug}`} className={styles.productCard}>
                 <div className={styles.productImageWrapper}>

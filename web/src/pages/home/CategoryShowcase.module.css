@@ -75,7 +75,7 @@
   border-radius: 999px;
   background: #65051e;
   color: #ffffff;
-  font-family: Inter, Arial, sans-serif;
+  font-family: var(--font-body);
   font-size: 9px;
   font-weight: 600;
   letter-spacing: 0.04em;
@@ -84,7 +84,7 @@
 
 .cardName {
   margin: 10px 0 0;
-  font-family: Inter, Arial, sans-serif;
+  font-family: var(--font-body);
   font-size: 14px;
   font-weight: 500;
   line-height: 1.25;
