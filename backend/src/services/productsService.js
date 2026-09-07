@@ -143,7 +143,19 @@ export async function applyBaseProductPricing(productId, isPriceLocked) {
   const currentEffectiveDiamondDiscount =
     product.effective_diamond_discount_percent == null ? null : Number(product.effective_diamond_discount_percent);
 
+  // Every field compared here is a field the write below actually sets —
+  // comparing only the aggregate sellingPriceOriginal let a prior bug through:
+  // a caller (e.g. the admin form) can write goldValue/makingCharge/
+  // sellingPrice directly in one PATCH, in a combination where the total
+  // happens to already match this recompute even though a component (like
+  // makingCharge) doesn't — that combination must still be corrected, not
+  // skipped, or the stored breakdown stays internally inconsistent forever
+  // (list/detail priceBreakup shows the wrong makingCharge while the total
+  // "coincidentally" looks right).
   const unchanged =
+    Math.abs(pricing.goldValue - Number(product.gold_value)) < 1e-9 &&
+    Math.abs(pricing.diamondValueOriginal - Number(product.diamond_value)) < 1e-9 &&
+    Math.abs(pricing.makingChargeOriginal - Number(product.making_charge)) < 1e-9 &&
     Math.abs(pricing.sellingPriceOriginal - Number(product.selling_price)) < 1e-9 &&
     !percentDiffers(pricing.makingChargeDiscountPercent, currentEffectiveMakingDiscount) &&
     !percentDiffers(pricing.diamondDiscountPercent, currentEffectiveDiamondDiscount);

@@ -206,6 +206,70 @@ describe('Combined product save — update (Test H2)', () => {
   });
 });
 
+describe('applyBaseProductPricing — cached breakdown stays internally consistent (Test H2b)', () => {
+  // Regression for a live production bug (v Insta Diamond pendant,
+  // 2026-09-07): the admin form submits `sellingPrice`/`makingCharge` as
+  // plain fields alongside weightRules/purityPricingRules on every save.
+  // `sellingPrice` can end up correct (e.g. the admin applied a live
+  // preview) while `makingCharge` is computed client-side from the
+  // product's OWN making_charge_percent only, ignoring any Purity Pricing
+  // Rule override — so a single request can write a `making_charge` that's
+  // inconsistent with the `selling_price` it also just wrote. Because
+  // applyBaseProductPricing's "unchanged" short-circuit used to compare
+  // only sellingPriceOriginal (+ the two discount percents), it saw the
+  // freshly-recomputed total already matched what was just written and
+  // skipped correcting the wrong making_charge — leaving the stored
+  // breakdown (and therefore every list/detail priceBreakup reader)
+  // permanently wrong even though the total "looked right".
+  test('a request that writes an inconsistent making_charge alongside an already-correct sellingPrice still gets corrected', async () => {
+    const category = await testCategory();
+    const createInput = createProductSchema.parse(
+      basePayload({
+        purity: '18K',
+        purities: ['18K'],
+        makingChargePercent: 0, // product's own base default: no making charge
+        purityPricingRules: [
+          { purity: '18K', makingChargePercent: 20, makingChargeDiscountPercent: 0, diamondDiscountPercent: 0 },
+        ],
+      }),
+    );
+    const product = await adminCreateProduct(createInput);
+    createdProductIds.push(product.id);
+
+    const { rows: beforeRows } = await query(
+      'SELECT gold_value, making_charge, selling_price FROM products WHERE id = $1',
+      [product.id],
+    );
+    const correctMakingCharge = Number(beforeRows[0].making_charge);
+    const correctSellingPrice = Number(beforeRows[0].selling_price);
+    assert.ok(
+      correctMakingCharge > 0,
+      'sanity check: the 18K purity rule (20%) must have produced a non-zero making charge on create',
+    );
+
+    // Simulate the admin form's next save: it re-sends the already-correct
+    // sellingPrice (e.g. from "Use this price"/preview) but a makingCharge
+    // recomputed from the product's own 0% default, ignoring the purity
+    // rule — exactly the inconsistent pair the real form submitted.
+    const patch = updateProductSchema.parse({
+      sellingPrice: correctSellingPrice,
+      makingCharge: 0,
+    });
+    await adminUpdateProduct(product.id, patch);
+
+    const { rows: afterRows } = await query(
+      'SELECT making_charge, selling_price FROM products WHERE id = $1',
+      [product.id],
+    );
+    assert.equal(
+      Number(afterRows[0].making_charge),
+      correctMakingCharge,
+      'making_charge must be corrected back to the purity-rule-resolved value, not left at the inconsistent 0 the request sent',
+    );
+    assert.equal(Number(afterRows[0].selling_price), correctSellingPrice);
+  });
+});
+
 describe('Combined product save — validator-level checks (Test H3)', () => {
   test('rejects duplicate purities within weightRules.purityRules', () => {
     assert.throws(() =>
