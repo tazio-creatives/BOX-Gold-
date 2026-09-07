@@ -1,6 +1,6 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
-import { useQuery, useMutation } from '@tanstack/react-query';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
   fetchAdminProduct,
   createProduct,
@@ -13,6 +13,8 @@ import { fetchAdminCategories } from '../../api/categories';
 import { fetchAdminCollections } from '../../api/collections';
 import { previewPricing } from '../../api/pricing';
 import { fetchDiamondConfigs } from '../../api/diamondConfigs';
+import { fetchWeightRules } from '../../api/weightRules';
+import { fetchPurityPricingRules } from '../../api/purityPricingRules';
 import type {
   GoldColor,
   MetalType,
@@ -20,7 +22,9 @@ import type {
   ProductInput,
   ProductStatus,
   Purity,
+  PurityPricingRuleInput,
   VariantOverrideInput,
+  WeightRulesInput,
 } from '../../api/types';
 import { ApiError } from '../../api/client';
 import { formatPrice } from '../../utils/formatPrice';
@@ -30,6 +34,7 @@ import { OptionChipRow } from '../../features/products/OptionChipRow';
 import { AdvancedVariantSummary } from '../../features/products/AdvancedVariantSummary';
 import { AvailabilityRules } from '../../features/products/AvailabilityRules';
 import { WeightDefaults } from '../../features/products/WeightDefaults';
+import { PurityPricingRules } from '../../features/products/PurityPricingRules';
 import { ConfirmDialog } from '../../components/ConfirmDialog';
 import pv from '../../features/products/ProductVariations.module.css';
 import sharedStyles from '../../styles/shared.module.css';
@@ -90,10 +95,25 @@ export function ProductFormPage() {
   const { id } = useParams<{ id: string }>();
   const isEditing = !!id;
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
 
   const { data: productData, isLoading: isProductLoading } = useQuery({
     queryKey: ['admin-product', id],
     queryFn: () => fetchAdminProduct(id as string),
+    enabled: isEditing,
+  });
+  // Hydrates the Weight Defaults / Purity Pricing Rules draft state below —
+  // these standalone GET endpoints are kept (other tooling may still read
+  // them) but are only used here to seed the controlled form on load; saving
+  // happens exclusively through the one combined Save Product action.
+  const { data: weightRulesData } = useQuery({
+    queryKey: ['admin-weight-rules', id],
+    queryFn: () => fetchWeightRules(id as string),
+    enabled: isEditing,
+  });
+  const { data: purityPricingRulesData } = useQuery({
+    queryKey: ['admin-purity-pricing-rules', id],
+    queryFn: () => fetchPurityPricingRules(id as string),
     enabled: isEditing,
   });
   // Same query key ProductGallery uses below, so this shares its cache
@@ -146,6 +166,22 @@ export function ProductFormPage() {
   // brand-new product can be fully configured in one step instead of a
   // separate trip into the per-product variant editor afterward.
   const [variantOverrides, setVariantOverrides] = useState<VariantOverrideInput[]>([]);
+  // Weight Defaults / Purity Pricing Rules draft state — owned here, not by
+  // the two section components, so they can render from the form's own
+  // unsaved purities/sizes and be submitted through the single Save Product
+  // action instead of each having its own save button/endpoint call.
+  const [weightRules, setWeightRules] = useState<WeightRulesInput>({ purityRules: [], puritySizeRules: [] });
+  const [purityPricingRules, setPurityPricingRules] = useState<PurityPricingRuleInput[]>([]);
+  const [successMessage, setSuccessMessage] = useState<string | null>(null);
+  // Removing a purity/size that the LOADED product already had saved data
+  // for (weight/pricing rules, real variants with stock) is destructive —
+  // confirmed before the draft state is actually changed, mirroring the
+  // existing "switch to Fixed Product" confirmation below.
+  const [pendingRemoval, setPendingRemoval] = useState<
+    { type: 'purity'; value: Purity } | { type: 'size'; index: number; label: string } | null
+  >(null);
+  const variationsSectionRef = useRef<HTMLElement>(null);
+  const errorRef = useRef<HTMLParagraphElement>(null);
   const diamondConfigNames = Object.fromEntries(
     (diamondConfigsData?.diamondConfigs ?? []).map((c) => [c.id, c.name]),
   );
@@ -238,6 +274,37 @@ export function ProductFormPage() {
     }
   }, [productData]);
 
+  // Seeds the Weight Defaults / Purity Pricing Rules draft state from the
+  // saved rules once, on load — WeightDefaults/PurityPricingRules then own
+  // reconciling their own local text drafts as the admin edits purities/
+  // sizes/values (see their own axis-keyed useEffect). Only the SAVED
+  // override fields are used (not the resolved "effective" values the
+  // standalone GET endpoints also return) — editing must show what's
+  // actually stored, not a pre-resolved default.
+  useEffect(() => {
+    if (!weightRulesData) return;
+    setWeightRules({
+      purityRules: weightRulesData.rules
+        .filter((r) => r.sizeLabel == null)
+        .map((r) => ({ purity: r.purity, goldWeightGrams: r.goldWeightGrams })),
+      puritySizeRules: weightRulesData.rules
+        .filter((r): r is typeof r & { sizeLabel: string } => r.sizeLabel != null)
+        .map((r) => ({ purity: r.purity, sizeLabel: r.sizeLabel, goldWeightGrams: r.goldWeightGrams })),
+    });
+  }, [weightRulesData]);
+
+  useEffect(() => {
+    if (!purityPricingRulesData) return;
+    setPurityPricingRules(
+      purityPricingRulesData.rules.map((r) => ({
+        purity: r.purity,
+        makingChargePercent: r.makingChargePercent,
+        makingChargeDiscountPercent: r.makingChargeDiscountPercent,
+        diamondDiscountPercent: r.diamondDiscountPercent,
+      })),
+    );
+  }, [purityPricingRulesData]);
+
   // A bare "Validation failed" (the generic message for any Zod rejection)
   // gives no clue which field caused it — append the specific field errors
   // the API already sends back but this page used to discard.
@@ -292,6 +359,13 @@ export function ProductFormPage() {
       careInstructions: form.careInstructions || null,
       sizes: (form.sizes ?? []).filter((s) => s.label.trim().length > 0),
       ...(!isEditing && variantOverrides.length > 0 ? { variantOverrides } : {}),
+      // Always sent as the complete current draft (same "full desired
+      // state" contract as purities/sizes/goldColors above), not a delta —
+      // this form is the single source of truth for both while it's open,
+      // so every Save Product click replaces the saved rules with whatever
+      // is currently in these two sections.
+      weightRules,
+      purityPricingRules,
       metaTitle: form.metaTitle || null,
       metaDescription: form.metaDescription || null,
       metaKeywords: form.metaKeywords || null,
@@ -316,8 +390,39 @@ export function ProductFormPage() {
     }));
   }
 
-  function removeSizeRow(index: number) {
+  // A purity/size the currently-loaded (saved) product already offers may
+  // have real weight rules, purity pricing rules, and stocked variants
+  // attached — removing it here deletes all of that once Save Product is
+  // clicked. A purity/size that was only just added in this unsaved session
+  // (not in the originally-loaded product) has nothing saved to lose, so it
+  // comes off immediately with no prompt.
+  const originalPurities = productData?.product.purityOptions ?? [];
+  const originalSizeLabels = (productData?.product.sizes ?? []).map((s) => s.label);
+
+  function applyRemovePurity(purity: Purity) {
+    setForm((f) => ({ ...f, purities: (f.purities ?? []).filter((p) => p !== purity) }));
+    setWeightRules((wr) => ({
+      purityRules: wr.purityRules.filter((r) => r.purity !== purity),
+      puritySizeRules: wr.puritySizeRules.filter((r) => r.purity !== purity),
+    }));
+    setPurityPricingRules((rules) => rules.filter((r) => r.purity !== purity));
+  }
+
+  function applyRemoveSizeRow(index: number) {
+    const label = (form.sizes ?? [])[index]?.label.trim();
     setForm((f) => ({ ...f, sizes: (f.sizes ?? []).filter((_, i) => i !== index) }));
+    if (label) {
+      setWeightRules((wr) => ({ ...wr, puritySizeRules: wr.puritySizeRules.filter((r) => r.sizeLabel !== label) }));
+    }
+  }
+
+  function removeSizeRow(index: number) {
+    const label = (form.sizes ?? [])[index]?.label.trim();
+    if (isEditing && label && originalSizeLabels.includes(label)) {
+      setPendingRemoval({ type: 'size', index, label });
+      return;
+    }
+    applyRemoveSizeRow(index);
   }
 
   function toggleGoldColor(color: GoldColor) {
@@ -330,12 +435,16 @@ export function ProductFormPage() {
   }
 
   function togglePurityOption(purity: Purity) {
-    setForm((f) => ({
-      ...f,
-      purities: (f.purities ?? []).includes(purity)
-        ? (f.purities ?? []).filter((p) => p !== purity)
-        : [...(f.purities ?? []), purity],
-    }));
+    const isSelected = (form.purities ?? []).includes(purity);
+    if (isSelected) {
+      if (isEditing && originalPurities.includes(purity)) {
+        setPendingRemoval({ type: 'purity', value: purity });
+        return;
+      }
+      applyRemovePurity(purity);
+      return;
+    }
+    setForm((f) => ({ ...f, purities: [...(f.purities ?? []), purity] }));
   }
 
   function toggleDiamondOption(id: string) {
@@ -415,13 +524,51 @@ export function ProductFormPage() {
     createForManualUploadMutation.mutate({ name, sku });
   }
 
+  // `wasEditing` is captured at the moment Save is clicked (passed through
+  // as the mutate variable, not re-read from the `isEditing` closure) so
+  // onSuccess knows unambiguously whether this was a create or an update —
+  // a create's own onSuccess is what flips the URL (and therefore
+  // `isEditing`) to the new product's edit route, so reading `isEditing`
+  // directly inside onSuccess would already reflect the POST-navigation
+  // state for a create.
   const saveMutation = useMutation({
-    mutationFn: async () => {
+    mutationFn: async (wasEditing: boolean) => {
       const payload = buildPayload();
-      return isEditing ? updateProduct(id as string, payload) : createProduct(payload);
+      return wasEditing ? updateProduct(id as string, payload) : createProduct(payload);
     },
-    onSuccess: () => navigate('/products'),
-    onError: (err) => setError(describeError(err, 'Could not save product.')),
+    onSuccess: (result, wasEditing) => {
+      setError(null);
+      if (!wasEditing) {
+        // Hydrate the just-created product straight from the response — no
+        // extra round trip, no flash of "Loading…" — and swap the URL to
+        // its edit route so the form is now genuinely in edit mode. No
+        // reopening step: the admin never leaves this page.
+        queryClient.setQueryData(['admin-product', result.product.id], result);
+        navigate(`/products/${result.product.id}/edit`, { replace: true });
+        setSuccessMessage('Product created successfully');
+      } else {
+        queryClient.setQueryData(['admin-product', id], result);
+        setSuccessMessage('Product updated successfully');
+      }
+    },
+    onError: (err) => {
+      setSuccessMessage(null);
+      setError(describeError(err, 'Could not save product.'));
+      // Field-level errors are almost always about a rule this admin just
+      // typed into Weight Defaults/Purity Pricing Rules (a purity/size not
+      // actually selected, a percent out of range, a duplicate) — jump
+      // there directly instead of leaving the admin to scroll and guess.
+      const fields = err instanceof ApiError ? (err.fields ?? []) : [];
+      const isVariationError = fields.some(
+        (f) => f.path.includes('weightRules') || f.path.includes('purityPricingRules') || f.path.includes('purities') || f.path.includes('sizes'),
+      );
+      requestAnimationFrame(() => {
+        (isVariationError ? variationsSectionRef.current : errorRef.current)?.scrollIntoView({
+          behavior: 'smooth',
+          block: 'start',
+        });
+      });
+    },
   });
 
   const priceLockMutation = useMutation({
@@ -512,25 +659,48 @@ export function ProductFormPage() {
     <div>
       <div className={sharedStyles.pageHeader}>
         <h1 className={sharedStyles.pageTitle}>{isEditing ? 'Edit Product' : 'Add Product'}</h1>
+        {/* Top Save Product button, for long desktop forms — `form`
+            attribute submits the same <form> below via the native HTML
+            association, so this is never a second save path, just a second
+            place to trigger the identical submit handler. */}
+        <button
+          type="submit"
+          form="product-form"
+          className={sharedStyles.buttonPrimary}
+          disabled={saveMutation.isPending}
+        >
+          {saveMutation.isPending ? 'Saving Product…' : 'Save Product'}
+        </button>
       </div>
 
+      {successMessage && <p className={sharedStyles.success}>{successMessage}</p>}
+
       <form
+        id="product-form"
         className={styles.form}
         onSubmit={(e) => {
           e.preventDefault();
+          // Guards against a double-fire (e.g. Enter pressed while the
+          // first submit's request is still in flight) — both Save Product
+          // buttons are already `disabled` while pending, but the submit
+          // event itself is a second line of defense.
+          if (saveMutation.isPending) return;
           setError(null);
+          setSuccessMessage(null);
           // Only name and at least one image are required to save — every
           // other field (SKU, pricing, sizes, variations, SEO...) is
           // optional and can be filled in later.
           if (!form.name.trim()) {
             setError('Enter a product name.');
+            requestAnimationFrame(() => errorRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }));
             return;
           }
           if (isEditing && (imagesData?.images.length ?? 0) === 0) {
             setError('Add at least one product image before saving — use Manual Upload or Generate with AI above.');
+            requestAnimationFrame(() => errorRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }));
             return;
           }
-          saveMutation.mutate();
+          saveMutation.mutate(isEditing);
         }}
       >
         <section className={sharedStyles.cardPadded}>
@@ -769,7 +939,7 @@ export function ProductFormPage() {
 
           <div className={`${sharedStyles.formGrid} ${sharedStyles.formSection}`}>
             <label className={sharedStyles.field}>
-              Making Charge (% of gold value)
+              Default Making Charge (%)
               <input
                 type="number"
                 step="0.01"
@@ -791,7 +961,7 @@ export function ProductFormPage() {
 
           <div className={`${sharedStyles.formGrid} ${sharedStyles.formSection}`}>
             <label className={sharedStyles.field}>
-              Making Charge Offer (%)
+              Default Making Charge Discount (%)
               <input
                 type="number"
                 step="0.01"
@@ -805,7 +975,7 @@ export function ProductFormPage() {
               />
             </label>
             <label className={sharedStyles.field}>
-              Diamond Offer (%)
+              Default Diamond Discount (%)
               <input
                 type="number"
                 step="0.01"
@@ -818,7 +988,8 @@ export function ProductFormPage() {
             </label>
             <span className={styles.sectionHint}>
               Leave blank/0 for no offer. When set, this recalculates and lowers the Selling Price shown to
-              shoppers — it's a real discount, not just a label.
+              shoppers — it's a real discount, not just a label. These default values are used when a
+              purity-specific value is not configured below.
             </span>
           </div>
 
@@ -860,7 +1031,7 @@ export function ProductFormPage() {
           )}
         </section>
 
-        <section className={`${sharedStyles.cardPadded} ${pv.section}`}>
+        <section ref={variationsSectionRef} className={`${sharedStyles.cardPadded} ${pv.section}`}>
           <div className={pv.headRow}>
             <h2 className={pv.heading}>Product Variations</h2>
             <p className={pv.sub}>
@@ -1050,9 +1221,28 @@ export function ProductFormPage() {
               </div>
               <p className={pv.note}>New combinations inherit these values.</p>
 
-              {isEditing && id && productData?.product.attributes && (
-                <WeightDefaults productId={id} attributes={productData.product.attributes} />
-              )}
+              {/* Driven entirely by the form's own unsaved purities/sizes —
+                  no productId, no saved-attributes wait. Appears the
+                  instant a purity is picked, in both Add and Edit mode, and
+                  is submitted through the single Save Product action below
+                  rather than owning its own save/API call. */}
+              <WeightDefaults
+                purities={form.purities ?? []}
+                sizes={form.sizes ?? []}
+                value={weightRules}
+                onChange={setWeightRules}
+              />
+
+              <PurityPricingRules
+                purities={form.purities ?? []}
+                productDefaults={{
+                  makingChargePercent: makingChargePercent === '' ? null : makingChargePercent,
+                  makingChargeDiscountPercent: form.makingChargeDiscountPercent ?? 0,
+                  diamondDiscountPercent: form.diamondDiscountPercent ?? 0,
+                }}
+                value={purityPricingRules}
+                onChange={setPurityPricingRules}
+              />
 
               {isEditing && id && productData?.product.attributes && (
                 <AvailabilityRules productId={id} attributes={productData.product.attributes} />
@@ -1152,6 +1342,22 @@ export function ProductFormPage() {
           />
         )}
 
+        {pendingRemoval && (
+          <ConfirmDialog
+            title={pendingRemoval.type === 'purity' ? `Remove ${pendingRemoval.value}?` : `Remove size ${pendingRemoval.label}?`}
+            message="This has saved weight and/or purity pricing rules and variants attached. Removing it here deletes that saved data once you click Save Product — this can't be undone from here."
+            confirmLabel="Remove"
+            cancelLabel="Keep"
+            danger
+            onConfirm={() => {
+              if (pendingRemoval.type === 'purity') applyRemovePurity(pendingRemoval.value);
+              else applyRemoveSizeRow(pendingRemoval.index);
+              setPendingRemoval(null);
+            }}
+            onCancel={() => setPendingRemoval(null)}
+          />
+        )}
+
         <section className={sharedStyles.cardPadded}>
           <h2 className={styles.sectionHeading}>SEO</h2>
           <label className={sharedStyles.field}>
@@ -1168,11 +1374,15 @@ export function ProductFormPage() {
           </label>
         </section>
 
-        {error && <p className={sharedStyles.error}>{error}</p>}
+        {error && (
+          <p ref={errorRef} className={sharedStyles.error}>
+            {error}
+          </p>
+        )}
 
         <div className={sharedStyles.formActions}>
           <button type="submit" className={sharedStyles.buttonPrimary} disabled={saveMutation.isPending}>
-            {saveMutation.isPending ? 'Saving…' : 'Save Product'}
+            {saveMutation.isPending ? 'Saving Product…' : 'Save Product'}
           </button>
           <button type="button" className={sharedStyles.button} onClick={() => navigate('/products')}>
             Cancel

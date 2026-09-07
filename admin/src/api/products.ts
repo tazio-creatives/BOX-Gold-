@@ -6,6 +6,7 @@ export interface ListProductsParams {
   category?: string;
   metal?: string;
   purity?: string;
+  search?: string;
   page?: number;
   limit?: number;
 }

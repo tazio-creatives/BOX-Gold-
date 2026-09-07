@@ -573,8 +573,54 @@
   padding: 16px;
 }
 
+/* Purity Pricing Rules — desktop table vs. mobile per-purity cards */
+.purityMobileCards { display: none; }
+
+.purityCard {
+  border: 1px solid var(--pv-border);
+  border-radius: var(--pv-radius);
+  padding: 12px 14px;
+  margin-bottom: 12px;
+  background: #fff;
+}
+
+.purityCardTitle {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--pv-text);
+  margin-bottom: 6px;
+}
+
+.purityCardDefaults {
+  font-size: 12px;
+  color: var(--pv-text-muted);
+  margin-bottom: 10px;
+  line-height: 1.6;
+}
+
+.purityCardField {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-bottom: 10px;
+}
+
+.purityCardField:last-child { margin-bottom: 0; }
+
+.purityCardField label {
+  font-size: 12px;
+  color: var(--pv-text-muted);
+}
+
+.fieldError {
+  font-size: 12px;
+  color: var(--pv-warning);
+}
+
 @media (max-width: 640px) {
   .modeGrid { grid-template-columns: 1fr; }
   .defaultsRow { grid-template-columns: 1fr 1fr; }
   .advancedHead { align-items: flex-start; }
+  .purityDesktopTable { display: none; }
+  .purityMobileCards { display: block; }
 }

@@ -69,12 +69,20 @@ export function ProductsListPage() {
   const queryClient = useQueryClient();
   const [status, setStatus] = useState<ProductStatus | ''>('');
   const [category, setCategory] = useState('');
+  const [search, setSearch] = useState('');
   const [page, setPage] = useState(1);
   const [pendingDelete, setPendingDelete] = useState<{ id: string; name: string } | null>(null);
 
   const { data, isLoading } = useQuery({
-    queryKey: ['admin-products', { status, category, page }],
-    queryFn: () => fetchAdminProducts({ status: status || undefined, category: category || undefined, page, limit: 20 }),
+    queryKey: ['admin-products', { status, category, search, page }],
+    queryFn: () =>
+      fetchAdminProducts({
+        status: status || undefined,
+        category: category || undefined,
+        search: search || undefined,
+        page,
+        limit: 20,
+      }),
   });
 
   const { data: categoriesData } = useQuery({ queryKey: ['admin-categories'], queryFn: fetchAdminCategories });
@@ -114,6 +122,15 @@ export function ProductsListPage() {
       </div>
 
       <div className={styles.filters}>
+        <input
+          type="search"
+          placeholder="Search by name or SKU"
+          value={search}
+          onChange={(e) => {
+            setSearch(e.target.value);
+            setPage(1);
+          }}
+        />
         <select
           value={status}
           onChange={(e) => {

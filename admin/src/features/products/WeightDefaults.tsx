@@ -1,26 +1,35 @@
 import { useEffect, useState } from 'react';
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { ApiError } from '../../api/client';
-import { fetchWeightRules, replaceWeightRules, type WeightRule } from '../../api/weightRules';
-import type { ProductAttributeGroup, Purity } from '../../api/types';
+import type { Purity, WeightRulesInput } from '../../api/types';
 import styles from './ProductVariations.module.css';
 
-function draftsFromRules(rules: WeightRule[]) {
+function draftsFromValue(value: WeightRulesInput) {
   const purityDrafts: Record<string, string> = {};
   const matrixDrafts: Record<string, string> = {};
-  for (const rule of rules) {
-    if (rule.sizeLabel == null) {
-      purityDrafts[rule.purity] = String(rule.goldWeightGrams);
-    } else {
-      matrixDrafts[`${rule.purity}|${rule.sizeLabel}`] = String(rule.goldWeightGrams);
-    }
+  for (const rule of value.purityRules) purityDrafts[rule.purity] = String(rule.goldWeightGrams);
+  for (const rule of value.puritySizeRules) {
+    matrixDrafts[`${rule.purity}|${rule.sizeLabel}`] = String(rule.goldWeightGrams);
   }
   return { purityDrafts, matrixDrafts };
 }
 
+function valueFromDrafts(purityDrafts: Record<string, string>, matrixDrafts: Record<string, string>): WeightRulesInput {
+  const purityRules = Object.entries(purityDrafts)
+    .filter(([, v]) => v.trim() !== '' && Number.isFinite(Number(v)) && Number(v) > 0)
+    .map(([purity, v]) => ({ purity: purity as Purity, goldWeightGrams: Number(v) }));
+  const puritySizeRules = Object.entries(matrixDrafts)
+    .filter(([, v]) => v.trim() !== '' && Number.isFinite(Number(v)) && Number(v) > 0)
+    .map(([key, v]) => {
+      const [purity, sizeLabel] = key.split('|');
+      return { purity: purity as Purity, sizeLabel, goldWeightGrams: Number(v) };
+    });
+  return { purityRules, puritySizeRules };
+}
+
 interface WeightDefaultsProps {
-  productId: string;
-  attributes: ProductAttributeGroup[];
+  purities: Purity[];
+  sizes: { label: string }[];
+  value: WeightRulesInput;
+  onChange: (_next: WeightRulesInput) => void;
 }
 
 // Weight resolution hierarchy — lets an admin declare "this weighs
@@ -29,66 +38,57 @@ interface WeightDefaultsProps {
 // specific wins: a Purity+Size default here > a Purity-only default here >
 // a combination's own legacy weight (set in Advanced Variant Management, or
 // seeded from the old Size-level weight field) > the product's base weight.
-// These rules are the authoritative source once set — saving here always
-// takes effect immediately, even for combinations that already have their
-// own stored weight. Only shown once the product has at least one Purity
-// configured — nothing to build a default from otherwise.
-export function WeightDefaults({ productId, attributes }: WeightDefaultsProps) {
-  const queryClient = useQueryClient();
-  const purities = (attributes.find((a) => a.code === 'purity')?.values ?? []) as {
-    id: string;
-    value: string;
-    label: string;
-  }[];
-  const sizes = attributes.find((a) => a.code === 'size')?.values ?? [];
-
-  const { data } = useQuery({
-    queryKey: ['admin-weight-rules', productId],
-    queryFn: () => fetchWeightRules(productId),
-    enabled: purities.length > 0,
-  });
+//
+// Fully controlled — driven by `purities`/`sizes` (the product form's own
+// unsaved selections, not a saved product's attributes) and `value`/
+// `onChange` (the draft rule set, held by ProductFormPage alongside the rest
+// of the form). No fetch, no save button, no product id required: this
+// renders identically whether the product exists yet or not, so the grid
+// appears the instant a purity/size is picked, before the first Save.
+export function WeightDefaults({ purities, sizes, value, onChange }: WeightDefaultsProps) {
+  const sizeLabels = sizes.map((s) => s.label.trim()).filter(Boolean);
+  const axisSignature = `${purities.join(',')}|${sizeLabels.join(',')}`;
 
   const [purityDrafts, setPurityDrafts] = useState<Record<string, string>>({});
   const [matrixDrafts, setMatrixDrafts] = useState<Record<string, string>>({});
 
+  // Reconciles local drafts whenever the checked purities/sizes change: seed
+  // from the incoming `value` (so hydrating an existing product, or the
+  // response of a just-completed Save, pre-fills correctly), preserve
+  // whatever's already typed for a combination that's still valid, and drop
+  // drafts for combinations no longer possible — mirrors
+  // VariantMatrixEditor's reconciliation.
   useEffect(() => {
-    if (!data) return;
-    const { purityDrafts: nextPurity, matrixDrafts: nextMatrix } = draftsFromRules(data.rules);
-    setPurityDrafts(nextPurity);
-    setMatrixDrafts(nextMatrix);
-  }, [data]);
+    const seeded = draftsFromValue(value);
+    setPurityDrafts((prev) => {
+      const next: Record<string, string> = {};
+      for (const p of purities) next[p] = prev[p] ?? seeded.purityDrafts[p] ?? '';
+      return next;
+    });
+    setMatrixDrafts((prev) => {
+      const next: Record<string, string> = {};
+      for (const p of purities) {
+        for (const s of sizeLabels) {
+          const key = `${p}|${s}`;
+          next[key] = prev[key] ?? seeded.matrixDrafts[key] ?? '';
+        }
+      }
+      return next;
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [axisSignature]);
 
-  const saveMutation = useMutation({
-    mutationFn: () => {
-      const purityRules = Object.entries(purityDrafts)
-        .filter(([, v]) => v.trim() !== '')
-        .map(([purity, v]) => ({ purity: purity as Purity, goldWeightGrams: Number(v) }));
-      const puritySizeRules = Object.entries(matrixDrafts)
-        .filter(([, v]) => v.trim() !== '')
-        .map(([key, v]) => {
-          const [purity, sizeLabel] = key.split('|');
-          return { purity: purity as Purity, sizeLabel, goldWeightGrams: Number(v) };
-        });
-      return replaceWeightRules(productId, { purityRules, puritySizeRules });
-    },
-    // Only fires once the server has responded — the mutation promise
-    // doesn't resolve until the PUT completes, so there's no way for this to
-    // show before the transaction committed. The response carries the
-    // freshly-saved rules straight from the DB (adminReplaceWeightRules
-    // re-queries after commit), so drafts are replaced from that directly
-    // rather than waiting on the invalidated queries to refetch — no gap
-    // where the form could still show what was typed instead of what saved.
-    onSuccess: (response) => {
-      const { purityDrafts: nextPurity, matrixDrafts: nextMatrix } = draftsFromRules(response.rules);
-      setPurityDrafts(nextPurity);
-      setMatrixDrafts(nextMatrix);
-      queryClient.invalidateQueries({ queryKey: ['admin-weight-rules', productId] });
-      queryClient.invalidateQueries({ queryKey: ['admin-product-variants', productId] });
-      queryClient.invalidateQueries({ queryKey: ['admin-product', productId] });
-    },
-  });
+  function updatePurityDraft(purity: string, raw: string) {
+    const next = { ...purityDrafts, [purity]: raw };
+    setPurityDrafts(next);
+    onChange(valueFromDrafts(next, matrixDrafts));
+  }
 
-  const saveError = saveMutation.error instanceof ApiError ? saveMutation.error.message : null;
+  function updateMatrixDraft(key: string, raw: string) {
+    const next = { ...matrixDrafts, [key]: raw };
+    setMatrixDrafts(next);
+    onChange(valueFromDrafts(purityDrafts, next));
+  }
 
   if (purities.length === 0) return null;
 
@@ -96,9 +96,8 @@ export function WeightDefaults({ productId, attributes }: WeightDefaultsProps) {
     <div className={styles.rulesPanel}>
       <span className={styles.advancedTitle}>Weight Defaults</span>
       <p className={styles.advancedSub} style={{ padding: 0, marginTop: 4 }}>
-        Set how gold weight changes by purity, or by purity + size. These rules are authoritative — saving here
-        updates the live weight and price immediately, even for combinations that already have their own weight set
-        elsewhere.
+        Set how gold weight changes by purity, or by purity + size. Saved together with the rest of the product
+        when you click Save Product.
       </p>
 
       <table className={styles.sizeTable} style={{ marginTop: 12 }}>
@@ -110,16 +109,16 @@ export function WeightDefaults({ productId, attributes }: WeightDefaultsProps) {
         </thead>
         <tbody>
           {purities.map((p) => (
-            <tr key={p.id}>
-              <td>{p.label}</td>
+            <tr key={p}>
+              <td>{p}</td>
               <td>
                 <input
                   type="number"
                   min={0}
                   step="0.001"
                   placeholder="uses base weight"
-                  value={purityDrafts[p.value] ?? ''}
-                  onChange={(e) => setPurityDrafts((prev) => ({ ...prev, [p.value]: e.target.value }))}
+                  value={purityDrafts[p] ?? ''}
+                  onChange={(e) => updatePurityDraft(p, e.target.value)}
                 />
               </td>
             </tr>
@@ -127,7 +126,7 @@ export function WeightDefaults({ productId, attributes }: WeightDefaultsProps) {
         </tbody>
       </table>
 
-      {sizes.length > 0 && (
+      {sizeLabels.length > 0 && (
         <>
           <p className={styles.attrLabel} style={{ marginTop: 16, marginBottom: 8 }}>
             By Purity + Size
@@ -138,25 +137,25 @@ export function WeightDefaults({ productId, attributes }: WeightDefaultsProps) {
                 <tr>
                   <th>Size</th>
                   {purities.map((p) => (
-                    <th key={p.id}>{p.label}</th>
+                    <th key={p}>{p}</th>
                   ))}
                 </tr>
               </thead>
               <tbody>
-                {sizes.map((s) => (
-                  <tr key={s.id}>
-                    <td>{s.label}</td>
+                {sizeLabels.map((s) => (
+                  <tr key={s}>
+                    <td>{s}</td>
                     {purities.map((p) => {
-                      const key = `${p.value}|${s.value}`;
+                      const key = `${p}|${s}`;
                       return (
-                        <td key={p.id}>
+                        <td key={p}>
                           <input
                             type="number"
                             min={0}
                             step="0.001"
                             placeholder="—"
                             value={matrixDrafts[key] ?? ''}
-                            onChange={(e) => setMatrixDrafts((prev) => ({ ...prev, [key]: e.target.value }))}
+                            onChange={(e) => updateMatrixDraft(key, e.target.value)}
                           />
                         </td>
                       );
@@ -168,22 +167,6 @@ export function WeightDefaults({ productId, attributes }: WeightDefaultsProps) {
           </div>
         </>
       )}
-
-      <div style={{ marginTop: 12 }}>
-        <button type="button" className={styles.ruleAddBtn} disabled={saveMutation.isPending} onClick={() => saveMutation.mutate()}>
-          {saveMutation.isPending ? 'Saving…' : 'Save Weight Defaults'}
-        </button>
-        {saveMutation.isSuccess && (
-          <span className={styles.emptyNote} style={{ marginLeft: 10 }}>
-            Purity and size weights updated successfully.
-          </span>
-        )}
-        {saveError && (
-          <span style={{ marginLeft: 10, color: '#7a1733' }}>
-            {saveError}
-          </span>
-        )}
-      </div>
     </div>
   );
 }

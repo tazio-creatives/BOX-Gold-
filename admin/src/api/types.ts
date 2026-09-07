@@ -189,6 +189,30 @@ export interface ProductInput {
   // weight/availability per combination) without a separate trip into the
   // variant editor afterward. Sent only by the "Add Product" create flow.
   variantOverrides?: VariantOverrideInput[];
+
+  // Weight Defaults / Purity Pricing Rules, entered in the same continuous
+  // product form and saved by the one Save Product action — keyed by purity
+  // code / size label (never a database UUID; the backend resolves those
+  // itself from `purities`/`sizes` above). Omitting a field entirely on an
+  // update means "leave the saved rules untouched"; sending an explicit
+  // empty array/collection means "clear them" — see
+  // productsService.js's applyWeightAndPricingRulesInTx.
+  weightRules?: WeightRulesInput;
+  purityPricingRules?: PurityPricingRuleInput[];
+}
+
+export interface WeightRulesInput {
+  purityRules: { purity: Purity; goldWeightGrams: number }[];
+  puritySizeRules: { purity: Purity; sizeLabel: string; goldWeightGrams: number }[];
+}
+
+export interface PurityPricingRuleInput {
+  purity: Purity;
+  // null = inherit the product-level default for this one field; a number
+  // (including 0) is an explicit override — never coerced to 0 on omission.
+  makingChargePercent: number | null;
+  makingChargeDiscountPercent: number | null;
+  diamondDiscountPercent: number | null;
 }
 
 export interface VariantOverrideInput {
