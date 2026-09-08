@@ -45,7 +45,7 @@
 .heading {
   font-family: var(--font-heading);
   font-size: 28px;
-  font-weight: 700;
+  font-weight: 500;
   color: var(--color-text);
   margin: 0;
 }
@@ -140,7 +140,7 @@
 .stickyBarValue {
   margin: 0;
   font-size: 18px;
-  font-weight: 700;
+  font-weight: 600;
   color: var(--color-text);
   white-space: nowrap;
   overflow: hidden;
@@ -159,7 +159,7 @@
   background: var(--color-burgundy);
   color: var(--color-white);
   font-size: 16px;
-  font-weight: 700;
+  font-weight: 500;
   cursor: pointer;
 }
 

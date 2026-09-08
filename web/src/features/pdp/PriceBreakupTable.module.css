@@ -17,7 +17,7 @@
   border-bottom: none;
   /* 700 is the heaviest weight loaded for Sora — 800 is deliberately not
      used, it reads too heavy for this jewellery interface. */
-  font-weight: 700;
+  font-weight: 600;
   font-size: var(--text-xl);
   padding-top: var(--space-3);
 }
@@ -28,7 +28,7 @@
 }
 
 .totalNote {
-  font-weight: 700;
+  font-weight: 600;
   font-size: var(--text-sm);
   color: var(--color-text-muted);
 }

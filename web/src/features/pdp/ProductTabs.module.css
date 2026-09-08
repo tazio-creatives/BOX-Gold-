@@ -24,7 +24,7 @@
   border: none;
   border-bottom: 2px solid transparent;
   font-size: var(--text-xl);
-  font-weight: 700;
+  font-weight: 500;
   color: var(--color-text-muted);
   cursor: pointer;
   white-space: nowrap;

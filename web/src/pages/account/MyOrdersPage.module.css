@@ -8,7 +8,7 @@
 
 .subheading {
   font-size: var(--text-xl);
-  font-weight: 700;
+  font-weight: 500;
   margin: 0;
 }
 
@@ -60,7 +60,7 @@
 .statValue {
   margin: 2px 0 0;
   font-size: var(--text-xl);
-  font-weight: 700;
+  font-weight: 600;
 }
 
 .empty {
@@ -150,7 +150,7 @@
 
 .orderNumber {
   margin: 0;
-  font-weight: 700;
+  font-weight: 600;
   font-size: var(--text-sm);
 }
 
@@ -198,7 +198,7 @@
 
 .total {
   margin: 0;
-  font-weight: 700;
+  font-weight: 600;
   font-size: var(--text-base);
   white-space: nowrap;
 }
@@ -255,7 +255,7 @@
 
 .supportTitle {
   margin: 0;
-  font-weight: 700;
+  font-weight: 500;
   font-size: var(--text-sm);
 }
 

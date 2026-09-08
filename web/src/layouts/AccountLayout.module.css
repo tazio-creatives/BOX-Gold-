@@ -48,14 +48,14 @@
   background: #fbe4e8;
   color: var(--color-burgundy);
   font-size: var(--text-lg);
-  font-weight: 700;
+  font-weight: 600;
   margin-bottom: var(--space-3);
 }
 
 .name {
   margin: 0;
   font-size: var(--text-base);
-  font-weight: 700;
+  font-weight: 500;
 }
 
 .mobile {

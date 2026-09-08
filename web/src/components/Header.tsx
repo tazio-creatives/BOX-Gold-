@@ -173,8 +173,8 @@ function MenuIcon() {
 function HeartIcon() {
   return (
     <svg
-      width="26"
-      height="26"
+      width="22"
+      height="22"
       viewBox="0 0 24 24"
       fill="none"
       stroke="currentColor"
@@ -189,8 +189,8 @@ function HeartIcon() {
 function UserIcon() {
   return (
     <svg
-      width="26"
-      height="26"
+      width="22"
+      height="22"
       viewBox="0 0 24 24"
       fill="none"
       stroke="currentColor"
@@ -206,8 +206,8 @@ function UserIcon() {
 function BagIcon() {
   return (
     <svg
-      width="26"
-      height="26"
+      width="22"
+      height="22"
       viewBox="0 0 24 24"
       fill="none"
       stroke="currentColor"

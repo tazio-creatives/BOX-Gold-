@@ -23,7 +23,7 @@
 .heading {
   margin: 0 0 var(--space-2);
   font-size: var(--text-lg);
-  font-weight: 700;
+  font-weight: 500;
   color: var(--color-text);
 }
 
@@ -63,7 +63,7 @@
   background: #b42318;
   color: var(--color-white);
   font-size: var(--text-sm);
-  font-weight: 700;
+  font-weight: 500;
   cursor: pointer;
   transition: background-color 0.15s ease;
 }

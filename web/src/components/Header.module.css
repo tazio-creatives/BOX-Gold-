@@ -3,7 +3,7 @@
   top: 0;
   z-index: 40;
   background: var(--color-bg);
-  border-bottom: 1px solid rgba(198, 161, 91, 0.35);
+  border-bottom: 1px solid var(--color-border);
   transition: box-shadow 0.15s ease;
 }
 
@@ -101,7 +101,7 @@
 
 .actionLabel {
   font-size: 16px;
-  font-weight: 600;
+  font-weight: 400;
   white-space: nowrap;
 }
 
@@ -117,7 +117,7 @@
   background: #7a1733;
   color: #fff;
   font-size: 10px;
-  font-weight: 700;
+  font-weight: 600;
   line-height: 14px;
   text-align: center;
   box-sizing: border-box;

@@ -2,12 +2,12 @@
   Design tokens — BOX DIAMONDS brand direction (plan: white/cream bg, deep
   burgundy, warm gold accents).
 
-  Typography: Sora (weights 400/500/600/700) for both headings and
+  Typography: Plus Jakarta Sans (weights 400/500/600) for both headings and
   body/product details/prices/buttons/navigation — loaded via Google Fonts
-  in index.html (preconnect + font-display: swap). 800 is deliberately not
-  loaded — too heavy for this jewellery interface's premium, understated
-  feel; nothing in the stylesheet should request it (falls back to
-  browser-synthesized faux-bold from 700 if it ever does).
+  in index.html (preconnect + font-display: swap). 700+ is deliberately not
+  loaded — this interface reads as clean and normal-weight; nothing in the
+  stylesheet should request 700 or heavier (falls back to
+  browser-synthesized faux-bold from 600 if it ever does).
 */
 
 :root {
@@ -37,9 +37,10 @@
      (previously an inline hex on LoginPage's old icon badge). */
   --color-blush: #f8e8ec;
 
-  /* Typography — Sora everywhere (heading and body use the same family). */
-  --font-heading: 'Sora', Arial, sans-serif;
-  --font-body: 'Sora', Arial, sans-serif;
+  /* Typography — Plus Jakarta Sans everywhere (heading and body use the
+     same family). */
+  --font-heading: 'Plus Jakarta Sans', Arial, sans-serif;
+  --font-body: 'Plus Jakarta Sans', Arial, sans-serif;
 
   --text-xs: 0.75rem;
   --text-sm: 0.875rem;

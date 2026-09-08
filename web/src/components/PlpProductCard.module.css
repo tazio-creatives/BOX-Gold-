@@ -116,8 +116,8 @@
 /* Product name — desktop tier (>=1024px). Never above weight 500. */
 .name {
   margin: 0 0 10px;
-  font-size: 18px;
-  font-weight: 500;
+  font-size: 16px;
+  font-weight: 400;
   line-height: 1.35;
   letter-spacing: 0;
   color: #075968;
@@ -183,8 +183,8 @@
 }
 
 .price {
-  font-size: 22px;
-  font-weight: 700;
+  font-size: 18px;
+  font-weight: 500;
   line-height: 1.2;
   color: #075968;
 }

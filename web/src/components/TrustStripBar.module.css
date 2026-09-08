@@ -35,7 +35,7 @@
 .title {
   margin: 0;
   font-size: var(--trust-title-size, var(--text-sm));
-  font-weight: 600;
+  font-weight: 500;
   color: var(--color-text);
 }
 
