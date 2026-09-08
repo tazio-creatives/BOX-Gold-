@@ -1,5 +1,5 @@
-import { useState } from 'react';
-import { Link } from 'react-router-dom';
+import { useEffect, useState } from 'react';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useQuery, useQueryClient, useMutation } from '@tanstack/react-query';
 import { fetchAdminProducts, deleteProduct, setFeatured, setBestSeller } from '../../api/products';
 import { fetchAdminCategories } from '../../api/categories';
@@ -7,6 +7,7 @@ import type { ProductStatus } from '../../api/types';
 import { formatPrice } from '../../utils/formatPrice';
 import { buildCategoryTree, flattenTree } from '../../utils/categoryTree';
 import { ConfirmDialog } from '../../components/ConfirmDialog';
+import { Toast } from '../../components/Toast';
 import sharedStyles from '../../styles/shared.module.css';
 import styles from './ProductsListPage.module.css';
 
@@ -67,11 +68,25 @@ const STATUS_CLASS: Record<string, string> = {
 
 export function ProductsListPage() {
   const queryClient = useQueryClient();
+  const location = useLocation();
+  const navigate = useNavigate();
   const [status, setStatus] = useState<ProductStatus | ''>('');
   const [category, setCategory] = useState('');
   const [search, setSearch] = useState('');
   const [page, setPage] = useState(1);
   const [pendingDelete, setPendingDelete] = useState<{ id: string; name: string } | null>(null);
+  // Save on the product form navigates here with a flash message in route
+  // state (rather than local state) since the form unmounts immediately —
+  // cleared via replace so a back-navigation or refresh doesn't re-show it.
+  const [flashMessage, setFlashMessage] = useState<string | null>(
+    (location.state as { flashMessage?: string } | null)?.flashMessage ?? null,
+  );
+  useEffect(() => {
+    if ((location.state as { flashMessage?: string } | null)?.flashMessage) {
+      navigate(location.pathname, { replace: true, state: null });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const { data, isLoading } = useQuery({
     queryKey: ['admin-products', { status, category, search, page }],
@@ -114,6 +129,7 @@ export function ProductsListPage() {
 
   return (
     <div>
+      {flashMessage && <Toast message={flashMessage} variant="success" onDismiss={() => setFlashMessage(null)} />}
       <div className={sharedStyles.pageHeader}>
         <h1 className={sharedStyles.pageTitle}>Products</h1>
         <Link to="/products/new" className={sharedStyles.buttonPrimary}>

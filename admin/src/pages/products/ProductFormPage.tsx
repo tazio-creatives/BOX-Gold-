@@ -539,17 +539,13 @@ export function ProductFormPage() {
     onSuccess: (result, wasEditing) => {
       setError(null);
       if (!wasEditing) {
-        // Hydrate the just-created product straight from the response — no
-        // extra round trip, no flash of "Loading…" — and swap the URL to
-        // its edit route so the form is now genuinely in edit mode. No
-        // reopening step: the admin never leaves this page.
         queryClient.setQueryData(['admin-product', result.product.id], result);
-        navigate(`/products/${result.product.id}/edit`, { replace: true });
-        setSuccessMessage('Product created successfully');
       } else {
         queryClient.setQueryData(['admin-product', id], result);
-        setSuccessMessage('Product updated successfully');
       }
+      navigate('/products', {
+        state: { flashMessage: wasEditing ? 'Product updated successfully' : 'Product created successfully' },
+      });
     },
     onError: (err) => {
       setSuccessMessage(null);

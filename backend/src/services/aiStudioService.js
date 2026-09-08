@@ -74,6 +74,18 @@ export function formatJewelleryType(type) {
     .replace(/\b\w/g, (c) => c.toUpperCase());
 }
 
+// Customer category — WHO the piece is designed for (Gents/Kids/Women/
+// Unisex) — is a separate dimension from jewelleryType (WHAT the piece is).
+// Drives presenter selection only; see GENTS_PRESENTER_DESCRIPTOR /
+// KIDS_PRESENTER_DESCRIPTOR below. 'WOMEN' is the default and preserves
+// every existing prompt byte-for-byte (see buildAssetPromptSections).
+export const CUSTOMER_CATEGORIES = ['WOMEN', 'GENTS', 'KIDS', 'UNISEX'];
+export const DEFAULT_CUSTOMER_CATEGORY = 'WOMEN';
+
+export function formatCustomerCategory(category) {
+  return category.charAt(0) + category.slice(1).toLowerCase();
+}
+
 const AnalysisSchema = z.object({
   jewelleryType: z.enum(JEWELLERY_TYPES),
   jewelleryTypeConfidence: z.number().min(0).max(1),
@@ -84,9 +96,11 @@ const AnalysisSchema = z.object({
   dominantShape: z.string().nullable(),
   shapeConfidence: z.number().min(0).max(1),
   suggestedCategorySlug: z.string().nullable(),
+  customerCategory: z.enum(CUSTOMER_CATEGORIES),
+  customerCategoryConfidence: z.number().min(0).max(1),
 });
 
-const ANALYSIS_SYSTEM_PROMPT = `You are a jewellery product analyst. Examine the uploaded photograph and identify the jewellery item's type, metal colour, gemstone, and dominant shape, each with a confidence score from 0 to 1. Use "UNKNOWN" for jewelleryType only if the item genuinely does not match any of the listed types or the photo is too unclear to tell. This is a suggestion for a human reviewer, not a final decision — always report your best honest confidence, do not artificially inflate it.`;
+const ANALYSIS_SYSTEM_PROMPT = `You are a jewellery product analyst. Examine the uploaded photograph and identify the jewellery item's type, metal colour, gemstone, and dominant shape, each with a confidence score from 0 to 1. Use "UNKNOWN" for jewelleryType only if the item genuinely does not match any of the listed types or the photo is too unclear to tell. Also suggest which customer category the piece is designed for — WOMEN, GENTS, KIDS, or UNISEX — based on styling cues such as scale, motif and design language (e.g. a small, simple band suggests KIDS; a broad, plain band suggests GENTS), with its own confidence score from 0 to 1; default to WOMEN when the cues are ambiguous. This is a suggestion for a human reviewer, not a final decision — always report your best honest confidence, do not artificially inflate it.`;
 
 // Vision + structured output — every field is a suggestion the admin must
 // confirm or correct; nothing here is ever written to the product directly
@@ -328,6 +342,140 @@ const RING_FIDELITY_EXTRA =
 const BRACELET_CLASP_HIDDEN_NOTE =
   "This is a Bracelet — do not show the bracelet's lock, clasp, hook or fastening mechanism anywhere in this image. Position or rotate the bracelet so the locking area stays hidden behind the product itself or outside the visible angle, while keeping the bracelet looking naturally closed and continuous. Do not invent a decorative lock, clasp or connector that is not part of the original design. Preserve the bracelet's original design, stones, metal colour, proportions and pattern exactly.";
 
+// Audience-specific presenter description (Gents/Kids), substituted for
+// whichever real presenter's own prompt_descriptor would otherwise be used
+// (non-Ring PRESENTER_* shots) or for the hardcoded default-audience text
+// (Ring hand shots) — see buildAssetPromptSections and RING_HAND_1/2 below.
+// Presenter demographic is resolved automatically from the confirmed
+// customer category (never a separate manual picker) — the presenter
+// library's own photo reference is deliberately NOT attached for Gents/Kids
+// (see aiStudioJob.js), since compositing a real (adult female) reference
+// photo would contradict this text. WOMEN/UNISEX keep today's behaviour
+// completely unchanged — only GENTS and KIDS trigger this override.
+const GENTS_PRESENTER_DESCRIPTOR =
+  'an adult male model, approximately 25 to 40 years old, with a premium, well-groomed, natural Indian or internationally suitable commercial appearance and clean, contemporary styling — masculine but not exaggerated — wearing neutral, black, ivory, beige, navy or charcoal-toned clothing';
+
+const GENTS_PRESENTER_BACKGROUND_NOTE =
+  ' Use a soft, solid studio backdrop colour that elegantly complements the adult male presenter described above — refined and premium, not a busy pattern and not pure white.';
+
+const GENTS_PRESENTER_NEGATIVE =
+  'Do not generate a female presenter, a child presenter, feminine styling (unless explicitly required by the product), multiple models, or any additional rings, chains, bracelets, watches or accessories beyond the uploaded product. Do not use distracting clothing or backgrounds.';
+
+const KIDS_PRESENTER_DESCRIPTOR =
+  "a young child model, approximately 2 to 4 years old, clearly younger than four and not resembling an older child, teenager or adult — fully and modestly clothed in age-appropriate clothing, with a natural, happy expression, an innocent family-friendly pose, minimal styling, age-appropriate hair and no visible makeup, in the style of parent-supervised commercial photography";
+
+const KIDS_PRESENTER_BACKGROUND_NOTE =
+  ' Use a soft studio or natural lifestyle environment in gentle pastel, ivory, beige or neutral colours that elegantly complements the child model described above — refined, premium and family-friendly, not a busy pattern.';
+
+// Kept as one shared block (not per asset-type) — the safety/scale
+// requirements apply identically to every Kids shot, presenter or hand.
+const KIDS_SAFETY_NEGATIVE =
+  "Do not generate adult clothing, mature fashion styling, glamorous or romantic posing, heavy makeup, high heels, revealing clothing, adult body proportions, or a model that looks like a teenager or adult. Do not generate a disturbing, unsafe or uncomfortable pose, a child alone in a dangerous environment, multiple children unless explicitly requested, or any text, logos or watermarks. Show only the minimum body area required to demonstrate the product — do not force the child's full face into the image. The jewellery must be realistically sized for a child — do not render adult-sized jewellery unless the uploaded product is intentionally designed that way.";
+
+// --- Gents presenter identity consistency (scoped to GENTS only) ---
+//
+// Problem: two independent text-only generations of "an adult male model"
+// produce two different-looking men. Fix: generate ONE master identity
+// portrait per job (via images.generate — no input image, pure text-to-
+// image), store it on the job row, then feed it as a real image-edit
+// reference image to every Gents PRESENTER_* generation — the same
+// multi-image compositing technique already used for the ordinary
+// (non-Gents) presenter flow, just with the images in the opposite role
+// order (identity first, jewellery second — see GENTS_IDENTITY_LOCK_NOTE and
+// generateShot's identityReferenceBuffer handling). Never touches Kids
+// (still purely text-described, no photo library for it either) or Ring
+// (its own separate hand-only workflow, untouched).
+const GENTS_MASTER_PRESENTER_PROMPT =
+  `Generate a premium commercial studio photograph of ${GENTS_PRESENTER_DESCRIPTOR}, shown from the chest up, facing the camera in a natural, relaxed pose, softly and evenly lit, on a plain neutral studio backdrop. Photorealistic, with clear, well-lit detail on the face, hair and skin so this photograph can serve as a fixed identity reference for later images. Show exactly one person. Do not include any jewellery, props, text, logos or watermarks.`;
+
+// Generates the one-off master identity portrait for a Gents job — called at
+// most once per job (aiStudioJob.js caches the result on
+// ai_studio_jobs.gents_master_presenter_key and reuses it for every
+// subsequent Gents presenter generation/regeneration in that job, never
+// creating a new one unless the admin explicitly clicks "Change Gents
+// Presenter").
+export async function generateGentsMasterPresenter() {
+  const openai = getClient();
+  try {
+    const response = await openai.images.generate({
+      model: env.openaiImageModel,
+      prompt: GENTS_MASTER_PRESENTER_PROMPT,
+      size: '1024x1024',
+      quality: 'medium',
+      background: 'opaque',
+      output_format: 'png',
+      n: 1,
+    });
+    const b64 = response.data?.[0]?.b64_json;
+    if (!b64) throw new AppError(502, 'Presenter identity generation did not return a result');
+    return { buffer: Buffer.from(b64, 'base64'), prompt: GENTS_MASTER_PRESENTER_PROMPT };
+  } catch (err) {
+    if (err instanceof AppError) throw err;
+    throw mapOpenAiError(err);
+  }
+}
+
+// Tells the model explicitly which of the (now two) attached reference
+// images controls what — without this, attaching an identity photo ahead of
+// the jewellery photo would be ambiguous about which one the model should
+// preserve where. Only ever used for a Gents PRESENTER_* shot (see the
+// PRESENTER_* case in buildAssetPromptSections) — Ring, Kids, Women and
+// Unisex never reach this text.
+const GENTS_IDENTITY_LOCK_NOTE =
+  "The first attached reference photo is the fixed adult male presenter identity for this generation — reproduce his exact face shape, facial features, skin tone, apparent age, hairline, hair colour, hairstyle, beard and moustache, and body proportions, so he is recognisably the same person shown in that photo. The second attached reference photo is the exact jewellery product — it controls only the jewellery design, never the presenter's identity. Only the presenter's pose, hand position, camera angle, crop, background composition, and the jewellery's metal colour or placement may differ from the identity reference photo.";
+
+const GENTS_IDENTITY_LOCK_NEGATIVE =
+  "Do not generate a different man than the one shown in the first (identity) reference photo. Do not change his apparent age, ethnicity or skin tone, and do not add or remove facial hair. Do not use any pose-reference person as the presenter. Do not blend multiple identities. Do not let the jewellery reference photo influence the presenter's face or body.";
+
+function audiencePresenterOverrideFor(confirmedCustomerCategory) {
+  if (confirmedCustomerCategory === 'GENTS') {
+    return {
+      descriptor: GENTS_PRESENTER_DESCRIPTOR,
+      background: GENTS_PRESENTER_BACKGROUND_NOTE,
+      negative: GENTS_PRESENTER_NEGATIVE,
+    };
+  }
+  if (confirmedCustomerCategory === 'KIDS') {
+    return {
+      descriptor: KIDS_PRESENTER_DESCRIPTOR,
+      background: KIDS_PRESENTER_BACKGROUND_NOTE,
+      negative: KIDS_SAFETY_NEGATIVE,
+    };
+  }
+  return null;
+}
+
+// Ring hand shots never go through the Presenter/PRESENTER_* path at all
+// (see the RING_HAND_1/RING_HAND_2 cases below) — they need their own
+// audience-aware hand-only text, since "existing jewellery-type rules such
+// as Ring hand-only images must still take priority": for Gents/Kids this
+// means the hand-only framing is kept exactly, only the hand's owner and its
+// scale/styling change. WOMEN/UNISEX fall through to the existing hardcoded
+// text further down, completely unchanged.
+const GENTS_RING_HAND_1_TEXT =
+  "Show an adult male model's hand only — do not show his face or any other part of his body. Position the hand naturally, with the exact uploaded ring placed on his ring finger, clearly visible and sharply focused. Use a premium jewellery-campaign composition. Generate realistic masculine hand anatomy with exactly five naturally proportioned fingers, realistic joints, and clean, well-groomed nails with no polish.";
+const GENTS_RING_HAND_2_TEXT =
+  "Use a closer crop of the same adult male model's hand, from a different angle than Hand Image 1 — do not show his face or any other part of his body. Keep the ring finger straight and unobstructed, with the exact uploaded ring placed naturally around it, clearly showing the ring design and band placement. Use a different hand position from Hand Image 1, keeping the composition natural and premium. Generate realistic masculine hand anatomy with exactly five naturally proportioned fingers, realistic joints, and clean, well-groomed nails with no polish.";
+const GENTS_RING_HAND_NEGATIVE =
+  'Do not show a female or child hand, or any part of a face or body — use an adult male hand only.';
+
+const KIDS_RING_HAND_1_TEXT =
+  "Show a young child's hand only, approximately 2 to 4 years old — do not show the child's face or any other part of their body. Position the hand naturally, with the exact uploaded ring placed on the correct finger at a scale realistic for a small child's hand, clearly visible and sharply focused. Generate realistic child hand anatomy with exactly five naturally proportioned, softly rounded fingers, with no manicure or nail polish.";
+const KIDS_RING_HAND_2_TEXT =
+  "Use a closer crop of the same young child's hand (approximately 2 to 4 years old), from a different angle than Hand Image 1 — do not show the child's face or any other part of their body. Keep the finger straight and unobstructed, with the exact uploaded ring placed naturally around it at a scale realistic for a small child's hand, clearly showing the ring design. Use a different hand position from Hand Image 1, keeping the composition natural and family-friendly. Generate realistic child hand anatomy with exactly five naturally proportioned, softly rounded fingers, with no manicure or nail polish.";
+const KIDS_RING_HAND_NEGATIVE =
+  "Do not show an adult or teenager's hand, or any part of a face or body — use a young child's hand only, approximately 2 to 4 years old, and do not render the ring at adult hand scale.";
+
+function ringHandTextFor(confirmedCustomerCategory, slot) {
+  if (confirmedCustomerCategory === 'GENTS') {
+    return { text: slot === 1 ? GENTS_RING_HAND_1_TEXT : GENTS_RING_HAND_2_TEXT, negative: GENTS_RING_HAND_NEGATIVE };
+  }
+  if (confirmedCustomerCategory === 'KIDS') {
+    return { text: slot === 1 ? KIDS_RING_HAND_1_TEXT : KIDS_RING_HAND_2_TEXT, negative: KIDS_RING_HAND_NEGATIVE };
+  }
+  return null;
+}
+
 const PLACEMENT_RULES = {
   RING: {
     location: "the ring finger",
@@ -380,6 +528,7 @@ function buildAssetPromptSections({
   creative,
   priorFailure,
   generateRoseGold,
+  confirmedCustomerCategory,
 }) {
   const metalColor = metalColorForAssetType(assetType, generateRoseGold);
   const metalColourNote = `The metal colour is ${metalColor.toLowerCase()} gold — preserve it exactly.`;
@@ -387,10 +536,19 @@ function buildAssetPromptSections({
     metalColor === 'ROSE' ? RING_ROSE_CATALOGUE_BACKGROUND_NOTE : RING_GOLD_CATALOGUE_BACKGROUND_NOTE
   ).trim();
   const categoryLabel = confirmedType ? formatJewelleryType(confirmedType) : null;
+  // Jewellery type (WHAT) always takes priority over customer category (WHO)
+  // — this is resolved purely by which switch branch below runs (Ring hand
+  // shots vs. the generic Presenter path), never by customer category. Only
+  // GENTS/KIDS ever change anything here; WOMEN/UNISEX/unset are byte-for-
+  // byte identical to the pre-existing behaviour.
+  const audienceOverride = audiencePresenterOverrideFor(confirmedCustomerCategory);
 
   const locked = {
     productIdentity: 'Use the uploaded product reference as the only jewellery design.',
     confirmedCategory: categoryLabel ? `The confirmed product category is ${categoryLabel}.` : '',
+    confirmedCustomerCategory: audienceOverride
+      ? `The confirmed customer category is ${formatCustomerCategory(confirmedCustomerCategory)}.`
+      : '',
     designPreservation: FIDELITY_BLOCK,
     metalColour: metalColourNote,
     outputSpecs: 'Photorealistic, premium e-commerce jewellery photography. No text, logos, or watermarks.',
@@ -437,21 +595,51 @@ function buildAssetPromptSections({
       const rule = placementRuleFor(confirmedType);
       const itemLabel = categoryLabel ? categoryLabel.toLowerCase() : 'jewellery';
       categoryPlacement = `Place only this exact ${itemLabel} on the selected presenter's ${rule.location}. ${rule.excluded} Do not create a similar replacement design. Do not add accessory jewellery for styling. Keep the product clearly visible and unobstructed — do not allow clothing, hair or hands to cover it.`;
-      const descriptor =
-        presenter?.prompt_descriptor || (presenter ? `a presenter styled as "${presenter.style_label}"` : 'the selected presenter');
+      // Gents ONLY: a real master identity photo is attached as the FIRST
+      // input image (see generateShot's identityReferenceBuffer / GENTS_
+      // IDENTITY_LOCK_NOTE) — every Gents presenter shot in this job is
+      // guaranteed to have that master already generated before this text
+      // is ever sent (aiStudioJob.js generates it once, up front), so this
+      // branch can assume the photo will genuinely be there. Kids keeps the
+      // existing text-only audienceOverride path unchanged (no photo
+      // library exists for it); Women/Unisex keep the original presenter-
+      // library-photo path unchanged.
+      const isGentsIdentityLocked = confirmedCustomerCategory === 'GENTS';
+      let presenterPoseText;
+      let backgroundNote;
+      if (isGentsIdentityLocked) {
+        presenterPoseText = `Worn naturally by the same adult male presenter shown in the first attached identity reference photo — ${GENTS_PRESENTER_DESCRIPTOR}.`;
+        backgroundNote = GENTS_PRESENTER_BACKGROUND_NOTE;
+        categoryPlacement = `${categoryPlacement} ${GENTS_IDENTITY_LOCK_NOTE}`;
+      } else if (audienceOverride) {
+        presenterPoseText = `Worn naturally by ${audienceOverride.descriptor}.`;
+        backgroundNote = audienceOverride.background;
+      } else {
+        const descriptor =
+          presenter?.prompt_descriptor || (presenter ? `a presenter styled as "${presenter.style_label}"` : 'the selected presenter');
+        presenterPoseText = `Worn naturally by ${descriptor}, matching the attached presenter reference photo.`;
+        backgroundNote = PRESENTER_BACKGROUND_NOTE;
+      }
       creativeDefaults = {
-        background: PRESENTER_BACKGROUND_NOTE.trim(),
+        background: backgroundNote.trim(),
         lighting: '',
         composition: `Framed as a ${template.presenter_placement} (${template.presenter_crop} crop). Use realistic product scale and placement.`,
-        presenterPose: `Worn naturally by ${descriptor}, matching the attached presenter reference photo.`,
+        presenterPose: presenterPoseText,
         cameraAngle: '',
         additionalInstructions: '',
       };
       negativeParts.push(rule.excluded, 'Do not replace the uploaded product with a similar design.');
+      if (isGentsIdentityLocked) {
+        negativeParts.push(GENTS_PRESENTER_NEGATIVE, GENTS_IDENTITY_LOCK_NEGATIVE);
+      } else if (audienceOverride) {
+        negativeParts.push(audienceOverride.negative);
+      }
       break;
     }
     case 'RING_HAND_1': {
+      const audienceHand = ringHandTextFor(confirmedCustomerCategory, 1);
       categoryPlacement =
+        audienceHand?.text ??
         "Show a young female model — her face may be visible. Position her hand naturally near her face (for example resting near her cheek or chin), with the exact uploaded ring placed on her ring finger, clearly visible and sharply focused. Use a premium jewellery-campaign composition. Generate realistic hand anatomy with exactly five naturally proportioned fingers, realistic joints and fingernails, and a clean nude manicure.";
       creativeDefaults = {
         background: RING_HAND_BACKGROUND_NOTE.trim(),
@@ -467,10 +655,13 @@ function buildAssetPromptSections({
         'Do not apply a background colour tied to the ring\'s metal colour — the background must be a natural, neutral photographic environment, not champagne, ivory, peach or rose-coloured.',
         ...RING_HAND_PLACEMENT_NEGATIVES,
       );
+      if (audienceHand) negativeParts.push(audienceHand.negative);
       break;
     }
     case 'RING_HAND_2': {
+      const audienceHand = ringHandTextFor(confirmedCustomerCategory, 2);
       categoryPlacement =
+        audienceHand?.text ??
         "Use a closer crop of a young female model's hand positioned near her face — the full face does not need to be visible. Keep the ring finger straight and unobstructed, with the exact uploaded ring placed naturally around it, clearly showing the ring design and band placement. Use a different hand position from Hand Image 1, keeping the composition natural and premium. Generate realistic hand anatomy with exactly five naturally proportioned fingers, realistic joints and fingernails, and a clean nude manicure.";
       creativeDefaults = {
         background: RING_HAND_BACKGROUND_NOTE.trim(),
@@ -487,6 +678,7 @@ function buildAssetPromptSections({
         'Use a hand pose visibly different from Hand Image 1 — do not reuse the same pose or camera angle.',
         ...RING_HAND_PLACEMENT_NEGATIVES,
       );
+      if (audienceHand) negativeParts.push(audienceHand.negative);
       break;
     }
     case 'RING_GOLD_FRONT':
@@ -568,6 +760,7 @@ function assemblePrompt({ locked, categoryPlacement, creative, negativeInstructi
   return [
     locked.productIdentity,
     locked.confirmedCategory,
+    locked.confirmedCustomerCategory,
     locked.designPreservation,
     locked.metalColour,
     creative.composition,
@@ -584,16 +777,44 @@ function assemblePrompt({ locked, categoryPlacement, creative, negativeInstructi
     .join(' ');
 }
 
-function buildPrompt({ assetType, confirmedType, template, presenter, creative, priorFailure, generateRoseGold }) {
+function buildPrompt({
+  assetType,
+  confirmedType,
+  template,
+  presenter,
+  creative,
+  priorFailure,
+  generateRoseGold,
+  confirmedCustomerCategory,
+}) {
   return assemblePrompt(
-    buildAssetPromptSections({ assetType, confirmedType, template, presenter, creative, priorFailure, generateRoseGold }),
+    buildAssetPromptSections({
+      assetType,
+      confirmedType,
+      template,
+      presenter,
+      creative,
+      priorFailure,
+      generateRoseGold,
+      confirmedCustomerCategory,
+    }),
   );
 }
 
 // Computes every planned asset's prompt without any DB/API calls — powers
 // both the Review Prompts preview endpoint and what confirmJob persists onto
 // each asset row at confirm time (so what's shown is exactly what's sent).
-export function previewPromptsForJob({ confirmedType, template, presenter, generateRoseGold, overridesByAssetType }) {
+// confirmedCustomerCategory defaults to undefined/'WOMEN', which resolves to
+// no audience override anywhere below — every existing caller that doesn't
+// pass it keeps generating byte-identical prompts.
+export function previewPromptsForJob({
+  confirmedType,
+  template,
+  presenter,
+  generateRoseGold,
+  overridesByAssetType,
+  confirmedCustomerCategory,
+}) {
   const hasPresenter = !!presenter;
   const assetTypes = resolveAssetTypesForJob({ generateRoseGold, hasPresenter, confirmedType });
   return assetTypes.map((assetType) => {
@@ -605,12 +826,20 @@ export function previewPromptsForJob({ confirmedType, template, presenter, gener
       presenter,
       creative: override,
       generateRoseGold,
+      confirmedCustomerCategory,
     });
     return {
       assetType,
       metalColor: metalColorForAssetType(assetType, generateRoseGold),
       mode: override ? 'customised' : 'recommended',
-      lockedProductRules: [sections.locked.productIdentity, sections.locked.confirmedCategory, sections.locked.designPreservation, sections.locked.metalColour, sections.locked.outputSpecs].filter(Boolean),
+      lockedProductRules: [
+        sections.locked.productIdentity,
+        sections.locked.confirmedCategory,
+        sections.locked.confirmedCustomerCategory,
+        sections.locked.designPreservation,
+        sections.locked.metalColour,
+        sections.locked.outputSpecs,
+      ].filter(Boolean),
       categoryPlacementRules: sections.categoryPlacement ? [sections.categoryPlacement] : [],
       creativeInstructions: sections.creative,
       negativeInstructions: sections.negativeInstructions,
@@ -639,10 +868,12 @@ export async function generateShot({
   confirmedType,
   presenter,
   presenterReferenceBuffer,
+  identityReferenceBuffer,
   creative,
   priorFailure,
   promptOverride,
   generateRoseGold,
+  confirmedCustomerCategory,
 }) {
   const openai = getClient();
   const extension = extensionFor(mimetype);
@@ -652,13 +883,34 @@ export async function generateShot({
   // prior-failure correction to inject (a retry after failed validation) or
   // for the rare case nothing was persisted yet.
   const prompt =
-    promptOverride ?? buildPrompt({ assetType, confirmedType, template, presenter, creative, priorFailure, generateRoseGold });
+    promptOverride ??
+    buildPrompt({
+      assetType,
+      confirmedType,
+      template,
+      presenter,
+      creative,
+      priorFailure,
+      generateRoseGold,
+      confirmedCustomerCategory,
+    });
 
   try {
     const referenceFile = await toFile(referenceBuffer, `reference.${extension}`, { type: mimetype });
-    const image = presenterReferenceBuffer
-      ? [referenceFile, await toFile(presenterReferenceBuffer, `presenter.jpeg`, { type: 'image/jpeg' })]
-      : referenceFile;
+    // Gents identity lock: Image 1 = presenter identity, Image 2 = jewellery
+    // (see GENTS_IDENTITY_LOCK_NOTE, which tells the model this exact
+    // ordering) — the reverse role order from the ordinary presenterReference
+    // path below, and mutually exclusive with it (a Gents shot never also
+    // carries a presenterReferenceBuffer — see aiStudioJob.js).
+    let image;
+    if (identityReferenceBuffer) {
+      const identityFile = await toFile(identityReferenceBuffer, 'presenter-identity.png', { type: 'image/png' });
+      image = [identityFile, referenceFile];
+    } else if (presenterReferenceBuffer) {
+      image = [referenceFile, await toFile(presenterReferenceBuffer, `presenter.jpeg`, { type: 'image/jpeg' })];
+    } else {
+      image = referenceFile;
+    }
 
     const response = await openai.images.edit({
       model: env.openaiImageModel,
@@ -694,7 +946,7 @@ const ValidationSchema = z.object({
   validationMessages: z.array(z.string()),
 });
 
-const VALIDATION_SYSTEM_PROMPT = `You are a jewellery product-photo quality reviewer. You are shown two images: the GENERATED result (first image) and the ORIGINAL product reference photo (second image), plus the expected jewellery category and metal colour as text. Check: (1) the generated image's jewellery category matches what was expected, (2) no additional or unrelated jewellery is visible anywhere in the image beyond the one confirmed product — rings, earrings, necklaces, pendants, bracelets, bangles, nose pins, anklets, watches, or any other piece, (3) the product is correctly placed, fully visible, sharply focused, and not obscured by hands, hair or clothing, (4) the metal colour matches what was requested, (5) the generated jewellery closely matches the original reference's design — same stone count, stone shapes, settings, prongs and proportions, not a similar replacement. Set validationStatus to "failed" for a wrong category or any additional ornament detected, "warning" for a real but minor issue (e.g. partial obstruction, slight colour mismatch), and "passed" only when everything checks out. Always include specific, actionable validationMessages, e.g. "Failed: Expected Ring, but Bracelet was detected." or "Warning: Ring is partially covered by the presenter's finger." Additional per-asset-type instructions may follow in the user message — they refine, and can override, rule (3) above for that specific image (e.g. a Ring hand-model shot is SUPPOSED to show a hand).`;
+const VALIDATION_SYSTEM_PROMPT = `You are a jewellery product-photo quality reviewer. You are shown two images: the GENERATED result (first image) and the ORIGINAL product reference photo (second image), plus the expected jewellery category and metal colour as text. Check: (1) the generated image's jewellery category matches what was expected, (2) no additional or unrelated jewellery is visible anywhere in the image beyond the one confirmed product — rings, earrings, necklaces, pendants, bracelets, bangles, nose pins, anklets, watches, or any other piece, (3) the product is correctly placed, fully visible, sharply focused, and not obscured by hands, hair or clothing, (4) the metal colour matches what was requested, (5) the generated jewellery closely matches the original reference's design — same stone count, stone shapes, settings, prongs and proportions, not a similar replacement. Set validationStatus to "failed" for a wrong category or any additional ornament detected, "warning" for a real but minor issue (e.g. partial obstruction, slight colour mismatch), and "passed" only when everything checks out. Always include specific, actionable validationMessages, e.g. "Failed: Expected Ring, but Bracelet was detected." or "Warning: Ring is partially covered by the presenter's finger." Additional per-asset-type instructions may follow in the user message — they refine, and can override, rule (3) above for that specific image (e.g. a Ring hand-model shot is SUPPOSED to show a hand). A third image may also be attached — a fixed presenter identity reference; when present, the user message explains what to check it against.`;
 
 // Ring hand shots are SUPPOSED to show a hand — rule (3) in the system
 // prompt above (generic "not obscured by hands") would otherwise wrongly
@@ -719,6 +971,29 @@ function ringValidationContextFor(assetType) {
   return '';
 }
 
+// A presenter shot showing a hand only (Ring's dedicated workflow) has no
+// visible model demographic to check — every other presenter-eligible shot
+// (PRESENTER_* and, for a non-Ring category, any future hand/body shot) does.
+const NO_DEMOGRAPHIC_ASSET_TYPES = new Set(['RING_GOLD_FRONT', 'RING_GOLD_SIDE', 'RING_ROSE_FRONT', 'RING_ROSE_SIDE']);
+
+// Audience-specific validation criteria (spec's "VALIDATION" section) —
+// appended alongside ringValidationContextFor, never replacing it, so a
+// Ring + Gents/Kids hand shot is checked for BOTH the existing hand-only
+// physical-placement rules AND the correct model demographic. WOMEN/UNISEX
+// add nothing here, same as they add nothing to the generation prompt.
+function audienceValidationContextFor(confirmedCustomerCategory, assetType) {
+  if (NO_DEMOGRAPHIC_ASSET_TYPES.has(assetType)) return '';
+  if (confirmedCustomerCategory === 'GENTS') {
+    const isRingHand = assetType === 'RING_HAND_1' || assetType === 'RING_HAND_2';
+    return ` The confirmed customer category is GENTS — verify the presenter${isRingHand ? "'s hand" : ''} is unambiguously that of an adult male (not a female or child), that the jewellery is worn in the correct location, that no unrelated jewellery is visible, that the product design matches the reference, and that product scale and placement are realistic. Set validationStatus to "failed" if the presenter reads as female or as a child.`;
+  }
+  if (confirmedCustomerCategory === 'KIDS') {
+    const isRingHand = assetType === 'RING_HAND_1' || assetType === 'RING_HAND_2';
+    return ` The confirmed customer category is KIDS — verify the presenter${isRingHand ? "'s hand" : ''} visually appears approximately 2 to 4 years old (not an older child, teenager or adult), that the child (where visible) is fully and appropriately clothed with age-appropriate, family-friendly styling, that the jewellery is worn in the correct location at a scale appropriate for a small child, that no additional jewellery is present, that the product design matches the reference, and that the image is family-friendly and commercially suitable. Set validationStatus to "failed" if the model looks older than approximately 4, if styling is adult/mature, or if the jewellery is rendered at adult scale.`;
+  }
+  return '';
+}
+
 // Runs after every successful generation (Problem 1 & 2 downstream): a second
 // vision call comparing the freshly generated image against the original
 // product reference, checking category/ornament/placement/metal/similarity.
@@ -731,6 +1006,13 @@ export async function validateGeneratedImage({
   confirmedType,
   metalColor,
   assetType,
+  confirmedCustomerCategory,
+  // Gents only — the job's master presenter portrait, so this generated
+  // shot can be checked against the SAME fixed identity every other Gents
+  // presenter shot in the job is also checked against (rather than a
+  // pairwise comparison between the two generated shots themselves).
+  identityReferenceBuffer,
+  identityReferenceMimetype,
 }) {
   if (!env.openaiVisionModel) {
     throw new AppError(503, 'AI validation is not configured');
@@ -739,25 +1021,31 @@ export async function validateGeneratedImage({
   const generatedBase64 = generatedBuffer.toString('base64');
   const referenceBase64 = referenceBuffer.toString('base64');
 
+  let text = `Expected jewellery category: ${confirmedType}. Expected metal colour: ${metalColor}. Asset type: ${assetType}. The first image is the generated result; the second image is the original product reference.${ringValidationContextFor(assetType)}${audienceValidationContextFor(confirmedCustomerCategory, assetType)}`;
+
+  const content = [
+    { type: 'text', text },
+    { type: 'image_url', image_url: { url: `data:image/png;base64,${generatedBase64}`, detail: 'high' } },
+    { type: 'image_url', image_url: { url: `data:${referenceMimetype};base64,${referenceBase64}`, detail: 'high' } },
+  ];
+
+  if (identityReferenceBuffer) {
+    text +=
+      ' A third image is also attached — the fixed master presenter identity reference for this generation job. Verify the presenter shown in the GENERATED result (first image) is unambiguously the same man shown in this third identity reference image: matching face shape, facial features, skin tone, apparent age, hairline, hair colour, hairstyle, and beard/moustache. If the presenter appears to be a different person, a different apparent age, or has different facial hair than the identity reference, this is a "Presenter Identity Mismatch" — set validationStatus to "failed" and say so explicitly in validationMessages, e.g. "Presenter Identity Mismatch: generated presenter\'s face/beard do not match the identity reference."';
+    content[0].text = text;
+    const identityBase64 = identityReferenceBuffer.toString('base64');
+    content.push({
+      type: 'image_url',
+      image_url: { url: `data:${identityReferenceMimetype ?? 'image/png'};base64,${identityBase64}`, detail: 'high' },
+    });
+  }
+
   try {
     const completion = await openai.chat.completions.parse({
       model: env.openaiVisionModel,
       messages: [
         { role: 'system', content: VALIDATION_SYSTEM_PROMPT },
-        {
-          role: 'user',
-          content: [
-            {
-              type: 'text',
-              text: `Expected jewellery category: ${confirmedType}. Expected metal colour: ${metalColor}. Asset type: ${assetType}. The first image is the generated result; the second image is the original product reference.${ringValidationContextFor(assetType)}`,
-            },
-            { type: 'image_url', image_url: { url: `data:image/png;base64,${generatedBase64}`, detail: 'high' } },
-            {
-              type: 'image_url',
-              image_url: { url: `data:${referenceMimetype};base64,${referenceBase64}`, detail: 'high' },
-            },
-          ],
-        },
+        { role: 'user', content },
       ],
       response_format: zodResponseFormat(ValidationSchema, 'generation_validation'),
     });

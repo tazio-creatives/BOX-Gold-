@@ -1,6 +1,12 @@
 import { useEffect, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { fetchPromptPreview, type JewelleryType, type PromptOverrides, type PromptCreativeOverride } from '../../api/aiStudio';
+import {
+  fetchPromptPreview,
+  type CustomerCategory,
+  type JewelleryType,
+  type PromptOverrides,
+  type PromptCreativeOverride,
+} from '../../api/aiStudio';
 import { SHOT_LABELS } from './generationRules';
 import sharedStyles from '../../styles/shared.module.css';
 import styles from './ReviewPromptsStep.module.css';
@@ -30,6 +36,7 @@ interface ReviewPromptsStepProps {
   generateRoseGold: boolean;
   promptOverrides: PromptOverrides;
   onPromptOverridesChange: (_v: PromptOverrides) => void;
+  customerCategory: CustomerCategory | '';
 }
 
 // "Review Prompts" — the third Choose-Presenter sub-screen. Only ever
@@ -45,6 +52,7 @@ export function ReviewPromptsStep({
   generateRoseGold,
   promptOverrides,
   onPromptOverridesChange,
+  customerCategory,
 }: ReviewPromptsStepProps) {
   const [expandedAssetType, setExpandedAssetType] = useState<string | null>(null);
 
@@ -67,6 +75,7 @@ export function ReviewPromptsStep({
       presenterId,
       generateRoseGold,
       debouncedOverrides,
+      customerCategory,
     ],
     queryFn: () =>
       fetchPromptPreview(productId, jobId, {
@@ -74,6 +83,7 @@ export function ReviewPromptsStep({
         presenterId,
         generateRoseGold,
         promptOverrides: debouncedOverrides,
+        customerCategory: customerCategory || undefined,
       }),
     placeholderData: (previousData) => previousData,
   });

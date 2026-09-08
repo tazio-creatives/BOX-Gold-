@@ -12,6 +12,8 @@ interface ReviewImportStepProps {
   job: StudioJob;
   onRegenerate: (_assetId: string) => void;
   onRegenerateAll: (_assetIds: string[]) => void;
+  onChangeGentsPresenter: (_presenterAssetIds: string[]) => void;
+  isChangingGentsPresenter: boolean;
   regeneratingAssetIds: Set<string>;
   onToggleSelected: (_assetId: string, _selected: boolean) => void;
   onSetFeatured: (_assetId: string) => void;
@@ -46,6 +48,8 @@ export function ReviewImportStep({
   job,
   onRegenerate,
   onRegenerateAll,
+  onChangeGentsPresenter,
+  isChangingGentsPresenter,
   regeneratingAssetIds,
   onToggleSelected,
   onSetFeatured,
@@ -70,6 +74,8 @@ export function ReviewImportStep({
   const assetTypes = assets.map((a) => a.assetType);
   const isRing = job.jewelleryType === 'RING';
   const regeneratableAssetIds = assets.filter((a) => ['READY', 'FAILED'].includes(a.status)).map((a) => a.id);
+  const isGents = job.customerCategory === 'GENTS';
+  const presenterAssetIds = assets.filter((a) => a.assetType.startsWith('PRESENTER_')).map((a) => a.id);
 
   async function runImport(targets: StudioAsset[]) {
     setImportState('importing');
@@ -146,6 +152,26 @@ export function ReviewImportStep({
             onClick={() => onRegenerateAll(regeneratableAssetIds)}
           >
             Regenerate All
+          </button>
+        </div>
+      )}
+
+      {/* Gents identity consistency: both presenter shots share one master
+          identity by default (see aiStudioJob.js/aiStudioService.js), reused
+          automatically on any ordinary Regenerate — this button is the ONLY
+          way to intentionally swap to a different man, and it always
+          regenerates both presenter shots together so they never drift out
+          of sync with each other. */}
+      {isGents && presenterAssetIds.length > 0 && (
+        <div className={styles.ringHeader}>
+          <span className={sharedStyles.badgeNeutral}>Gents · Same Presenter in Both Images</span>
+          <button
+            type="button"
+            className={sharedStyles.buttonLink}
+            disabled={isChangingGentsPresenter}
+            onClick={() => onChangeGentsPresenter(presenterAssetIds)}
+          >
+            {isChangingGentsPresenter ? 'Requesting…' : 'Change Gents Presenter'}
           </button>
         </div>
       )}

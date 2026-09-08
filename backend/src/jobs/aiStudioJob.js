@@ -8,6 +8,7 @@ import {
   presenterReferenceKeyFor,
   validateGeneratedImage,
   metalColorForAssetType,
+  generateGentsMasterPresenter,
 } from '../services/aiStudioService.js';
 import {
   findJobById,
@@ -37,6 +38,7 @@ async function analyseHandler(jobs) {
       analysis: JSON.stringify(analysis),
       analysis_confidence: analysis.jewelleryTypeConfidence,
       ai_detected_category: analysis.jewelleryType,
+      ai_detected_customer_category: analysis.customerCategory,
     });
   } catch (err) {
     await updateJob(jobId, { status: 'failed', error: err.message });
@@ -86,6 +88,16 @@ async function ensureDefaultFeatured(jobId, assets) {
 // real, billed OpenAI image-edit + vision call.
 const RING_HAND_AUTO_RETRY_TYPES = new Set(['RING_HAND_1', 'RING_HAND_2']);
 
+// Gents/Kids describe the presenter demographic purely in text (see
+// audiencePresenterOverrideFor in aiStudioService.js) — the presenter
+// library only has adult female reference photography today, so attaching
+// a real presenter's photo here would directly contradict that text and
+// confuse the image model. Compositing is skipped for these two categories
+// regardless of which library presenter was picked; the boolean "generate
+// presenter shots at all" choice (picking a presenter vs. "No Presenter")
+// is unaffected.
+const AUDIENCE_OVERRIDE_CATEGORIES = new Set(['GENTS', 'KIDS']);
+
 async function generateOneAsset({
   jobId,
   asset,
@@ -96,6 +108,8 @@ async function generateOneAsset({
   presenter,
   imageModel,
   generateRoseGold,
+  confirmedCustomerCategory,
+  gentsMasterPresenterBuffer,
 }) {
   // A cancelled job's late-arriving results are discarded, never written
   // back (plan §12) — checked immediately before each write, not just once
@@ -108,9 +122,17 @@ async function generateOneAsset({
   try {
     let presenterReferenceBuffer = null;
     const poseKey = presenterReferenceKeyFor(asset.asset_type);
-    if (presenter && poseKey) {
+    if (presenter && poseKey && !AUDIENCE_OVERRIDE_CATEGORIES.has(confirmedCustomerCategory)) {
       presenterReferenceBuffer = await storageProvider.read(keyFromUrl(presenter[poseKey]));
     }
+
+    // Gents identity lock — only the two PRESENTER_* shots get the master
+    // identity photo; catalogue shots and every other category never see it,
+    // even though the buffer itself is passed down to every asset in the job
+    // uniformly (see generateHandler).
+    const isGentsPresenterAsset =
+      confirmedCustomerCategory === 'GENTS' && asset.asset_type.startsWith('PRESENTER_');
+    const identityReferenceBuffer = isGentsPresenterAsset ? gentsMasterPresenterBuffer : null;
 
     // A retry after a failed/warning validation gets a fresh prompt with the
     // prior failure folded in as a correction instruction, instead of
@@ -130,10 +152,12 @@ async function generateOneAsset({
         confirmedType,
         presenter,
         presenterReferenceBuffer,
+        identityReferenceBuffer,
         creative: asset.custom_creative_instructions ?? undefined,
         priorFailure,
         promptOverride: priorFailure ? undefined : (asset.assembled_final_prompt ?? undefined),
         generateRoseGold,
+        confirmedCustomerCategory,
       });
 
       // Post-generation validation (Problems 1 & 2) — never lets a failure
@@ -150,6 +174,9 @@ async function generateOneAsset({
           confirmedType,
           metalColor: metalColorForAssetType(asset.asset_type, generateRoseGold),
           assetType: asset.asset_type,
+          confirmedCustomerCategory,
+          identityReferenceBuffer,
+          identityReferenceMimetype: identityReferenceBuffer ? 'image/png' : null,
         });
         validationStatus = result.validationStatus;
         validationResult = result;
@@ -229,6 +256,31 @@ async function generateHandler(jobs) {
       ? allAssets.filter((a) => assetIds.includes(a.id))
       : allAssets.filter((a) => a.status === 'PENDING');
 
+    // Gents identity consistency: generate the master presenter portrait
+    // once per job (before the concurrent loop below, so every Gents
+    // PRESENTER_* target in this batch — whether that's both shots on first
+    // generation, or just one on an individual regenerate — shares the
+    // exact same reference) and reuse it on every later run via the stored
+    // key, never generating a second one unless the job's own key was
+    // explicitly cleared by "Change Gents Presenter" (see
+    // changeGentsPresenter in aiStudio.controller.js).
+    let gentsMasterPresenterBuffer = null;
+    const isGents = aiStudioJob.customer_category === 'GENTS';
+    const hasGentsPresenterTarget = isGents && targets.some((a) => a.asset_type.startsWith('PRESENTER_'));
+    if (hasGentsPresenterTarget) {
+      if (aiStudioJob.gents_master_presenter_key) {
+        gentsMasterPresenterBuffer = await storageProvider.read(aiStudioJob.gents_master_presenter_key);
+      } else {
+        const { buffer: masterBuffer } = await generateGentsMasterPresenter();
+        const savedMaster = await storageProvider.save(
+          `products/ai-studio/${jobId}/gents-master-${crypto.randomUUID()}.png`,
+          masterBuffer,
+        );
+        await updateJob(jobId, { gents_master_presenter_key: savedMaster.key });
+        gentsMasterPresenterBuffer = masterBuffer;
+      }
+    }
+
     await runWithConcurrency(targets, env.aiStudioGenerationConcurrency, (asset) =>
       generateOneAsset({
         jobId,
@@ -240,6 +292,8 @@ async function generateHandler(jobs) {
         presenter,
         imageModel: env.openaiImageModel,
         generateRoseGold: aiStudioJob.generate_rose_gold,
+        confirmedCustomerCategory: aiStudioJob.customer_category,
+        gentsMasterPresenterBuffer,
       }),
     );
 

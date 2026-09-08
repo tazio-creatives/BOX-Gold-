@@ -1,4 +1,4 @@
-import type { AssetType, JewelleryType } from '../../api/aiStudio';
+import type { AssetType, CustomerCategory, JewelleryType } from '../../api/aiStudio';
 
 const RING_ASSET_TYPES: AssetType[] = [
   'RING_HAND_1',
@@ -130,4 +130,19 @@ export function metalColorForAssetType(assetType: AssetType, generateRoseGold = 
   if (assetType.startsWith('RING_ROSE_')) return 'ROSE';
   if (RING_ASSET_TYPE_SET.has(assetType)) return 'YELLOW';
   return assetType.startsWith('ROSE_') || assetType === 'PRESENTER_ROSE' ? 'ROSE' : 'YELLOW';
+}
+
+export function formatCustomerCategory(category: CustomerCategory): string {
+  return category.charAt(0) + category.slice(1).toLowerCase();
+}
+
+// Short human-readable phrase for the presenter demographic a given customer
+// category resolves to — used in the "Generation Summary" line shown after
+// category confirmation (e.g. "Gents · Adult Male Presenter · Gold & Rose
+// Gold"). WOMEN/UNISEX keep today's ordinary presenter-library styling, so
+// there's no fixed phrase to show for them.
+export function presenterDemographicSummary(category: CustomerCategory): string | null {
+  if (category === 'GENTS') return 'Adult Male Presenter';
+  if (category === 'KIDS') return 'Child Model, Age 2–4';
+  return null;
 }

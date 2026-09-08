@@ -31,6 +31,13 @@ export const REAL_JEWELLERY_TYPES: Exclude<JewelleryType, 'UNKNOWN'>[] = [
   'OTHER',
 ];
 
+// WHO the piece is designed for — a separate dimension from JewelleryType
+// (WHAT the piece is). Drives presenter selection only (Gents -> adult male
+// presenter, Kids -> child model ~2-4). 'WOMEN' is the default and matches
+// today's only presenter styling.
+export type CustomerCategory = 'WOMEN' | 'GENTS' | 'KIDS' | 'UNISEX';
+export const CUSTOMER_CATEGORIES: CustomerCategory[] = ['WOMEN', 'GENTS', 'KIDS', 'UNISEX'];
+
 // Metal color is now encoded directly in the asset type (e.g. ROSE_FRONT)
 // instead of being a separate per-job field — a job can produce both Yellow
 // and Rose Gold shots side by side.
@@ -78,6 +85,8 @@ export interface StudioAnalysis {
   dominantShape: string | null;
   shapeConfidence: number;
   suggestedCategorySlug: string | null;
+  customerCategory: CustomerCategory;
+  customerCategoryConfidence: number;
 }
 
 // The only fields a "Customise Prompt" admin can edit on the Review Prompts
@@ -159,6 +168,9 @@ export interface StudioJob {
   aiDetectedCategory: JewelleryType | null;
   jewelleryType: JewelleryType | null;
   categoryId: string | null;
+  customerCategory: CustomerCategory;
+  aiDetectedCustomerCategory: CustomerCategory | null;
+  customerCategoryConfirmedAt: string | null;
   presenterId: string | null;
   presenter: { id: string; displayName: string; styleLabel: string } | null;
   generateRoseGold: boolean;
@@ -229,6 +241,7 @@ export function confirmStudioJob(
     presenterId: string | null;
     generateRoseGold: boolean;
     promptOverrides?: PromptOverrides;
+    customerCategory?: CustomerCategory;
   },
 ) {
   return apiFetch<{ jobId: string }>(`/admin/products/${productId}/ai-studio/${jobId}/confirm`, {
@@ -248,6 +261,7 @@ export function fetchPromptPreview(
     presenterId?: string | null;
     generateRoseGold?: boolean;
     promptOverrides?: PromptOverrides;
+    customerCategory?: CustomerCategory;
   },
 ) {
   return apiFetch<{ prompts: PromptPreview[] }>(`/admin/products/${productId}/ai-studio/${jobId}/prompt-preview`, {
@@ -262,6 +276,17 @@ export function fetchPromptPreview(
 export function retryStudioAsset(productId: string, jobId: string, assetId: string) {
   return apiFetch<{ jobId: string }>(
     `/admin/products/${productId}/ai-studio/${jobId}/assets/${assetId}/retry`,
+    { method: 'POST' },
+  );
+}
+
+// Gents-only — discards the job's stored master presenter identity and
+// regenerates both Gents presenter shots together against a fresh one. The
+// only action that creates a new presenter identity after the first exists;
+// ordinary per-tile "Regenerate" (retryStudioAsset above) always reuses it.
+export function changeGentsPresenter(productId: string, jobId: string) {
+  return apiFetch<{ jobId: string }>(
+    `/admin/products/${productId}/ai-studio/${jobId}/gents-presenter/change`,
     { method: 'POST' },
   );
 }

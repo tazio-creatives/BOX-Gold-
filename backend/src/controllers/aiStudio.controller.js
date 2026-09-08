@@ -5,7 +5,13 @@ import { AppError, NotFoundError } from '../utils/AppError.js';
 import { env } from '../config/env.js';
 import { boss } from '../jobs/queue.js';
 import { JOB_AI_STUDIO_ANALYSE, JOB_AI_STUDIO_GENERATE, resetAssetForRetry } from '../jobs/aiStudioJob.js';
-import { JEWELLERY_TYPES, ASSET_DISPLAY_ORDER, previewPromptsForJob } from '../services/aiStudioService.js';
+import {
+  JEWELLERY_TYPES,
+  ASSET_DISPLAY_ORDER,
+  previewPromptsForJob,
+  CUSTOMER_CATEGORIES,
+  DEFAULT_CUSTOMER_CATEGORY,
+} from '../services/aiStudioService.js';
 import { findPresenterById } from '../repositories/presenters.repository.js';
 import { findCategoryById } from '../repositories/categories.repository.js';
 import { storageProvider } from '../providers/storage/index.js';
@@ -68,6 +74,10 @@ export const confirmSchema = z.object({
   presenterId: z.string().uuid().nullable().optional(),
   generateRoseGold: z.boolean().optional(),
   promptOverrides: promptOverridesSchema.optional(),
+  // Optional, defaults to 'WOMEN' (today's only presenter styling) — an
+  // admin who never sees/uses the new Customer Category control gets
+  // exactly the same generation as before this feature existed.
+  customerCategory: z.enum(CUSTOMER_CATEGORIES).optional(),
 });
 
 const promptPreviewSchema = z.object({
@@ -75,6 +85,7 @@ const promptPreviewSchema = z.object({
   presenterId: z.string().uuid().nullable().optional(),
   generateRoseGold: z.boolean().optional(),
   promptOverrides: promptOverridesSchema.optional(),
+  customerCategory: z.enum(CUSTOMER_CATEGORIES).optional(),
 });
 
 const selectionSchema = z.object({
@@ -126,6 +137,9 @@ function jobDto(job, assets, presenter) {
     aiDetectedCategory: job.ai_detected_category,
     jewelleryType: job.jewellery_type,
     categoryId: job.category_id,
+    customerCategory: job.customer_category,
+    aiDetectedCustomerCategory: job.ai_detected_customer_category,
+    customerCategoryConfirmedAt: job.customer_category_confirmed_at,
     presenterId: job.presenter_id,
     presenter: presenter
       ? { id: presenter.id, displayName: presenter.display_name, styleLabel: presenter.style_label }
@@ -318,12 +332,15 @@ export async function confirmJob(req, res, next) {
     }
 
     const generateRoseGold = input.generateRoseGold ?? true;
+    const customerCategory = input.customerCategory ?? DEFAULT_CUSTOMER_CATEGORY;
 
     await updateJob(job.id, {
       jewellery_type: input.jewelleryType,
       category_id: input.categoryId ?? null,
       presenter_id: isRing ? null : (input.presenterId ?? null),
       generate_rose_gold: generateRoseGold,
+      customer_category: customerCategory,
+      customer_category_confirmed_at: new Date(),
       confirmed_at: new Date(),
       category_confirmed_at: new Date(),
       status: 'generating',
@@ -339,6 +356,7 @@ export async function confirmJob(req, res, next) {
       presenter,
       generateRoseGold,
       overridesByAssetType: input.promptOverrides,
+      confirmedCustomerCategory: customerCategory,
     });
 
     const insertedAssets = await insertAssets(
@@ -391,6 +409,7 @@ export async function previewPrompts(req, res, next) {
     }
 
     const generateRoseGold = input.generateRoseGold ?? job.generate_rose_gold ?? true;
+    const customerCategory = input.customerCategory ?? job.customer_category ?? DEFAULT_CUSTOMER_CATEGORY;
 
     const previews = previewPromptsForJob({
       confirmedType: jewelleryType,
@@ -398,6 +417,7 @@ export async function previewPrompts(req, res, next) {
       presenter,
       generateRoseGold,
       overridesByAssetType: input.promptOverrides,
+      confirmedCustomerCategory: customerCategory,
     });
 
     res.json({ prompts: previews });
@@ -427,6 +447,42 @@ export async function retryAsset(req, res, next) {
     await resetAssetForRetry(asset.id);
     await updateJob(job.id, { status: 'generating' });
     await boss.send(JOB_AI_STUDIO_GENERATE, { jobId: job.id, assetIds: [asset.id] });
+
+    res.status(202).json({ jobId: job.id });
+  } catch (err) {
+    next(err);
+  }
+}
+
+// "Change Gents Presenter" — the ONLY path that creates a new master
+// identity after the first one exists for a job (spec: "Only create a new
+// presenter when the administrator explicitly selects Change Gents
+// Presenter"). Ordinary "Regenerate"/"Retry" on a single Gents presenter
+// tile goes through retryAsset above instead, which reuses the job's
+// existing gents_master_presenter_key untouched — this endpoint is the only
+// one that clears it. Regenerates both Gents presenter shots together (not
+// just one), so they always end up back in sync against the same fresh
+// identity.
+export async function changeGentsPresenter(req, res, next) {
+  try {
+    const job = await findJobById(req.params.jobId);
+    if (!job || job.product_id !== req.params.id) throw new NotFoundError('Job not found');
+    if (job.customer_category !== 'GENTS') {
+      throw new AppError(400, 'This action is only available for a Gents job');
+    }
+    if (!['review_ready', 'partially_failed'].includes(job.status)) {
+      throw new AppError(409, `Job cannot be regenerated from status "${job.status}"`);
+    }
+
+    const assets = await findAssetsByJobId(job.id);
+    const presenterAssets = assets.filter((a) => a.asset_type.startsWith('PRESENTER_'));
+    if (presenterAssets.length === 0) {
+      throw new AppError(400, 'This job has no presenter images to regenerate');
+    }
+
+    await updateJob(job.id, { gents_master_presenter_key: null, status: 'generating' });
+    await Promise.all(presenterAssets.map((a) => resetAssetForRetry(a.id)));
+    await boss.send(JOB_AI_STUDIO_GENERATE, { jobId: job.id, assetIds: presenterAssets.map((a) => a.id) });
 
     res.status(202).json({ jobId: job.id });
   } catch (err) {
@@ -468,6 +524,9 @@ export async function updateAssetSelection(req, res, next) {
         presenter,
         generateRoseGold: job.generate_rose_gold,
         overridesByAssetType: { [asset.asset_type]: input.customCreativeInstructions },
+        // Preserve the confirmed category during regeneration (spec) —
+        // individual regeneration never re-derives or resets it.
+        confirmedCustomerCategory: job.customer_category ?? DEFAULT_CUSTOMER_CATEGORY,
       });
       const preview = previews.find((p) => p.assetType === asset.asset_type);
       if (!preview) throw new AppError(400, 'This asset type is not part of the current generation plan');

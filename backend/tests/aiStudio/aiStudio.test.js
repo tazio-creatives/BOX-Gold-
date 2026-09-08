@@ -298,6 +298,87 @@ describe('previewPromptsForJob (Review Prompts panel — pure, no DB/API calls)'
   });
 });
 
+describe('Gents presenter identity consistency — scoped to GENTS only', () => {
+  test('both Gents presenter shots carry the same identity-lock instructions, referencing the attached identity photo rather than a picked presenter', () => {
+    const previews = previewPromptsForJob({
+      confirmedType: 'BANGLE',
+      template: FAKE_TEMPLATE,
+      presenter: FAKE_PRESENTER,
+      generateRoseGold: true,
+      overridesByAssetType: undefined,
+      confirmedCustomerCategory: 'GENTS',
+    });
+    const presenterShots = previews.filter((p) => p.assetType.startsWith('PRESENTER_'));
+    assert.equal(presenterShots.length, 2);
+    for (const shot of presenterShots) {
+      assert.match(shot.finalPrompt, /first attached (reference photo|identity reference photo)/i);
+      assert.match(shot.finalPrompt, /second attached reference photo is the exact jewellery product/i);
+      assert.match(shot.finalPrompt, /do not generate a different man/i);
+      assert.doesNotMatch(shot.finalPrompt, /matching the attached presenter reference photo/i);
+      assert.doesNotMatch(shot.finalPrompt, /a friendly presenter/i);
+    }
+  });
+
+  test('Kids and Women/no-category presenter prompts are unaffected by the Gents identity-lock text', () => {
+    const kidsPreviews = previewPromptsForJob({
+      confirmedType: 'BANGLE',
+      template: FAKE_TEMPLATE,
+      presenter: FAKE_PRESENTER,
+      generateRoseGold: false,
+      overridesByAssetType: undefined,
+      confirmedCustomerCategory: 'KIDS',
+    });
+    for (const shot of kidsPreviews.filter((p) => p.assetType.startsWith('PRESENTER_'))) {
+      assert.doesNotMatch(shot.finalPrompt, /identity reference photo/i);
+      assert.doesNotMatch(shot.finalPrompt, /do not generate a different man/i);
+    }
+
+    const womenPreviews = previewPromptsForJob({
+      confirmedType: 'BANGLE',
+      template: FAKE_TEMPLATE,
+      presenter: FAKE_PRESENTER,
+      generateRoseGold: false,
+      overridesByAssetType: undefined,
+    });
+    for (const shot of womenPreviews.filter((p) => p.assetType.startsWith('PRESENTER_'))) {
+      assert.doesNotMatch(shot.finalPrompt, /identity reference photo/i);
+      assert.match(shot.finalPrompt, /matching the attached presenter reference photo/i);
+    }
+  });
+
+  test('Ring hand shots are completely untouched by confirmedCustomerCategory GENTS (existing hand-only workflow preserved)', () => {
+    const previews = previewPromptsForJob({
+      confirmedType: 'RING',
+      template: FAKE_TEMPLATE,
+      presenter: null,
+      generateRoseGold: false,
+      overridesByAssetType: undefined,
+      confirmedCustomerCategory: 'GENTS',
+    });
+    for (const p of previews) {
+      assert.doesNotMatch(p.finalPrompt, /identity reference photo/i);
+    }
+  });
+
+  test('catalogue-only shots (no presenter) are untouched for a Gents job', () => {
+    const previews = previewPromptsForJob({
+      confirmedType: 'NECKLACE',
+      template: FAKE_TEMPLATE,
+      presenter: null,
+      generateRoseGold: true,
+      overridesByAssetType: undefined,
+      confirmedCustomerCategory: 'GENTS',
+    });
+    assert.deepEqual(
+      previews.map((p) => p.assetType),
+      ['YELLOW_FRONT', 'YELLOW_HERO_45', 'ROSE_FRONT', 'ROSE_HERO_45'],
+    );
+    for (const p of previews) {
+      assert.doesNotMatch(p.finalPrompt, /identity reference photo/i);
+    }
+  });
+});
+
 describe('previewPromptsForJob — Ring-only output structure', () => {
   const RING_TEMPLATE = { ...FAKE_TEMPLATE };
 

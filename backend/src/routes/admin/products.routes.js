@@ -37,6 +37,7 @@ import {
   confirmJob as confirmStudioJob,
   previewPrompts as previewStudioPrompts,
   retryAsset as retryStudioAsset,
+  changeGentsPresenter,
   updateAssetSelection as updateStudioAssetSelection,
   importAsset as importStudioAsset,
   completeImport as completeStudioImport,
@@ -113,6 +114,14 @@ adminProductsRouter.post(
   '/:id/ai-studio/:jobId/assets/:assetId/retry',
   aiStudioRateLimiter,
   retryStudioAsset,
+);
+// Gents-only: regenerates a fresh master identity and both Gents presenter
+// shots together — see changeGentsPresenter's own comment for why this is
+// separate from the generic per-asset retry endpoint above.
+adminProductsRouter.post(
+  '/:id/ai-studio/:jobId/gents-presenter/change',
+  aiStudioRateLimiter,
+  changeGentsPresenter,
 );
 adminProductsRouter.patch('/:id/ai-studio/:jobId/assets/:assetId', updateStudioAssetSelection);
 adminProductsRouter.post('/:id/ai-studio/:jobId/assets/:assetId/import', importStudioAsset);

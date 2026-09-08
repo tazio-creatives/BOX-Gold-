@@ -1,7 +1,7 @@
 import { useState } from 'react';
-import { REAL_JEWELLERY_TYPES, type JewelleryType, type StudioJob } from '../../api/aiStudio';
+import { CUSTOMER_CATEGORIES, REAL_JEWELLERY_TYPES, type CustomerCategory, type JewelleryType, type StudioJob } from '../../api/aiStudio';
 import { Toggle } from '../../components/Toggle';
-import { inferJewelleryTypeFromCategory } from './generationRules';
+import { formatCustomerCategory, inferJewelleryTypeFromCategory, presenterDemographicSummary } from './generationRules';
 import sharedStyles from '../../styles/shared.module.css';
 import styles from './AnalyseConfirmStep.module.css';
 
@@ -23,6 +23,10 @@ interface AnalyseConfirmStepProps {
   onCategoryConfirmedChange: (_v: boolean) => void;
   generateRoseGold: boolean;
   onGenerateRoseGoldChange: (_v: boolean) => void;
+  customerCategory: CustomerCategory | '';
+  onCustomerCategoryChange: (_v: CustomerCategory) => void;
+  customerCategoryConfirmed: boolean;
+  onCustomerCategoryConfirmedChange: (_v: boolean) => void;
 }
 
 // AI-detected attributes are suggestions only — nothing here is ever applied
@@ -41,10 +45,32 @@ export function AnalyseConfirmStep({
   onCategoryConfirmedChange,
   generateRoseGold,
   onGenerateRoseGoldChange,
+  customerCategory,
+  onCustomerCategoryChange,
+  customerCategoryConfirmed,
+  onCustomerCategoryConfirmedChange,
 }: AnalyseConfirmStepProps) {
   const [isPickingCategory, setIsPickingCategory] = useState(false);
   const [categoryFilter, setCategoryFilter] = useState('');
+  const [isPickingAudience, setIsPickingAudience] = useState(false);
   const analysis = job.analysis;
+
+  function confirmAudienceWith(category: CustomerCategory) {
+    onCustomerCategoryChange(category);
+    onCustomerCategoryConfirmedChange(true);
+    setIsPickingAudience(false);
+  }
+
+  const presenterSummary = customerCategory ? presenterDemographicSummary(customerCategory) : null;
+  const generationSummary = customerCategory
+    ? [
+        formatCustomerCategory(customerCategory),
+        presenterSummary,
+        generateRoseGold ? 'Gold & Rose Gold' : 'Gold Only',
+      ]
+        .filter(Boolean)
+        .join(' · ')
+    : null;
 
   const inferredType = inferJewelleryTypeFromCategory(productCategoryName);
   const hasComparableCategory = inferredType != null;
@@ -178,6 +204,68 @@ export function AnalyseConfirmStep({
         </p>
       )}
 
+      {/* Customer category — WHO the piece is for, separate from jewellery
+          type (WHAT it is). Follows the exact same AI-suggests / admin-
+          corrects / admin-confirms pattern as the jewellery type above, on
+          this same screen — Ring skips the Presenter step entirely and goes
+          straight from here to generation, so this is the only place every
+          jewellery type is guaranteed to pass through. Drives presenter
+          selection automatically; no separate presenter-picker step is added
+          for it. */}
+      <section className={styles.generationPlan}>
+        <h3 className={styles.generationPlanTitle}>Customer Category</h3>
+        {analysis && (
+          <div className={styles.attrCard}>
+            <p className={styles.attrLabel}>AI-Suggested Customer Category</p>
+            <p className={styles.attrValue}>{formatCustomerCategory(analysis.customerCategory)}</p>
+            <span className={styles.confidence}>Confidence: {pct(analysis.customerCategoryConfidence)}</span>
+          </div>
+        )}
+
+        <div className={styles.categoryActions}>
+          <button
+            type="button"
+            className={sharedStyles.button}
+            disabled={!analysis}
+            onClick={() => analysis && confirmAudienceWith(analysis.customerCategory)}
+          >
+            Use Suggested Category
+          </button>
+          <button
+            type="button"
+            className={sharedStyles.button}
+            onClick={() => {
+              onCustomerCategoryConfirmedChange(false);
+              setIsPickingAudience((v) => !v);
+            }}
+          >
+            Select Another Category
+          </button>
+        </div>
+
+        {isPickingAudience && (
+          <div className={styles.categoryGrid}>
+            {CUSTOMER_CATEGORIES.map((c) => (
+              <button
+                key={c}
+                type="button"
+                className={customerCategory === c ? styles.categoryCardSelected : styles.categoryCard}
+                onClick={() => confirmAudienceWith(c)}
+              >
+                {formatCustomerCategory(c)}
+              </button>
+            ))}
+          </div>
+        )}
+
+        {customerCategoryConfirmed && customerCategory && (
+          <p className={styles.confirmedNotice}>
+            ✓ Confirmed customer category: <strong>{formatCustomerCategory(customerCategory)}</strong>
+            {presenterSummary && ` — ${presenterSummary}`}
+          </p>
+        )}
+      </section>
+
       <section className={styles.generationPlan}>
         <h3 className={styles.generationPlanTitle}>Generation Plan</h3>
         <Toggle
@@ -186,6 +274,7 @@ export function AnalyseConfirmStep({
           label="Generate Rose Gold Version"
           helperText="Creates Rose Gold catalogue and presenter images in addition to the Yellow Gold images."
         />
+        {generationSummary && <p className={styles.confirmedNotice}>{generationSummary}</p>}
       </section>
     </div>
   );

@@ -11,7 +11,9 @@ import {
   importStudioAsset,
   completeStudioImport,
   cancelStudioJob,
+  changeGentsPresenter,
   type JewelleryType,
+  type CustomerCategory,
   type PromptOverrides,
   type PromptCreativeOverride,
 } from '../../api/aiStudio';
@@ -56,6 +58,11 @@ export function AiImageStudioPage() {
   // category confirmation must be a real, mandatory gate, not just a
   // pre-filled default the admin never had to look at).
   const [categoryConfirmed, setCategoryConfirmed] = useState(false);
+  // Mirrors jewelleryType/categoryConfirmed exactly — a mandatory,
+  // explicitly-confirmed gate, not just a pre-filled default (same
+  // rationale as Problem 1's category-confirmation audit trail).
+  const [customerCategory, setCustomerCategory] = useState<CustomerCategory | ''>('');
+  const [customerCategoryConfirmed, setCustomerCategoryConfirmed] = useState(false);
   const [generateRoseGold, setGenerateRoseGold] = useState(
     () => localStorage.getItem(ROSE_GOLD_PREF_KEY) !== 'false',
   );
@@ -124,12 +131,23 @@ export function AiImageStudioPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [job?.analysis, productCategory?.name]);
 
+  // Same reasoning as the jewelleryType default-fill effect above — the AI's
+  // suggested customer category pre-fills the field, but confirmation still
+  // requires its own explicit click (see customerCategoryConfirmed).
+  useEffect(() => {
+    if (!job?.analysis || customerCategory) return;
+    setCustomerCategory(job.analysis.customerCategory);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [job?.analysis]);
+
   const createMutation = useMutation({
     mutationFn: (files: File[]) => createStudioJob(productId as string, files),
     onSuccess: (res) => {
       setJobId(res.jobId);
       setConfirmSubStep('analyse');
       setCategoryConfirmed(false);
+      setCustomerCategory('');
+      setCustomerCategoryConfirmed(false);
       setPromptOverrides({});
     },
   });
@@ -142,6 +160,7 @@ export function AiImageStudioPage() {
         presenterId: isRing ? null : presenterId,
         generateRoseGold,
         promptOverrides,
+        customerCategory: customerCategory || undefined,
       }),
     onSuccess: invalidateJob,
   });
@@ -167,6 +186,31 @@ export function AiImageStudioPage() {
     for (const assetId of assetIds) {
       if (!regeneratingAssetIds.has(assetId)) regenerateAsset(assetId);
     }
+  }
+
+  // "Change Gents Presenter" — the only action that creates a new master
+  // identity after the first one exists for a job; marks both Gents
+  // presenter tiles as regenerating together (mirrors regenerateAllAssets'
+  // shape) since the backend regenerates them as a matched pair.
+  const changeGentsPresenterMutation = useMutation({
+    mutationFn: () => changeGentsPresenter(productId as string, jobId as string),
+  });
+
+  function handleChangeGentsPresenter(presenterAssetIds: string[]) {
+    setRegeneratingAssetIds((prev) => {
+      const next = new Set(prev);
+      for (const id of presenterAssetIds) next.add(id);
+      return next;
+    });
+    changeGentsPresenterMutation.mutate(undefined, {
+      onSuccess: invalidateJob,
+      onSettled: () =>
+        setRegeneratingAssetIds((prev) => {
+          const next = new Set(prev);
+          for (const id of presenterAssetIds) next.delete(id);
+          return next;
+        }),
+    });
   }
 
   const selectionMutation = useMutation({
@@ -249,13 +293,22 @@ export function AiImageStudioPage() {
               onCategoryConfirmedChange={setCategoryConfirmed}
               generateRoseGold={generateRoseGold}
               onGenerateRoseGoldChange={handleGenerateRoseGoldChange}
+              customerCategory={customerCategory}
+              onCustomerCategoryChange={setCustomerCategory}
+              customerCategoryConfirmed={customerCategoryConfirmed}
+              onCustomerCategoryConfirmedChange={setCustomerCategoryConfirmed}
             />
             {confirmError && isRing && <p className={sharedStyles.error}>{confirmError}</p>}
             <div className={styles.actions}>
               <button
                 type="button"
                 className={sharedStyles.buttonPrimary}
-                disabled={!jewelleryType || !categoryConfirmed || (isRing && confirmMutation.isPending)}
+                disabled={
+                  !jewelleryType ||
+                  !categoryConfirmed ||
+                  !customerCategoryConfirmed ||
+                  (isRing && confirmMutation.isPending)
+                }
                 // Ring skips both the presenter/hand-pose choice and the Review
                 // Prompts screen entirely — generation starts immediately once
                 // the category is confirmed, per spec: no pose selection, no
@@ -302,6 +355,7 @@ export function AiImageStudioPage() {
               generateRoseGold={generateRoseGold}
               promptOverrides={promptOverrides}
               onPromptOverridesChange={setPromptOverrides}
+              customerCategory={customerCategory}
             />
             {confirmError && <p className={sharedStyles.error}>{confirmError}</p>}
             <div className={styles.actions}>
@@ -335,6 +389,8 @@ export function AiImageStudioPage() {
             job={job}
             onRegenerate={regenerateAsset}
             onRegenerateAll={regenerateAllAssets}
+            onChangeGentsPresenter={handleChangeGentsPresenter}
+            isChangingGentsPresenter={changeGentsPresenterMutation.isPending}
             regeneratingAssetIds={regeneratingAssetIds}
             onToggleSelected={(assetId, selected) => selectionMutation.mutate({ assetId, input: { selected } })}
             onSetFeatured={(assetId) => selectionMutation.mutate({ assetId, input: { isFeatured: true } })}
