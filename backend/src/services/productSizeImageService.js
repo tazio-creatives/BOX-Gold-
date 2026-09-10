@@ -474,7 +474,15 @@ export async function composeMeasurementImage({ productBuffer, boundingBox, jewe
     loopCallout,
   });
   const overlayBuffer = await sharp(Buffer.from(overlaySvg)).png().toBuffer();
-  const resizedProductBuffer = await cropped.resize(resizedWidth, resizedHeight).png().toBuffer();
+  // fit: 'fill' — NOT the sharp default ('cover'). 'cover' would crop the
+  // product whenever the declared width/height box's aspect ratio differs
+  // from the actual photographed product's (now common since there's no
+  // longer an aspect-ratio check rejecting that mismatch — see
+  // primaryDimensionsFor's comment). Stretching instead of cropping keeps
+  // the whole product visible; the admin's declared numbers are trusted
+  // as-is, so nothing about the photographed piece should be clipped away
+  // to force it into their numbers.
+  const resizedProductBuffer = await cropped.resize(resizedWidth, resizedHeight, { fit: 'fill' }).png().toBuffer();
 
   const finalBuffer = await sharp({
     create: { width: CANVAS_SIZE, height: CANVAS_SIZE, channels: 3, background: { r: 255, g: 255, b: 255 } },
