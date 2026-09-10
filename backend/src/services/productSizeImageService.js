@@ -269,18 +269,18 @@ function buildRulerOverlaySvg({
     const hx = origin.x + mm * pxPerMm;
     parts.push(`<line x1="${hx}" y1="${origin.y}" x2="${hx}" y2="${origin.y + tickLen}" stroke="${dark}" stroke-width="${strokeW}" />`);
     if (isMajor && mm > 0) {
-      parts.push(`<text x="${hx}" y="${origin.y + tickLen + 22}" font-size="20" font-family="Arial, sans-serif" fill="${dark}" text-anchor="middle">${mm / 10}</text>`);
+      parts.push(`<text x="${hx}" y="${origin.y + tickLen + 22}" font-size="20" font-family="Liberation Sans, Arial, sans-serif" fill="${dark}" text-anchor="middle">${mm / 10}</text>`);
     }
 
     const vy = origin.y - mm * pxPerMm;
     parts.push(`<line x1="${origin.x}" y1="${vy}" x2="${origin.x - tickLen}" y2="${vy}" stroke="${dark}" stroke-width="${strokeW}" />`);
     if (isMajor && mm > 0) {
-      parts.push(`<text x="${origin.x - tickLen - 12}" y="${vy + 7}" font-size="20" font-family="Arial, sans-serif" fill="${dark}" text-anchor="end">${mm / 10}</text>`);
+      parts.push(`<text x="${origin.x - tickLen - 12}" y="${vy + 7}" font-size="20" font-family="Liberation Sans, Arial, sans-serif" fill="${dark}" text-anchor="end">${mm / 10}</text>`);
     }
   }
 
-  parts.push(`<text x="${origin.x - 10}" y="${origin.y + 26}" font-size="20" font-family="Arial, sans-serif" fill="${dark}" text-anchor="end">0</text>`);
-  parts.push(`<text x="${origin.x - 10}" y="${origin.y + 58}" font-size="18" font-family="Arial, sans-serif" fill="${dark}" text-anchor="end">Cm</text>`);
+  parts.push(`<text x="${origin.x - 10}" y="${origin.y + 26}" font-size="20" font-family="Liberation Sans, Arial, sans-serif" fill="${dark}" text-anchor="end">0</text>`);
+  parts.push(`<text x="${origin.x - 10}" y="${origin.y + 58}" font-size="18" font-family="Liberation Sans, Arial, sans-serif" fill="${dark}" text-anchor="end">Cm</text>`);
 
   // Two full-width dashed guides at the measured span's top and bottom edges
   // — read off directly against the left ruler, same as the approved
@@ -308,11 +308,11 @@ function buildRulerOverlaySvg({
 
     const labelMidY = (measuredTopY + measuredBottomY) / 2;
     parts.push(
-      `<text x="${labelX}" y="${labelMidY - 8}" font-size="24" font-weight="700" font-family="Arial, sans-serif" fill="${dark}">${escapeXml(categoryTitleFor(jewelleryType))}</text>`,
+      `<text x="${labelX}" y="${labelMidY - 8}" font-size="24" font-weight="700" font-family="Liberation Sans, Arial, sans-serif" fill="${dark}">${escapeXml(categoryTitleFor(jewelleryType))}</text>`,
     );
     if (measuredHeightValue != null) {
       parts.push(
-        `<text x="${labelX}" y="${labelMidY + 24}" font-size="24" font-family="Arial, sans-serif" fill="${dark}">${measuredHeightValue} ${escapeXml(unit)}</text>`,
+        `<text x="${labelX}" y="${labelMidY + 24}" font-size="24" font-family="Liberation Sans, Arial, sans-serif" fill="${dark}">${measuredHeightValue} ${escapeXml(unit)}</text>`,
       );
     }
   }
@@ -328,7 +328,7 @@ function buildRulerOverlaySvg({
     parts.push(`<line x1="${labelX - 6}" y1="${calloutLabelY + 6}" x2="${targetX}" y2="${targetY}" stroke="${dark}" stroke-width="${strokeMinor}" />`);
     parts.push(`<circle cx="${targetX}" cy="${targetY}" r="4" fill="${dark}" />`);
     parts.push(
-      `<text x="${labelX}" y="${calloutLabelY}" font-size="21" font-family="Arial, sans-serif" fill="${dark}">${escapeXml(text)}</text>`,
+      `<text x="${labelX}" y="${calloutLabelY}" font-size="21" font-family="Liberation Sans, Arial, sans-serif" fill="${dark}">${escapeXml(text)}</text>`,
     );
   }
 
@@ -341,12 +341,12 @@ function buildRulerOverlaySvg({
   if (dims.heightValue != null) dimParts.push(`${dims.heightValue} ${unit}`);
   const dimText = dimParts.join(' × ');
 
-  parts.push(`<text x="${LEFT_MARGIN}" y="48" font-size="30" font-weight="700" font-family="Arial, sans-serif" fill="${dark}">${escapeXml(categoryTitleFor(jewelleryType))}</text>`);
+  parts.push(`<text x="${LEFT_MARGIN}" y="48" font-size="30" font-weight="700" font-family="Liberation Sans, Arial, sans-serif" fill="${dark}">${escapeXml(categoryTitleFor(jewelleryType))}</text>`);
   if (dimText) {
-    parts.push(`<text x="${LEFT_MARGIN}" y="82" font-size="24" font-family="Arial, sans-serif" fill="${dark}">${escapeXml(dimText)}</text>`);
+    parts.push(`<text x="${LEFT_MARGIN}" y="82" font-size="24" font-family="Liberation Sans, Arial, sans-serif" fill="${dark}">${escapeXml(dimText)}</text>`);
   }
   if (inclusionNote) {
-    parts.push(`<text x="${LEFT_MARGIN}" y="110" font-size="20" font-family="Arial, sans-serif" fill="${dark}">${escapeXml(inclusionNote)}</text>`);
+    parts.push(`<text x="${LEFT_MARGIN}" y="110" font-size="20" font-family="Liberation Sans, Arial, sans-serif" fill="${dark}">${escapeXml(inclusionNote)}</text>`);
   }
 
   return `<svg width="${CANVAS_SIZE}" height="${CANVAS_SIZE}" viewBox="0 0 ${CANVAS_SIZE} ${CANVAS_SIZE}" xmlns="http://www.w3.org/2000/svg">${parts.join('')}</svg>`;
