@@ -98,7 +98,13 @@ export function ImageGallery({
   const goPrev = () => setActiveIndex((i) => (i - 1 + displayImages.length) % displayImages.length);
   const goNext = () => setActiveIndex((i) => (i + 1) % displayImages.length);
 
-  const activeUrl = displayImages[activeIndex].mainUrl;
+  const activePhoto = displayImages[activeIndex];
+  const activeUrl = activePhoto.mainUrl;
+  // The Product Size Image is a square diagram with its ruler axis, origin
+  // and labels right at the edges — object-fit: cover (used for every other,
+  // landscape-ish product photo) crops those off in the 4:3 main frame. This
+  // one needs the whole square visible, letterboxed instead of cropped.
+  const isSizeGuide = activePhoto.type === 'PRODUCT_SIZE';
 
   return (
     <div className={styles.gallery}>
@@ -110,7 +116,12 @@ export function ImageGallery({
         onMouseMove={handleMouseMove}
         onClick={() => setLightboxOpen(true)}
       >
-        <img src={activeUrl} alt={productName} className={styles.mainImage} />
+        <img
+          src={activeUrl}
+          alt={productName}
+          className={styles.mainImage}
+          style={isSizeGuide ? { objectFit: 'contain' } : undefined}
+        />
         {isZooming && (
           <div
             className={styles.zoomPane}
