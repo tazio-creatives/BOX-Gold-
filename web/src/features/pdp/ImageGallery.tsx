@@ -119,7 +119,7 @@ export function ImageGallery({
         <img
           src={activeUrl}
           alt={productName}
-          className={styles.mainImage}
+          className={isSizeGuide ? `${styles.mainImage} ${styles.productSizeImage}` : styles.mainImage}
           style={isSizeGuide ? { objectFit: 'contain' } : undefined}
         />
         {/* The follow-mouse 200% magnify pane makes sense for a regular photo
@@ -168,7 +168,11 @@ export function ImageGallery({
                 onClick={() => setActiveIndex(i)}
                 aria-label={`View image ${i + 1}`}
               >
-                <img src={img.thumbUrl} alt="" />
+                <img
+                  src={img.thumbUrl}
+                  alt=""
+                  className={img.type === 'PRODUCT_SIZE' ? styles.sizeGuideThumbImg : undefined}
+                />
                 {img.type === 'PRODUCT_SIZE' && <span className={styles.sizeGuideLabel}>Size Guide</span>}
               </button>
             ))}

@@ -37,6 +37,19 @@
   display: block;
 }
 
+/* Size-guide diagram: the whole square canvas (rulers/labels right at the
+   edges) must stay fully visible — cover-crop or an edge-to-edge fill would
+   cut ruler ticks/labels off. object-fit is also set inline (belt-and-
+   suspenders against the .mainImage mobile media query further down, which
+   redefines object-fit at the same specificity). */
+.productSizeImage {
+  object-fit: contain;
+  object-position: center;
+  padding: 16px;
+  box-sizing: border-box;
+  background: #ffffff;
+}
+
 .zoomPane {
   position: absolute;
   inset: 0;
@@ -171,6 +184,13 @@
   object-fit: cover;
 }
 
+.sizeGuideThumbImg {
+  object-fit: contain;
+  background: #ffffff;
+  padding: 4px;
+  box-sizing: border-box;
+}
+
 .lightboxOverlay {
   position: fixed;
   inset: 0;
@@ -267,6 +287,10 @@
 
   .mainImage {
     object-fit: cover;
+  }
+
+  .productSizeImage {
+    object-fit: contain;
   }
 
   .thumbRow {
