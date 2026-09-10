@@ -189,27 +189,6 @@ export async function detectProductBoundingBox(buffer) {
   return { ...box, canvasWidth, canvasHeight };
 }
 
-// Strict 4% tolerance (within the required 3-5% band) — catches a genuine
-// unit/dimension mix-up (e.g. width and height entered swapped, or mm
-// entered where cm was meant) rather than silently drawing a ruler that
-// doesn't match what's actually in the photo. Skipped entirely when the
-// category has no meaningful height dimension (see primaryDimensionsFor).
-const ASPECT_RATIO_TOLERANCE = 0.04;
-
-export function checkAspectRatioAgreement({ detectedWidthPx, detectedHeightPx, declaredWidthMm, declaredHeightMm }) {
-  if (!declaredWidthMm || !declaredHeightMm) return { ok: true };
-  const detectedAspect = detectedWidthPx / detectedHeightPx;
-  const declaredAspect = declaredWidthMm / declaredHeightMm;
-  const divergence = Math.abs(detectedAspect / declaredAspect - 1);
-  if (divergence > ASPECT_RATIO_TOLERANCE) {
-    return {
-      ok: false,
-      reason: 'Detected product proportions do not match the entered measurements — check for a unit or dimension mix-up.',
-    };
-  }
-  return { ok: true };
-}
-
 function toMm(value, unit) {
   return unit === 'cm' ? value * 10 : value;
 }
@@ -566,19 +545,11 @@ export async function runProductSizeGeneration(productId, measurementsRow) {
     return { status: 'failed', failureReason: 'Background is not clean enough to detect product boundaries reliably.' };
   }
 
-  const { widthValue, heightValue } = primaryDimensionsFor(measurementsRow.jewellery_type, measurementsRow.measurements);
-  if (widthValue != null && heightValue != null) {
-    const aspectCheck = checkAspectRatioAgreement({
-      detectedWidthPx: boundingBox.width,
-      detectedHeightPx: boundingBox.height,
-      declaredWidthMm: toMm(widthValue, measurementsRow.unit),
-      declaredHeightMm: toMm(heightValue, measurementsRow.unit),
-    });
-    if (!aspectCheck.ok) {
-      return { status: 'failed', failureReason: aspectCheck.reason };
-    }
-  }
-
+  // No cross-check against the declared measurements here by design — the
+  // admin is expected to have physically measured the real piece, and the
+  // ruler renders exactly what they entered regardless of how it compares
+  // to the detected photo proportions (explicit product decision: never
+  // reject a generation over a declared-vs-detected mismatch).
   const finalBuffer = await composeMeasurementImage({
     productBuffer: baseBuffer,
     boundingBox,

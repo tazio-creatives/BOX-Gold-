@@ -61,17 +61,18 @@ export function fieldsForCategory(jewelleryType) {
 }
 
 // Which saved fields represent the piece's overall photographed width/height
-// — used both to derive the ruler's px-per-unit scale and to cross-check the
-// generated photo's detected proportions (productSizeImageService.js). Some
-// categories only have one true overall dimension (a Bangle/Bracelet/chain's
-// "shape" isn't meaningfully width x height) — heightKey is null there, and
-// the aspect-ratio cross-check is skipped entirely for that product (see
-// checkAspectRatioAgreement's own "only when both are declared" guard).
+// — used to derive the ruler's px-per-unit scale (productSizeImageService.js
+// composeMeasurementImage). Some categories only have one true overall
+// dimension (a Bangle/Bracelet/chain's "shape" isn't meaningfully width x
+// height) — heightKey is null there. The declared values are trusted as
+// entered — there's no cross-check against the photo's detected proportions
+// (explicit product decision: an admin's own physical measurement of the
+// piece always wins, never rejected over a detected-vs-declared mismatch).
 const PRIMARY_DIMENSIONS = {
   RING: { widthKey: 'ringTopWidth', heightKey: 'ringTopHeight' },
   // heightKey is the whole visible piece (loop included) — it's what's
-  // actually in the photo, so it's what the aspect-ratio fidelity check and
-  // the ruler scale must be built from. There's deliberately no separate
+  // actually in the photo, so it's what the ruler scale must be built from.
+  // There's deliberately no separate
   // "total height" field any more (see INCLUSION_RULES.PENDANT below).
   PENDANT: { widthKey: 'pendantBodyWidth', heightKey: 'pendantBodyHeight' },
   EARRINGS: { widthKey: 'earringWidth', heightKey: 'dropLength' },
