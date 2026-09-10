@@ -4,6 +4,7 @@ import { CampaignBanners } from './CampaignBanners';
 import { CategoryProductRow } from './CategoryProductRow';
 import { CategoryShowcase } from './CategoryShowcase';
 import { CollectionShowcase } from './CollectionShowcase';
+import { CollectionProductShowcase } from './CollectionProductShowcase';
 import { DuoBanner } from './DuoBanner';
 import { HeroCarousel } from './HeroCarousel';
 import { NewsletterForm } from './NewsletterForm';
@@ -73,6 +74,12 @@ export function HomepageSection({ section, alternate }: Props) {
 
     case 'CATEGORY_PRODUCTS':
       return <CategoryProductRow items={section.items} heading={section.heading} />;
+
+    // No section.heading rendered here — the collection's own name is
+    // already the banner's real H2 (per the "don't repeat the collection
+    // name above the grid" requirement).
+    case 'COLLECTION_SHOWCASE':
+      return <CollectionProductShowcase items={section.items} />;
 
     case 'SHOP_BY_MATERIAL':
       return (

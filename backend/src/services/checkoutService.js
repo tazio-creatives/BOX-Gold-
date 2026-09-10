@@ -15,6 +15,7 @@ import {
 import { getActiveReservedQuantityTx, insertReservationTx } from '../repositories/reservations.repository.js';
 import { computeVariantPricing } from './pricingService.js';
 import { validateCoupon } from './couponService.js';
+import { calculateDeliveryEstimate } from './deliveryEstimateService.js';
 
 function round2(n) {
   return Math.round(n * 100) / 100;
@@ -155,6 +156,11 @@ export async function createOrder({ userId, contact, addressId, items, couponCod
       grandTotal = round2(grandTotal - discountAmount);
     }
 
+    // Frozen at order placement, never recomputed on read (see
+    // deliveryEstimateService.js) — the order keeps showing the window the
+    // customer actually saw at checkout, permanently.
+    const deliveryEstimate = calculateDeliveryEstimate();
+
     const orderRow = await insertOrderTx(client, {
       orderNumber: generateOrderNumber(),
       userId,
@@ -171,6 +177,10 @@ export async function createOrder({ userId, contact, addressId, items, couponCod
       totalAmount: round2(grandTotal),
       couponId,
       couponCode: couponCodeSnapshot,
+      estimatedDeliveryStartDate: deliveryEstimate.earliestDate,
+      estimatedDeliveryEndDate: deliveryEstimate.latestDate,
+      deliveryMinimumDays: deliveryEstimate.minimumDays,
+      deliveryMaximumDays: deliveryEstimate.maximumDays,
     });
 
     for (const line of lineData) {

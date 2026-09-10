@@ -1,5 +1,5 @@
 import { apiFetch } from './client';
-import type { Order, OrderStatus } from './types';
+import type { DeliveryEstimate, Order, OrderStatus } from './types';
 
 export interface OrderSummary {
   id: string;
@@ -13,6 +13,7 @@ export interface OrderSummary {
   confirmedAt: string | null;
   shippedAt: string | null;
   deliveredAt: string | null;
+  deliveryEstimate: DeliveryEstimate | null;
 }
 
 export interface OrderListResponse {

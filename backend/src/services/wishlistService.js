@@ -1,6 +1,7 @@
 import { NotFoundError } from '../utils/AppError.js';
 import { findProductById, findProductsByIds } from '../repositories/products.repository.js';
 import { toListDto } from '../controllers/products.controller.js';
+import { calculateDeliveryEstimate } from './deliveryEstimateService.js';
 import {
   findWishlistByOwner,
   createWishlist,
@@ -22,8 +23,8 @@ async function findOrCreateWishlist(owner) {
 // so a wishlist card shows the identical discount badge/strikethrough a
 // shopper saw on the listing — this used to return bare sellingPrice/mrp
 // only, silently dropping any discount.
-function toItemDto(product) {
-  const card = toListDto(product);
+function toItemDto(product, deliveryEstimate) {
+  const card = toListDto(product, deliveryEstimate);
   return { productId: card.id, ...card };
 }
 
@@ -34,11 +35,12 @@ export async function getWishlist(owner) {
 
   const products = await findProductsByIds(items.map((i) => i.product_id));
   const productMap = new Map(products.map((p) => [p.id, p]));
+  const deliveryEstimate = calculateDeliveryEstimate();
 
   const enriched = items
     .map((item) => productMap.get(item.product_id))
     .filter(Boolean)
-    .map(toItemDto);
+    .map((product) => toItemDto(product, deliveryEstimate));
 
   return { items: enriched };
 }

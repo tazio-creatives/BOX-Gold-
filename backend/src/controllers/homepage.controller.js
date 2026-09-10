@@ -1,5 +1,6 @@
 import { getEnabledSectionsWithItems } from '../repositories/homepage.repository.js';
 import { toListDto, rowOffer, discountPercent, offerLabel, strikePriceInfo } from './products.controller.js';
+import { calculateDeliveryEstimate } from '../services/deliveryEstimateService.js';
 
 // Homepage's hand-curated queries (NEW_ARRIVALS/FEATURED_PRODUCT/the single
 // linked-item join, see homepage.repository.js) select the same pricing
@@ -8,7 +9,7 @@ import { toListDto, rowOffer, discountPercent, offerLabel, strikePriceInfo } fro
 // expects so this goes through the exact same purity-rule-aware discount
 // resolution as the PLP/search/wishlist, instead of re-deriving the offer
 // from the flat columns only.
-function toItemDto(row) {
+function toItemDto(row, deliveryEstimate) {
   let product = null;
   if (row.product_id) {
     const offer = rowOffer({
@@ -38,6 +39,7 @@ function toItemDto(row) {
       imageUrl: row.product_image_url,
       metalType: row.product_metal_type,
       purity: row.product_purity,
+      deliveryEstimate,
     };
   }
 
@@ -56,19 +58,20 @@ function toItemDto(row) {
       ? { id: row.collection_id, name: row.collection_name, slug: row.collection_slug }
       : null,
     product,
-    products: (row.products ?? []).map(toListDto),
+    products: (row.products ?? []).map((p) => toListDto(p, deliveryEstimate)),
   };
 }
 
 export async function get(req, res, next) {
   try {
     const sections = await getEnabledSectionsWithItems();
+    const deliveryEstimate = calculateDeliveryEstimate();
     res.json({
       sections: sections.map((s) => ({
         id: s.id,
         type: s.type,
         heading: s.heading,
-        items: s.items.map(toItemDto),
+        items: s.items.map((item) => toItemDto(item, deliveryEstimate)),
       })),
     });
   } catch (err) {

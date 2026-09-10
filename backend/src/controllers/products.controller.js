@@ -14,6 +14,7 @@ import { replaceWeightRulesSchema } from '../validators/weightRules.validators.j
 import { replacePurityPricingRulesSchema } from '../validators/purityPricingRules.validators.js';
 import * as productsService from '../services/productsService.js';
 import { applyProductOffer, round2 } from '../services/pricingService.js';
+import { calculateDeliveryEstimate } from '../services/deliveryEstimateService.js';
 import { AppError } from '../utils/AppError.js';
 
 // The generic "Already exists" the shared error handler falls back to for
@@ -96,7 +97,13 @@ function isRecentlyPublished(createdAt) {
 // Card-shaped DTO for listings — intentionally excludes full description,
 // jewellery attributes, etc. (plan §13: "server sends only fields each
 // screen needs").
-export function toListDto(row) {
+//
+// deliveryEstimate defaults to a fresh calculation so toListDto stays
+// callable standalone (tests, one-off rows), but every real list endpoint
+// below computes it once per request and passes it in explicitly — the
+// window is global (not product-specific), so recomputing it per row would
+// just repeat the same Intl calls for no reason.
+export function toListDto(row, deliveryEstimate = calculateDeliveryEstimate()) {
   const offer = rowOffer(row);
   const priceInfo = strikePriceInfo(Number(row.mrp), offer.sellingPrice, offer.sellingPriceOriginal);
   return {
@@ -126,11 +133,12 @@ export function toListDto(row) {
     isFeatured: row.is_featured,
     isBestSeller: row.is_best_seller,
     isNew: isRecentlyPublished(row.created_at),
+    deliveryEstimate,
     ...(row.status ? { status: row.status } : {}),
   };
 }
 
-function toDetailDto(row) {
+function toDetailDto(row, deliveryEstimate = calculateDeliveryEstimate()) {
   const offer = rowOffer(row);
   const priceInfo = strikePriceInfo(Number(row.mrp), offer.sellingPrice, offer.sellingPriceOriginal);
   const gstAmount =
@@ -205,6 +213,7 @@ function toDetailDto(row) {
     isBestSeller: row.is_best_seller,
     showDeliveryChecker: row.show_delivery_checker,
     isNew: isRecentlyPublished(row.created_at),
+    deliveryEstimate,
 
     metaTitle: row.meta_title,
     metaDescription: row.meta_description,
@@ -299,8 +308,9 @@ export async function list(req, res, next) {
       page: q.page ?? 1,
       limit: q.limit ?? 24,
     });
+    const deliveryEstimate = calculateDeliveryEstimate();
     res.json({
-      products: items.map(toListDto),
+      products: items.map((row) => toListDto(row, deliveryEstimate)),
       page: q.page ?? 1,
       limit: q.limit ?? 24,
       total,
@@ -314,7 +324,7 @@ export async function list(req, res, next) {
 export async function getBySlug(req, res, next) {
   try {
     const product = await productsService.getPublicProductBySlug(req.params.slug);
-    res.json({ product: toDetailDto(product) });
+    res.json({ product: toDetailDto(product, calculateDeliveryEstimate()) });
   } catch (err) {
     next(err);
   }
@@ -351,7 +361,8 @@ export async function pricePreview(req, res, next) {
 export async function getRelated(req, res, next) {
   try {
     const products = await productsService.getRelatedProducts(req.params.slug, 4);
-    res.json({ products: products.map(toListDto) });
+    const deliveryEstimate = calculateDeliveryEstimate();
+    res.json({ products: products.map((row) => toListDto(row, deliveryEstimate)) });
   } catch (err) {
     next(err);
   }

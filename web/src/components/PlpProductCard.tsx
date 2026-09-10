@@ -123,10 +123,6 @@ export function PlpProductCard({ product, index = 0, onAddToCart, isAdding, just
             <span className={stock.state === 'in' ? styles.stockDotIn : styles.stockDotOther} aria-hidden="true" />
             <span className={stock.state === 'in' ? styles.stockLabelIn : styles.stockLabelOther}>{stock.label}</span>
           </span>
-          <span className={styles.stockSeparator} aria-hidden="true">
-            •
-          </span>
-          <span className={styles.deliveryText}>{stock.deliveryText}</span>
         </p>
 
         <button

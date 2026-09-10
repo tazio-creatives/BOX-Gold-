@@ -228,6 +228,7 @@ export function PDPPage() {
                     purity: selectedPurity ?? null,
                     diamondConfigName: selectedDiamondOption?.name ?? null,
                     isBackordered: isOutOfStock,
+                    deliveryEstimate: product.deliveryEstimate,
                   },
                 },
               })

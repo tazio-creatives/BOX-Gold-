@@ -1,3 +1,15 @@
+// Server-computed 8-10 calendar-day window from calculateDeliveryEstimate()
+// (backend/src/services/deliveryEstimateService.js) — the frontend only
+// formats these ISO dates (see utils/deliveryEstimate.ts), it never derives
+// its own delivery-duration rule.
+export interface DeliveryEstimate {
+  minimumDays: number;
+  maximumDays: number;
+  earliestDate: string;
+  latestDate: string;
+  timezone: string;
+}
+
 export interface ProductCard {
   id: string;
   slug: string;
@@ -26,6 +38,7 @@ export interface ProductCard {
   ratingAvg: number;
   ratingCount: number;
   isNew: boolean;
+  deliveryEstimate: DeliveryEstimate | null;
 }
 
 export interface CategoryRef {
@@ -67,11 +80,13 @@ export interface HomepageItem {
         imageUrl: string | null;
         metalType: MetalType | null;
         purity: Purity | null;
+        deliveryEstimate: DeliveryEstimate | null;
       }
     | null;
-  // Populated only for CATEGORY_PRODUCTS items — the auto-derived top 5
-  // published products in the item's linked category (see
-  // homepage.repository.js). Empty array for every other section type.
+  // Populated for CATEGORY_PRODUCTS items (top 5 published products in the
+  // item's linked category) and COLLECTION_SHOWCASE items (top 10 published
+  // products in the item's linked collection) — see homepage.repository.js.
+  // Empty array for every other section type.
   products: ProductCard[];
 }
 
@@ -88,6 +103,7 @@ export type HomepageSectionType =
   | 'INSTAGRAM'
   | 'NEWSLETTER'
   | 'TRUST_STRIP'
+  | 'COLLECTION_SHOWCASE'
   | 'CAMPAIGN_BANNERS'
   | 'CATEGORY_PRODUCTS';
 
@@ -202,6 +218,7 @@ export interface ProductDetail {
   isFeatured: boolean;
   showDeliveryChecker: boolean;
   isNew: boolean;
+  deliveryEstimate: DeliveryEstimate | null;
 
   metaTitle: string | null;
   metaDescription: string | null;
@@ -319,6 +336,9 @@ export interface Cart {
   subtotal: number;
   gstAmount: number;
   itemCount: number;
+  // Live, recalculated on every fetch (not yet an order) — see Order.deliveryEstimate
+  // for the permanent, frozen version stored once checkout actually happens.
+  deliveryEstimate: DeliveryEstimate | null;
 }
 
 // Backend's wishlistService.toItemDto now reuses the same toListDto as the
@@ -432,6 +452,9 @@ export interface Order {
   contactEmail: string;
   shippingAddress: Omit<Address, 'id' | 'isDefault'>;
   deliveryNote: string | null;
+  // Snapshot frozen at checkout — never recalculated on read, so this stays
+  // fixed forever regardless of when the order page is later viewed.
+  deliveryEstimate: DeliveryEstimate | null;
   subtotal: number;
   discountAmount: number;
   couponCode: string | null;
@@ -473,6 +496,11 @@ export interface BuyNowItem {
   purity?: string | null;
   diamondConfigName?: string | null;
   isBackordered?: boolean;
+  // Carried from the PDP's already-fetched product.deliveryEstimate — Buy
+  // Now skips the cart entirely, so this is how Checkout gets a real,
+  // backend-computed estimate for that flow without a second API call or
+  // (forbidden) computing one client-side.
+  deliveryEstimate?: DeliveryEstimate | null;
 }
 
 export interface CheckoutPayload {

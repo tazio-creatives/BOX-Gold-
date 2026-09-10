@@ -9,7 +9,7 @@ import {
 } from '../repositories/orders.repository.js';
 import { findShipmentByOrderId } from '../repositories/shipments.repository.js';
 import { findReviewedOrderItemIds } from '../repositories/reviews.repository.js';
-import { toOrderDto, toShipmentDto } from '../utils/orderDto.js';
+import { toOrderDto, toShipmentDto, orderDeliveryEstimateDto } from '../utils/orderDto.js';
 import { NotFoundError } from '../utils/AppError.js';
 
 // Card-shaped list DTO, plus the account "My Orders" card's preview
@@ -30,6 +30,7 @@ function toOrderListDto(order, extras) {
     confirmedAt: milestones.CONFIRMED ?? null,
     shippedAt: milestones.SHIPPED ?? milestones.OUT_FOR_DELIVERY ?? null,
     deliveredAt: milestones.DELIVERED ?? null,
+    deliveryEstimate: orderDeliveryEstimateDto(order),
   };
 }
 

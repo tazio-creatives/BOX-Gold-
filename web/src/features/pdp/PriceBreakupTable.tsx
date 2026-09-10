@@ -30,7 +30,7 @@ export function PriceBreakupTable({
         {breakup.diamondValueOriginal > 0 && (
           <tr>
             <td>
-              Diamond Value
+              Natural Diamond Value
               {breakup.diamondDiscountPercent > 0 && (
                 <span className={styles.offerBadge}>{breakup.diamondDiscountPercent}% off</span>
               )}

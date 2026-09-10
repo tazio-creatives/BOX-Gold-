@@ -1,5 +1,7 @@
 import { formatPrice } from '../../utils/formatPrice';
 import { placeholderGradient } from '../../utils/placeholderGradient';
+import { DeliveryEstimateDetail } from '../../components/DeliveryEstimate';
+import type { DeliveryEstimate } from '../../api/types';
 import styles from './CheckoutOrderSummary.module.css';
 
 export interface CheckoutSummaryItem {
@@ -14,6 +16,7 @@ export interface CheckoutSummaryItem {
 interface CheckoutOrderSummaryProps {
   items: CheckoutSummaryItem[];
   itemCount: number;
+  deliveryEstimate: DeliveryEstimate | null;
   subtotal: number;
   savingsAmount: number;
   discountAmount: number;
@@ -61,6 +64,7 @@ function LockIcon() {
 export function CheckoutOrderSummary({
   items,
   itemCount,
+  deliveryEstimate,
   subtotal,
   savingsAmount,
   discountAmount,
@@ -90,6 +94,8 @@ export function CheckoutOrderSummary({
         <BagIcon />
         Items in the cart ({itemCount})
       </div>
+
+      <DeliveryEstimateDetail estimate={deliveryEstimate} />
 
       <ul className={styles.itemList}>
         {items.map((item, i) => (

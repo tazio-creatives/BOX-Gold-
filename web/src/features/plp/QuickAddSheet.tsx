@@ -107,7 +107,7 @@ export function QuickAddSheet({ product, onClose }: QuickAddSheetProps) {
           )}
           {product.diamondOptions.length > 0 && (
             <PillSelector
-              title="Diamond Quality"
+              title="Natural Diamond Quality"
               options={product.diamondOptions.map((d) => ({ value: d.id, label: d.name }))}
               selectedValue={selectedDiamondConfigId}
               onSelect={setSelectedDiamondConfigId}

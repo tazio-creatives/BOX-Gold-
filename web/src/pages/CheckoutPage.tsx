@@ -336,6 +336,12 @@ export function CheckoutPage() {
 
   const selectedAddress = addresses.find((a) => a.id === selectedAddressId) ?? null;
 
+  // Buy Now carries the estimate the shopper already saw on the PDP (see
+  // PDPPage's onBuyNow); the cart flow reads the live one from the cart
+  // fetch above — either way, this is the backend-computed value, never
+  // something derived here.
+  const deliveryEstimate = buyNow ? (buyNow.deliveryEstimate ?? null) : (cartData?.deliveryEstimate ?? null);
+
   const summaryItems = displayItems.map((item) => {
     const variantBits = [item.sizeLabel ? `Size ${item.sizeLabel}` : null, item.diamondConfigName].filter(Boolean);
     return {
@@ -471,6 +477,7 @@ export function CheckoutPage() {
           <CheckoutOrderSummary
             items={summaryItems}
             itemCount={displayItems.reduce((sum, i) => sum + i.quantity, 0)}
+            deliveryEstimate={deliveryEstimate}
             subtotal={preTaxSubtotal}
             savingsAmount={savingsAmount}
             discountAmount={discountAmount}

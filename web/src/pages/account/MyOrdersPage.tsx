@@ -7,6 +7,7 @@ import { OrderProgressStepper } from '../../features/account/OrderProgressSteppe
 import { formatPrice } from '../../utils/formatPrice';
 import { placeholderGradient } from '../../utils/placeholderGradient';
 import { useDocumentTitle } from '../../utils/useDocumentTitle';
+import { DeliveryEstimateCompact } from '../../components/DeliveryEstimate';
 import styles from './MyOrdersPage.module.css';
 
 // Orders in these terminal-failure states never reached delivery, so the
@@ -195,6 +196,7 @@ export function MyOrdersPage() {
                       {new Date(order.createdAt).toLocaleDateString('en-IN', { dateStyle: 'medium' })} ·{' '}
                       {order.itemCount} {order.itemCount === 1 ? 'item' : 'items'}
                     </p>
+                    <DeliveryEstimateCompact estimate={order.deliveryEstimate} />
                   </div>
                   <span className={`${styles.status} ${styles[STATUS_CLASS[order.status] ?? 'statusPending']}`}>
                     {formatStatus(order.status)}

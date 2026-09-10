@@ -85,7 +85,7 @@ export function HeroCarousel({ items, eyebrow }: { items: HomepageItem[]; eyebro
             <span className={styles.trustIcon}>
               <DiamondIcon />
             </span>
-            100% Certified Diamonds
+            100% Certified Natural Diamonds
           </div>
           <span className={styles.trustSep} />
           <div className={styles.trustItem}>

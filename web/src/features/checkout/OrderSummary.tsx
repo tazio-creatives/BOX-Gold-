@@ -1,6 +1,8 @@
 import { useState, type ReactNode } from 'react';
 import { formatPrice } from '../../utils/formatPrice';
 import { placeholderGradient } from '../../utils/placeholderGradient';
+import { DeliveryEstimateDetail } from '../../components/DeliveryEstimate';
+import type { DeliveryEstimate } from '../../api/types';
 import styles from './OrderSummary.module.css';
 
 export interface OrderSummaryItem {
@@ -22,6 +24,7 @@ export interface OrderSummaryAction {
 interface OrderSummaryProps {
   items?: OrderSummaryItem[];
   itemCount: number;
+  deliveryEstimate?: DeliveryEstimate | null;
   subtotal: number;
   // Sum of (strike-through MRP - selling price) across every line item —
   // a coupon discount, separately. Omitted/0 hides the row entirely, so
@@ -103,6 +106,7 @@ const TRUST_ITEMS = [
 export function OrderSummary({
   items,
   itemCount,
+  deliveryEstimate = null,
   subtotal,
   savingsAmount = 0,
   discountAmount,
@@ -151,6 +155,8 @@ export function OrderSummary({
           </button>
         )}
       </div>
+
+      <DeliveryEstimateDetail estimate={deliveryEstimate} />
 
       {items && items.length > 0 && !itemsExpanded && (
         <div className={styles.itemsPreview}>

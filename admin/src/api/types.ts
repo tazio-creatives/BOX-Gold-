@@ -288,6 +288,17 @@ export type OrderStatus =
   | 'RETURN_REQUESTED'
   | 'REFUNDED';
 
+// Server-computed 8-10 calendar-day window, frozen onto the order at
+// checkout (backend/src/services/deliveryEstimateService.js /
+// checkoutService.js) — never recalculated once the order exists.
+export interface DeliveryEstimate {
+  minimumDays: number;
+  maximumDays: number;
+  earliestDate: string;
+  latestDate: string;
+  timezone: string;
+}
+
 export interface OrderListItem {
   id: string;
   orderNumber: string;
@@ -298,6 +309,7 @@ export interface OrderListItem {
   createdAt: string;
   productName: string | null;
   itemCount: number;
+  deliveryEstimate: DeliveryEstimate | null;
 }
 
 export interface OrderItem {
@@ -361,6 +373,7 @@ export interface OrderDetail {
   contactEmail: string;
   shippingAddress: ShippingAddress;
   deliveryNote: string | null;
+  deliveryEstimate: DeliveryEstimate | null;
   subtotal: number;
   discountAmount: number;
   couponCode: string | null;

@@ -2,6 +2,7 @@ import { AppError, NotFoundError } from '../utils/AppError.js';
 import { findProductById, findProductsByIds } from '../repositories/products.repository.js';
 import { findVariantById, findVariantsByProductId, resolvedSizeLabel } from '../repositories/productVariants.repository.js';
 import { computeVariantPricing } from './pricingService.js';
+import { calculateDeliveryEstimate } from './deliveryEstimateService.js';
 import {
   findCartByOwner,
   createCart,
@@ -77,7 +78,11 @@ function toItemDto(item, product, variant, pricing) {
 export async function getCart(owner) {
   const cart = await findOrCreateCart(owner);
   const items = await findCartItems(cart.id);
-  if (items.length === 0) return { items: [], subtotal: 0, gstAmount: 0, itemCount: 0 };
+  // Live, not stored — the cart isn't an order yet, so this is recalculated
+  // from "today" on every fetch (see checkoutService.createOrder for where
+  // it's frozen into a permanent snapshot once an order actually exists).
+  const deliveryEstimate = calculateDeliveryEstimate();
+  if (items.length === 0) return { items: [], subtotal: 0, gstAmount: 0, itemCount: 0, deliveryEstimate };
 
   const products = await findProductsByIds(items.map((i) => i.product_id));
   const productMap = new Map(products.map((p) => [p.id, p]));
@@ -103,6 +108,7 @@ export async function getCart(owner) {
     subtotal,
     gstAmount,
     itemCount,
+    deliveryEstimate,
   };
 }
 

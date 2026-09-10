@@ -226,6 +226,28 @@ export async function getEnabledSectionsWithItems() {
     }
   }
 
+  // COLLECTION_SHOWCASE mirrors CATEGORY_PRODUCTS' "pick the link, let the
+  // products follow" split, just keyed on collection_id and capped at 10
+  // (two rows of 5 on desktop) instead of 5. Only the section's first item
+  // is meant to be rendered as the one banner (CollectionProductShowcase.tsx
+  // enforces that) — any extra items an admin adds are still synced here for
+  // consistency but the frontend ignores them.
+  const collectionShowcaseSections = sections.filter((s) => s.type === 'COLLECTION_SHOWCASE');
+  for (const section of collectionShowcaseSections) {
+    const sectionItems = itemsBySection.get(section.id) ?? [];
+    for (const item of sectionItems) {
+      if (!item.collection_id) {
+        item.products = [];
+        continue;
+      }
+      const { items: products } = await listProducts(
+        { collectionId: item.collection_id, status: 'PUBLISHED' },
+        { sort: 'newest', page: 1, limit: 10 },
+      );
+      item.products = products;
+    }
+  }
+
   return sections.map((section) => ({
     ...section,
     items: itemsBySection.get(section.id) ?? [],

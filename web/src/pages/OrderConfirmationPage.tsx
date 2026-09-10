@@ -5,6 +5,7 @@ import { fetchOrderById } from '../api/orders';
 import { formatPrice } from '../utils/formatPrice';
 import { placeholderGradient } from '../utils/placeholderGradient';
 import { useDocumentTitle } from '../utils/useDocumentTitle';
+import { formatDeliveryRange, deliveryFallbackDaysText } from '../utils/deliveryEstimate';
 import { OrderSuccessHeader } from '../features/orderConfirmation/OrderSuccessHeader';
 import { SuccessIllustration } from '../features/orderConfirmation/SuccessIllustration';
 import styles from './OrderConfirmationPage.module.css';
@@ -218,6 +219,8 @@ export function OrderConfirmationPage() {
   const orderDate = new Date(order.createdAt).toLocaleDateString('en-IN', { dateStyle: 'medium' });
   const orderDetailHref = `/account/orders/${order.id}`;
   const address = order.shippingAddress;
+  const deliveryRange = formatDeliveryRange(order.deliveryEstimate?.earliestDate, order.deliveryEstimate?.latestDate);
+  const deliveryText = deliveryRange ?? `In ${deliveryFallbackDaysText(order.deliveryEstimate)}`;
 
   return (
     <div className={styles.page}>
@@ -278,6 +281,10 @@ export function OrderConfirmationPage() {
             <div className={styles.orderMetaCol}>
               <p className={styles.metaLabel}>Order Date</p>
               <p className={styles.metaValue}>{orderDate}</p>
+            </div>
+            <div className={styles.orderMetaCol}>
+              <p className={styles.metaLabel}>Estimated Delivery</p>
+              <p className={styles.metaValue}>{deliveryText}</p>
             </div>
           </div>
 

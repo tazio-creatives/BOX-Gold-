@@ -9,7 +9,7 @@ import {
   insertOrderStatusHistoryTx,
 } from '../repositories/orders.repository.js';
 import { findShipmentByOrderId, findTrackingEventsByShipmentId } from '../repositories/shipments.repository.js';
-import { toOrderDto, toShipmentDto } from '../utils/orderDto.js';
+import { toOrderDto, toShipmentDto, orderDeliveryEstimateDto } from '../utils/orderDto.js';
 import { NotFoundError } from '../utils/AppError.js';
 
 function toOrderListDto(order) {
@@ -23,6 +23,7 @@ function toOrderListDto(order) {
     createdAt: order.created_at,
     productName: order.first_product_name ?? null,
     itemCount: order.item_count ?? 0,
+    deliveryEstimate: orderDeliveryEstimateDto(order),
   };
 }
 

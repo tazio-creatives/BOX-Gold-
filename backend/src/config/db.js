@@ -2,6 +2,15 @@ import pg from 'pg';
 import { AsyncLocalStorage } from 'node:async_hooks';
 import { env } from './env.js';
 
+// DATE columns (OID 1082 — currently only orders.estimated_delivery_
+// start_date/end_date) default to being parsed into a JS Date at local
+// midnight, which silently shifts by a day once serialized to JSON/ISO if
+// the server process's timezone isn't UTC. Returning the raw 'YYYY-MM-DD'
+// string Postgres already sends avoids that reinterpretation entirely —
+// exactly the date-only, no-implicit-timezone contract the delivery
+// estimate snapshot depends on.
+pg.types.setTypeParser(1082, (value) => value);
+
 export const pool = new pg.Pool({ connectionString: env.databaseUrl });
 
 // Ambient transaction context — lets the plain `query()` used throughout the

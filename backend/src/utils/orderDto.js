@@ -1,3 +1,22 @@
+import { DEFAULT_TIMEZONE } from '../services/deliveryEstimateService.js';
+
+// Reads the snapshot frozen onto the order at checkout (checkoutService.js)
+// rather than recalculating — an order's estimate must never change based on
+// when the order page happens to be viewed. Pre-cutover orders placed before
+// this snapshot existed have null columns; the frontend's error-fallback
+// copy ("Estimated delivery in 8-10 days") covers that case, same as it does
+// for a malformed API response.
+export function orderDeliveryEstimateDto(order) {
+  if (!order.estimated_delivery_start_date || !order.estimated_delivery_end_date) return null;
+  return {
+    minimumDays: order.delivery_minimum_days,
+    maximumDays: order.delivery_maximum_days,
+    earliestDate: order.estimated_delivery_start_date,
+    latestDate: order.estimated_delivery_end_date,
+    timezone: DEFAULT_TIMEZONE,
+  };
+}
+
 export function toTrackingEventDto(event) {
   return {
     id: event.id,
@@ -33,6 +52,7 @@ export function toOrderDto(order, items = [], statusHistory = [], extra = {}) {
     contactEmail: order.contact_email,
     shippingAddress: order.shipping_address,
     deliveryNote: order.delivery_note,
+    deliveryEstimate: orderDeliveryEstimateDto(order),
     subtotal: Number(order.subtotal),
     discountAmount: Number(order.discount_amount),
     couponCode: order.coupon_code,

@@ -326,6 +326,7 @@ export function CartPage() {
         <div className={styles.summaryColumn}>
           <OrderSummary
             itemCount={data.itemCount}
+            deliveryEstimate={data.deliveryEstimate}
             subtotal={preTaxSubtotal}
             savingsAmount={savingsAmount}
             discountAmount={discountAmount}

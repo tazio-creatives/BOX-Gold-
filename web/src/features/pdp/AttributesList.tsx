@@ -37,7 +37,13 @@ export function AttributesList({
   liveGrossWeightGrams,
   liveDiamondWeightCarats,
 }: AttributesListProps) {
-  const rows: [string, string][] = [['SKU', product.sku]];
+  // Fixed trust line shown on every product, regardless of what (if
+  // anything) is stored on product.certification — applies uniformly to
+  // existing and future products alike, not sourced from per-product data.
+  const rows: [string, string][] = [
+    ['SKU', product.sku],
+    ['Certification', 'IGI, GII, GIG'],
+  ];
 
   const purity = livePurity ?? product.purity;
   const goldColor = liveGoldColor ?? product.goldColor;
@@ -54,11 +60,11 @@ export function AttributesList({
 
   if (goldWeightGrams != null) rows.push(['Gold Weight', `${formatWeight(goldWeightGrams)} g`]);
   if (netWeightGrams != null) rows.push(['Net Weight', `${formatWeight(netWeightGrams)} g`]);
-  if (product.diamondWeightGrams != null) rows.push(['Diamond Weight', `${formatWeight(product.diamondWeightGrams)} g`]);
+  if (product.diamondWeightGrams != null) rows.push(['Natural Diamond Weight', `${formatWeight(product.diamondWeightGrams)} g`]);
   if (grossWeightGrams != null) rows.push(['Gross Weight', `${formatWeight(grossWeightGrams)} g`]);
-  if (diamondWeightCarats) rows.push(['Diamond Carat', `${formatWeight(diamondWeightCarats)} ct`]);
-  if (diamondConfigName) rows.push(['Diamond Quality', diamondConfigName]);
-  if (product.diamondCount) rows.push(['Diamond Count', String(product.diamondCount)]);
+  if (diamondWeightCarats) rows.push(['Natural Diamond Carat', `${formatWeight(diamondWeightCarats)} ct`]);
+  if (diamondConfigName) rows.push(['Natural Diamond Quality', diamondConfigName]);
+  if (product.diamondCount) rows.push(['Natural Diamond Count', String(product.diamondCount)]);
   if (product.gemstone) rows.push(['Gemstone', product.gemstone]);
 
   return (

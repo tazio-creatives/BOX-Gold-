@@ -65,6 +65,10 @@ const ORDER_COLUMNS = [
   'coupon_id',
   'coupon_code',
   'delivery_note',
+  'estimated_delivery_start_date',
+  'estimated_delivery_end_date',
+  'delivery_minimum_days',
+  'delivery_maximum_days',
 ];
 
 const ORDER_FIELD_MAP = Object.fromEntries(

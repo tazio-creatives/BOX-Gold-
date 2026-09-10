@@ -7,6 +7,7 @@ import type { OrderStatus } from '../../api/types';
 import { formatPrice } from '../../utils/formatPrice';
 import { ApiError } from '../../api/client';
 import { ORDER_STATUSES, ORDER_STATUS_BADGE_CLASS, formatOrderStatus } from '../../utils/orderStatus';
+import { formatDeliveryRange, deliveryFallbackDaysText } from '../../utils/deliveryEstimate';
 import { ConfirmDialog } from '../../components/ConfirmDialog';
 import sharedStyles from '../../styles/shared.module.css';
 import styles from './OrderDetailPage.module.css';
@@ -96,6 +97,8 @@ export function OrderDetailPage() {
 
   const { order } = data;
   const badgeClass = ORDER_STATUS_BADGE_CLASS[order.status] ?? 'badgeNeutral';
+  const deliveryRange = formatDeliveryRange(order.deliveryEstimate?.earliestDate, order.deliveryEstimate?.latestDate);
+  const deliveryText = deliveryRange ?? `Estimated delivery in ${deliveryFallbackDaysText(order.deliveryEstimate)}`;
 
   return (
     <div>
@@ -211,6 +214,7 @@ export function OrderDetailPage() {
 
           <section className={sharedStyles.cardPadded}>
             <h2 className={styles.sectionHeading}>Delivery Address</h2>
+            <p className={styles.subtext}>Estimated delivery: {deliveryText}</p>
             <p className={styles.address}>
               {order.shippingAddress.name}
               <br />

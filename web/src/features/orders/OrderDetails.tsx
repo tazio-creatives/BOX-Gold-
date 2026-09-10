@@ -1,5 +1,6 @@
 import type { Order } from '../../api/types';
 import { formatPrice } from '../../utils/formatPrice';
+import { DeliveryEstimateDetail } from '../../components/DeliveryEstimate';
 import { WriteReviewButton } from './WriteReviewButton';
 import styles from './OrderDetails.module.css';
 
@@ -69,6 +70,7 @@ export function OrderDetails({ order }: { order: Order }) {
 
       <section className={styles.section}>
         <h2 className={styles.sectionHeading}>Delivery Address</h2>
+        <DeliveryEstimateDetail estimate={order.deliveryEstimate} />
         <p className={styles.address}>
           {order.shippingAddress.name}
           <br />

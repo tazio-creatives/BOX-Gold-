@@ -1,7 +1,7 @@
 import { z } from 'zod';
 
-// Matches the 12 section types the storefront renderer understands
-// (plan §3 homepage structure) — free text at the DB level, enforced here.
+// Matches the section types the storefront renderer understands (plan §3
+// homepage structure) — free text at the DB level, enforced here.
 const SECTION_TYPES = [
   'HERO',
   'BENTO_CATEGORIES',
@@ -17,6 +17,10 @@ const SECTION_TYPES = [
   'TRUST_STRIP',
   'CAMPAIGN_BANNERS',
   'CATEGORY_PRODUCTS',
+  // One full-width collection banner + up to 10 of that collection's
+  // products (two rows of 5 on desktop) — distinct from COLLECTION_CARDS
+  // (a 2-3 tile banner grid with no products at all).
+  'COLLECTION_SHOWCASE',
 ];
 
 export const createSectionSchema = z.object({

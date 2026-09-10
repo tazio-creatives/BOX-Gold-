@@ -38,6 +38,7 @@ const SECTION_TYPES: HomepageSectionType[] = [
   'TRUST_STRIP',
   'CAMPAIGN_BANNERS',
   'CATEGORY_PRODUCTS',
+  'COLLECTION_SHOWCASE',
 ];
 
 // Friendly names matching the actual storefront headings — the raw type
@@ -58,6 +59,7 @@ const SECTION_TYPE_LABELS: Record<HomepageSectionType, string> = {
   TRUST_STRIP: 'Trust Strip',
   CAMPAIGN_BANNERS: 'Campaign Banners',
   CATEGORY_PRODUCTS: 'Category Products',
+  COLLECTION_SHOWCASE: 'Collection Showcase',
 };
 
 function imageForItem(item: HomepageItem): string | null {
@@ -258,6 +260,15 @@ export function HomepagePage() {
                     Add one item per category using "Link to Category" below — its heading/image/product/CTA fields
                     aren't used here. The 5 most recently published products in that category (and its
                     subcategories) show automatically and stay up to date on their own.
+                  </p>
+                )}
+                {section.type === 'COLLECTION_SHOWCASE' && (
+                  <p className={sharedStyles.empty}>
+                    Add exactly one item using "Link to Collection" below — only the first item renders. The banner
+                    title comes from the collection's own name automatically (don't retype it). Heading shows as a
+                    small eyebrow line above the title, Subheading as the description below it, and CTA Label/desktop
+                    &amp; mobile images are used as the banner's button text and background. Up to 10 most recently
+                    published products in that collection show automatically underneath.
                   </p>
                 )}
                 {section.items.map((item, itemIndex) =>

@@ -12,7 +12,7 @@ export interface HeadData {
 export const defaultHead: HeadData = {
   title: 'BOX DIAMONDS — Premium Certified Jewellery',
   description:
-    'Certified diamond and gold jewellery, live-priced daily and crafted to order — rings, earrings, necklaces and more.',
+    'Certified natural diamond and gold jewellery, live-priced daily and crafted to order — rings, earrings, necklaces and more.',
   canonicalPath: '/',
   jsonLd: [organizationJsonLd()],
 };

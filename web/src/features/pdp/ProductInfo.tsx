@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import type { GoldColor, PriceBreakup, ProductDetail } from '../../api/types';
 import { formatPrice } from '../../utils/formatPrice';
+import { DeliveryEstimateDetail } from '../../components/DeliveryEstimate';
 import { DeliveryChecker } from './DeliveryChecker';
 import { SizeSelector } from './SizeSelector';
 import { ColorSelector } from './ColorSelector';
@@ -250,15 +251,15 @@ export function ProductInfo({
         </div>
       )}
 
-      {isOutOfStock && (
-        <p className={styles.stockBackorder}>Make to Order — ships in 7–10 working days</p>
-      )}
-      {!isOutOfStock && isLowStock && (
-        <p className={styles.stockLow}>Only {product.availableStock} left · Delivery in 5 days</p>
-      )}
-      {!isOutOfStock && !isLowStock && (
-        <p className={styles.stockInfo}>In Stock · Delivery in 5 days</p>
-      )}
+      <div className={styles.stockDeliveryRow}>
+        {isOutOfStock && <p className={styles.stockBackorder}>Make to Order</p>}
+        {!isOutOfStock && isLowStock && (
+          <p className={styles.stockLow}>Only {product.availableStock} left</p>
+        )}
+        {!isOutOfStock && !isLowStock && <p className={styles.stockInfo}>In Stock</p>}
+
+        <DeliveryEstimateDetail estimate={product.deliveryEstimate} inline />
+      </div>
 
       {product.showDeliveryChecker && <DeliveryChecker isBackordered={isOutOfStock} />}
 
@@ -279,7 +280,7 @@ export function ProductInfo({
           {diamondChipText && (
             <span className={styles.specChip}>
               <DiamondChipIcon />
-              {diamondChipText} Diamond
+              {diamondChipText} Natural Diamond
             </span>
           )}
         </div>
@@ -320,7 +321,7 @@ export function ProductInfo({
           {product.diamondOptions.length > 0 && (
             <div className={styles.fieldGroup} ref={diamondFieldRef}>
               <PillSelector
-                title="Diamond Quality"
+                title="Natural Diamond Quality"
                 options={product.diamondOptions.map((d) => ({ value: d.id, label: d.name }))}
                 selectedValue={selectedDiamondConfigId}
                 onSelect={onSelectDiamondConfigId}
