@@ -120,6 +120,20 @@ export interface SearchResults {
   collections: CollectionRef[];
 }
 
+// null when the category has no banner configured, or an admin has
+// disabled it — callers only ever need to check for null, never a separate
+// `enabled` flag (see categories.controller.js's toDto).
+export interface CategoryBanner {
+  eyebrow: string | null;
+  description: string | null;
+  imageUrl: string | null;
+  imageUrlMobile: string | null;
+  altText: string | null;
+  textColor: 'LIGHT' | 'DARK';
+  textPosition: 'LEFT' | 'CENTER' | 'RIGHT';
+  focalPosition: 'LEFT' | 'CENTER' | 'RIGHT';
+}
+
 export interface Category {
   id: string;
   parentId: string | null;
@@ -129,6 +143,7 @@ export interface Category {
   imageUrl: string | null;
   isActive: boolean;
   sortOrder: number;
+  banner: CategoryBanner | null;
 }
 
 export interface Collection {
@@ -141,12 +156,26 @@ export interface Collection {
 
 export interface ProductImage {
   id: string;
-  type: 'ORIGINAL' | 'AI_GENERATED';
+  type: 'ORIGINAL' | 'AI_GENERATED' | 'PRODUCT_SIZE';
   variant: string;
   format: string;
   url: string;
   isPrimary: boolean;
   sortOrder: number;
+}
+
+// Only ever present when the backend has an eligible (currently passed,
+// version-matched) Product Size Image — a stale/failed one is already
+// excluded server-side, so this frontend never has to reason about
+// staleness itself (see backend/src/services/productsService.js's
+// attachProductSizeImage). Text-only; safe to show even without the image.
+export interface ProductSizeMeasurements {
+  jewelleryType: string | null;
+  unit: 'mm' | 'cm';
+  measurements: Record<string, number | string>;
+  includedParts: string[];
+  excludedParts: string[];
+  note: string | null;
 }
 
 export interface PriceBreakup {
@@ -228,6 +257,7 @@ export interface ProductDetail {
   ratingCount: number;
 
   images: ProductImage[];
+  productSizeMeasurements: ProductSizeMeasurements | null;
 
   // Admin-form-shaped convenience views, derived server-side from
   // `attributes`/`variants` below — existing selectors (ColorSelector,

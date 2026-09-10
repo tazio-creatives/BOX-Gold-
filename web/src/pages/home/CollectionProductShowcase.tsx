@@ -21,12 +21,11 @@ export function CollectionProductShowcase({ items }: { items: HomepageItem[] }) 
 
   const { collection } = item;
   const href = `/collections/${collection.slug}`;
-  const ctaLabel = item.ctaLabel?.trim() || 'Explore Collection';
   const products = item.products.slice(0, 10);
 
   return (
-    <section className={styles.showcase} aria-labelledby="collection-showcase-heading">
-      <div className={styles.banner}>
+    <section className={styles.showcase} aria-label={collection.name}>
+      <Link to={href} className={styles.banner} aria-label={`Explore ${collection.name}`}>
         {item.imageUrl ? (
           <picture>
             {item.imageUrlMobile && <source media={MOBILE_BREAKPOINT} srcSet={item.imageUrlMobile} />}
@@ -45,42 +44,27 @@ export function CollectionProductShowcase({ items }: { items: HomepageItem[] }) 
 
         <div className={styles.bannerCopy}>
           {item.heading && <p className={styles.eyebrow}>{item.heading}</p>}
-          <h2 id="collection-showcase-heading" className={styles.title}>
-            {collection.name}
-          </h2>
           {item.subheading && <p className={styles.description}>{item.subheading}</p>}
-          <Link to={href} className={styles.cta}>
-            {ctaLabel}
-            <ArrowIcon />
-          </Link>
         </div>
-      </div>
+      </Link>
 
       <div className={styles.productArea}>
-        <div className={styles.viewAllRow}>
-          <Link to={href} className={styles.viewAllLink}>
-            View All →
-          </Link>
-        </div>
-
         {products.length > 0 ? (
           <div className={styles.productGrid}>
             {products.map((p, i) => (
-              <ProductCard key={p.id} product={p} index={i} />
+              <ProductCard key={p.id} product={p} index={i} imagePadding={false} />
             ))}
           </div>
         ) : (
           <p className={styles.empty}>No products in this collection yet.</p>
         )}
+
+        <div className={styles.viewAllRow}>
+          <Link to={href} className={styles.viewAllLink}>
+            View All →
+          </Link>
+        </div>
       </div>
     </section>
-  );
-}
-
-function ArrowIcon() {
-  return (
-    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
-      <path d="M5 12h14M13 6l6 6-6 6" />
-    </svg>
   );
 }

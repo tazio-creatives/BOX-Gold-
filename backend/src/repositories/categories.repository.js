@@ -1,6 +1,8 @@
 import { query } from '../config/db.js';
 
-const ALL_COLUMNS = `id, parent_id, name, slug, description, image_url, is_active, sort_order, created_at, updated_at`;
+const ALL_COLUMNS = `id, parent_id, name, slug, description, image_url, is_active, sort_order, created_at, updated_at,
+  banner_enabled, banner_eyebrow, banner_description, banner_image_url, banner_image_url_mobile,
+  banner_alt_text, banner_text_color, banner_text_position, banner_focal_position`;
 
 export async function listAllCategories({ activeOnly = false } = {}) {
   const { rows } = await query(
@@ -76,12 +78,50 @@ export async function isSelfOrDescendant(categoryId, candidateAncestorId) {
   return descendantIds.includes(candidateAncestorId);
 }
 
-export async function createCategory({ parentId, name, slug, description, imageUrl, isActive, sortOrder }) {
+export async function createCategory({
+  parentId,
+  name,
+  slug,
+  description,
+  imageUrl,
+  isActive,
+  sortOrder,
+  bannerEnabled,
+  bannerEyebrow,
+  bannerDescription,
+  bannerImageUrl,
+  bannerImageUrlMobile,
+  bannerAltText,
+  bannerTextColor,
+  bannerTextPosition,
+  bannerFocalPosition,
+}) {
   const { rows } = await query(
-    `INSERT INTO categories (parent_id, name, slug, description, image_url, is_active, sort_order)
-     VALUES ($1, $2, $3, $4, $5, $6, $7)
+    `INSERT INTO categories (
+       parent_id, name, slug, description, image_url, is_active, sort_order,
+       banner_enabled, banner_eyebrow, banner_description, banner_image_url, banner_image_url_mobile,
+       banner_alt_text, banner_text_color, banner_text_position, banner_focal_position
+     )
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)
      RETURNING ${ALL_COLUMNS}`,
-    [parentId ?? null, name, slug, description ?? null, imageUrl ?? null, isActive ?? true, sortOrder ?? 0],
+    [
+      parentId ?? null,
+      name,
+      slug,
+      description ?? null,
+      imageUrl ?? null,
+      isActive ?? true,
+      sortOrder ?? 0,
+      bannerEnabled ?? false,
+      bannerEyebrow ?? null,
+      bannerDescription ?? null,
+      bannerImageUrl ?? null,
+      bannerImageUrlMobile ?? null,
+      bannerAltText ?? null,
+      bannerTextColor ?? 'LIGHT',
+      bannerTextPosition ?? 'LEFT',
+      bannerFocalPosition ?? 'CENTER',
+    ],
   );
   return rows[0];
 }
@@ -98,6 +138,15 @@ const CATEGORY_COLUMNS = {
   imageUrl: 'image_url',
   isActive: 'is_active',
   sortOrder: 'sort_order',
+  bannerEnabled: 'banner_enabled',
+  bannerEyebrow: 'banner_eyebrow',
+  bannerDescription: 'banner_description',
+  bannerImageUrl: 'banner_image_url',
+  bannerImageUrlMobile: 'banner_image_url_mobile',
+  bannerAltText: 'banner_alt_text',
+  bannerTextColor: 'banner_text_color',
+  bannerTextPosition: 'banner_text_position',
+  bannerFocalPosition: 'banner_focal_position',
 };
 
 export async function updateCategory(id, fields) {

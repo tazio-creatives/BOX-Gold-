@@ -116,6 +116,12 @@ export const env = {
   ),
   aiStudioGenerationConcurrency: Number(process.env.AI_STUDIO_GENERATION_CONCURRENCY ?? 4),
 
+  // Product Size Image (deterministic ruler overlay) — decoupled from AI
+  // Studio above. sharp's trim() threshold for detecting the product's
+  // bounding box against its generated background; retunable without a
+  // redeploy since real-world model output drifts over time.
+  productSizeImageTrimThreshold: Number(process.env.PRODUCT_SIZE_IMAGE_TRIM_THRESHOLD ?? 12),
+
   // Email (plan §12)
   emailProvider: process.env.EMAIL_PROVIDER ?? 'stub',
   emailJobRetryLimit: Number(process.env.EMAIL_JOB_RETRY_LIMIT ?? 5),

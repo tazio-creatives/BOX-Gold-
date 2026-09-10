@@ -21,7 +21,7 @@ import styles from './HomepagePage.module.css';
 // products tables) rather than manually curated per homepage_item — see
 // homepage.repository.js's getEnabledSectionsWithItems. Keep in sync with
 // that file's special-cased section types.
-const AUTO_SYNCED_TYPES: HomepageSectionType[] = ['BENTO_CATEGORIES', 'NEW_ARRIVALS', 'FEATURED_PRODUCT'];
+const AUTO_SYNCED_TYPES: HomepageSectionType[] = ['BENTO_CATEGORIES', 'FEATURED_PRODUCT'];
 
 const SECTION_TYPES: HomepageSectionType[] = [
   'HERO',
@@ -59,7 +59,7 @@ const SECTION_TYPE_LABELS: Record<HomepageSectionType, string> = {
   TRUST_STRIP: 'Trust Strip',
   CAMPAIGN_BANNERS: 'Campaign Banners',
   CATEGORY_PRODUCTS: 'Category Products',
-  COLLECTION_SHOWCASE: 'Collection Showcase',
+  COLLECTION_SHOWCASE: 'Full Width Banner with Products',
 };
 
 function imageForItem(item: HomepageItem): string | null {
@@ -234,16 +234,6 @@ export function HomepagePage() {
               </div>
             )}
 
-            {section.type === 'NEW_ARRIVALS' && (
-              <div className={styles.itemsPanel}>
-                <p className={sharedStyles.empty}>
-                  Tiles for this section are generated automatically from your 8 most recently published products
-                  (manage products on the Products page — publishing a new one, or changing its photo, updates what
-                  shows here). There's nothing to add or edit in this panel.
-                </p>
-              </div>
-            )}
-
             {section.type === 'FEATURED_PRODUCT' && (
               <div className={styles.itemsPanel}>
                 <p className={sharedStyles.empty}>
@@ -255,6 +245,16 @@ export function HomepagePage() {
 
             {!AUTO_SYNCED_TYPES.includes(section.type) && (
               <div className={styles.itemsPanel}>
+                {section.type === 'NEW_ARRIVALS' && (
+                  <p className={sharedStyles.empty}>
+                    Add exactly one item for the feature banner — only the first item renders. Heading is the
+                    banner title, Subheading the line below it (leave both blank to use the default "New Arrivals /
+                    From festive sparkle to everyday essentials" copy). Upload the banner photo as "Banner image —
+                    desktop" (and optionally a portrait crop as "mobile"). Link to Category/Collection/Product and
+                    CTA fields aren't used here. The products shown below the banner are always the 10 most recently
+                    published products and update automatically.
+                  </p>
+                )}
                 {section.type === 'CATEGORY_PRODUCTS' && (
                   <p className={sharedStyles.empty}>
                     Add one item per category using "Link to Category" below — its heading/image/product/CTA fields

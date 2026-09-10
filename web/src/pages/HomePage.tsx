@@ -1,5 +1,7 @@
+import { Fragment } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { fetchHomepage } from '../api/homepage';
+import { AssuranceStrip } from './home/AssuranceStrip';
 import { HomepageSection } from './home/HomepageSection';
 import { useHead, defaultHead } from '../seo/head';
 import { breadcrumbJsonLd, organizationJsonLd } from '../seo/jsonLd';
@@ -34,7 +36,14 @@ export function HomePage() {
   return (
     <div>
       {data.sections.map((section, i) => (
-        <HomepageSection key={section.id} section={section} alternate={i % 2 === 1} />
+        <Fragment key={section.id}>
+          <HomepageSection section={section} alternate={i % 2 === 1} />
+          {/* Static, homepage-only strip — not a homepage_sections row, so
+              it's placed here positionally right after HERO rather than in
+              HomepageSection.tsx's data-driven switch (plan: "Add only the
+              assurance strip" / "Do not add an admin configuration screen"). */}
+          {section.type === 'HERO' && <AssuranceStrip />}
+        </Fragment>
       ))}
     </div>
   );

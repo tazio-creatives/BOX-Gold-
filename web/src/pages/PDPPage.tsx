@@ -4,7 +4,7 @@ import { useQuery, useQueryClient, useMutation } from '@tanstack/react-query';
 import { fetchProductBySlug, fetchRelatedProducts } from '../api/products';
 import { fetchCategories } from '../api/categories';
 import { addCartItem } from '../api/cart';
-import type { Cart } from '../api/types';
+import type { Cart, ProductImage } from '../api/types';
 import { getAncestorChain } from '../utils/categoryTree';
 import { useVariantSelection } from '../hooks/useVariantSelection';
 import { Breadcrumbs } from '../components/Breadcrumbs';
@@ -16,6 +16,33 @@ import { ProductTabs } from '../features/pdp/ProductTabs';
 import { RelatedProducts } from '../features/pdp/RelatedProducts';
 import styles from './PDPPage.module.css';
 import placeholderStyles from './PlaceholderPage.module.css';
+
+// Moves the Product Size Image group to gallery position 3 (index 2) when
+// >=2 other photos exist, or right after whichever fewer exist otherwise —
+// by reassigning fresh sortOrder values on a LOCAL COPY only (never written
+// back to the API/DB). This is the only lever that works: ImageGallery's
+// own groupPhotos() always re-sorts by sortOrder regardless of array order,
+// so reordering the array alone would do nothing. Depends on at most one
+// PRODUCT_SIZE group ever being present, which the backend guarantees (a
+// stale/ineligible one is already excluded server-side — see
+// productsService.js's attachProductSizeImage). No-op when there is none.
+function reorderForProductSize(images: ProductImage[]): ProductImage[] {
+  const sizeRows = images.filter((i) => i.type === 'PRODUCT_SIZE');
+  if (sizeRows.length === 0) return images;
+
+  const others = images.filter((i) => i.type !== 'PRODUCT_SIZE');
+  const otherSortValues = [...new Set(others.map((i) => i.sortOrder))].sort((a, b) => a - b);
+  const insertAt = Math.min(2, otherSortValues.length);
+
+  const remap = new Map<number, number>();
+  otherSortValues.slice(0, insertAt).forEach((so, i) => remap.set(so, i));
+  otherSortValues.slice(insertAt).forEach((so, i) => remap.set(so, insertAt + 1 + i));
+
+  return [
+    ...others.map((i) => ({ ...i, sortOrder: remap.get(i.sortOrder) as number })),
+    ...sizeRows.map((i) => ({ ...i, sortOrder: insertAt })),
+  ];
+}
 
 export function PDPPage() {
   const { productSlug } = useParams<{ categorySlug: string; productSlug: string }>();
@@ -160,9 +187,9 @@ export function PDPPage() {
   // thumbnail lookup and the JSON-LD structured data both rely on it still
   // containing the primary flag/manual image).
   const hasAiGeneratedImage = product.images.some((img) => img.type === 'AI_GENERATED');
-  const galleryImages = hasAiGeneratedImage
-    ? product.images.filter((img) => !(img.type === 'ORIGINAL' && img.isPrimary))
-    : product.images;
+  const galleryImages = reorderForProductSize(
+    hasAiGeneratedImage ? product.images.filter((img) => !(img.type === 'ORIGINAL' && img.isPrimary)) : product.images,
+  );
 
   return (
     <div className={styles.page}>

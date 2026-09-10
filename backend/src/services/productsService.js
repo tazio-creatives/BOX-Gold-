@@ -18,6 +18,8 @@ import {
   updateVariantFields,
   bulkUpdateVariantFields,
 } from '../repositories/productVariants.repository.js';
+import { findMeasurementsByProductId } from '../repositories/productSizeMeasurements.repository.js';
+import { findByProductId as findGeneratedSizeImageByProductId } from '../repositories/productSizeGeneratedImages.repository.js';
 import {
   syncProductVariants,
   applyExclusionRules,
@@ -284,18 +286,60 @@ export async function listPublicProducts({
   );
 }
 
+// A Product Size Image is only ever storefront-eligible when it's the
+// currently active row, generation actually succeeded (passed/warning —
+// same "warning still counts as usable" convention AI Studio's other asset
+// types use), and its measurement_version still matches the live
+// measurements row — the moment an admin edits measurements this stops
+// matching until a fresh regeneration succeeds (plan point 1/10). Ineligible
+// PRODUCT_SIZE rows are filtered out here, at the source, rather than left
+// for the frontend to reason about staleness itself. The measurements
+// themselves (for the "Product dimensions" PDP text) are attached
+// regardless of image eligibility — text has no staleness risk, since it's
+// always read live.
+async function attachProductSizeImage(product, images) {
+  const measurements = await findMeasurementsByProductId(product.id);
+  if (!measurements) {
+    return { images, productSizeMeasurements: null };
+  }
+
+  const generated = await findGeneratedSizeImageByProductId(product.id);
+  const eligible =
+    !!generated &&
+    generated.is_active &&
+    (generated.status === 'passed' || generated.status === 'warning') &&
+    generated.measurement_version === measurements.version;
+
+  const filteredImages = images.filter(
+    (img) => img.type !== 'PRODUCT_SIZE' || (eligible && img.sort_order === generated.image_sort_order),
+  );
+
+  return {
+    images: filteredImages,
+    productSizeMeasurements: {
+      jewelleryType: measurements.jewellery_type,
+      unit: measurements.unit,
+      measurements: measurements.measurements,
+      includedParts: measurements.included_parts,
+      excludedParts: measurements.excluded_parts,
+      note: measurements.note,
+    },
+  };
+}
+
 export async function getPublicProductBySlug(slug) {
   const product = await findProductBySlug(slug);
   if (!product || product.status !== 'PUBLISHED') {
     throw new NotFoundError('Product not found');
   }
-  const images = await findProductImages(product.id);
+  const rawImages = await findProductImages(product.id);
+  const { images, productSizeMeasurements } = await attachProductSizeImage(product, rawImages);
   const attributes = await findProductAttributeCatalogue(product.id);
   const variants = await findAvailableVariantsByProductId(product.id);
   const diamondConfigName = product.diamond_config_id
     ? ((await findDiamondConfigById(product.diamond_config_id))?.name ?? null)
     : null;
-  return { ...product, images, attributes, variants, diamondConfigName };
+  return { ...product, images, attributes, variants, diamondConfigName, productSizeMeasurements };
 }
 
 export async function getRelatedProducts(slug, limit = 4) {

@@ -50,6 +50,7 @@ export function PLPPage() {
       breadcrumbs={breadcrumbs}
       canonicalPath={`/${category.slug}`}
       subcategories={subcategories}
+      banner={category.banner}
     />
   );
 }

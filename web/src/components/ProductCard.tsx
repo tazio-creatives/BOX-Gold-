@@ -23,6 +23,7 @@ export function ProductCard({
   layout = 'grid',
   imageFit = 'cover',
   imageHeight,
+  imagePadding = true,
 }: {
   product: ProductCardType;
   index?: number;
@@ -31,6 +32,10 @@ export function ProductCard({
   // Opt-in fixed-height image area (PLP grid spec) — omitted, every other
   // caller keeps the default aspect-ratio-based sizing untouched.
   imageHeight?: string;
+  // Every existing caller wants the image inset with breathing room around
+  // it (the default) — the homepage collection showcase is the one case
+  // that wants the photo to fill the tile edge-to-edge instead.
+  imagePadding?: boolean;
 }) {
   const isOutOfStock = product.availableStock <= 0;
   const isLowStock = !isOutOfStock && product.availableStock <= LOW_STOCK_THRESHOLD;
@@ -43,6 +48,7 @@ export function ProductCard({
         style={{
           ...(product.primaryImageUrl ? undefined : { background: placeholderGradient(index) }),
           ...(imageHeight && layout === 'grid' ? { height: imageHeight, aspectRatio: 'auto' } : undefined),
+          ...(imagePadding ? undefined : { padding: 0 }),
         }}
       >
         {product.primaryImageUrl && (

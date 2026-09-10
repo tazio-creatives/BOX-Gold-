@@ -43,6 +43,11 @@ import {
   completeImport as completeStudioImport,
   cancelJob as cancelStudioJob,
 } from '../../controllers/aiStudio.controller.js';
+import {
+  getMeasurements as getSizeMeasurements,
+  saveMeasurements as saveSizeMeasurements,
+  generateImage as generateSizeImage,
+} from '../../controllers/productSizeImage.controller.js';
 import { upload, uploadEnhanceImage } from '../../middleware/upload.js';
 import { aiStudioRateLimiter } from '../../middleware/rateLimit.js';
 
@@ -127,3 +132,10 @@ adminProductsRouter.patch('/:id/ai-studio/:jobId/assets/:assetId', updateStudioA
 adminProductsRouter.post('/:id/ai-studio/:jobId/assets/:assetId/import', importStudioAsset);
 adminProductsRouter.post('/:id/ai-studio/:jobId/import/complete', completeStudioImport);
 adminProductsRouter.post('/:id/ai-studio/:jobId/cancel', cancelStudioJob);
+
+// Product Size Image — a fully decoupled generation pipeline (own job/
+// table, not part of ai_studio_jobs/ai_studio_assets) reachable both from
+// inside the wizard above and from any existing product at any time.
+adminProductsRouter.get('/:id/size-measurements', getSizeMeasurements);
+adminProductsRouter.put('/:id/size-measurements', saveSizeMeasurements);
+adminProductsRouter.post('/:id/size-measurements/generate', aiStudioRateLimiter, generateSizeImage);

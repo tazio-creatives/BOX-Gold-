@@ -7,6 +7,7 @@ import { CollectionShowcase } from './CollectionShowcase';
 import { CollectionProductShowcase } from './CollectionProductShowcase';
 import { DuoBanner } from './DuoBanner';
 import { HeroCarousel } from './HeroCarousel';
+import { NewArrivalsSection } from './NewArrivalsSection';
 import { NewsletterForm } from './NewsletterForm';
 import { ProductCarousel } from './ProductCarousel';
 import { PriceTierCard } from './PriceTierCard';
@@ -140,13 +141,7 @@ export function HomepageSection({ section, alternate }: Props) {
       );
 
     case 'NEW_ARRIVALS':
-      return (
-        <ProductCarousel
-          items={section.items}
-          heading={section.heading ?? 'New Arrivals'}
-          viewAllHref="/new-arrivals?sort=newest"
-        />
-      );
+      return <NewArrivalsSection items={section.items} />;
 
     // BEST_SELLERS
     default:

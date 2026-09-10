@@ -9,6 +9,19 @@ function formatWeight(grams: number): string {
   return grams.toFixed(3);
 }
 
+// Compact "10 × 8 × 12 mm"-style summary of every entered numeric
+// measurement, in the order the admin's Manual Measurements form saved them
+// — deliberately doesn't re-derive per-category field labels here (that
+// config only exists on the backend/admin side); this is plain accessible
+// text, not a substitute for reading the image itself, but doesn't need
+// per-field labels to be useful (plan: "Do not require customers to read
+// measurements only from the image").
+function formatDimensions(measurements: Record<string, number | string>, unit: string): string | null {
+  const numericValues = Object.values(measurements).filter((v): v is number => typeof v === 'number');
+  if (numericValues.length === 0) return null;
+  return `${numericValues.join(' × ')} ${unit}`;
+}
+
 interface AttributesListProps {
   product: ProductDetail;
   // Live-selection overrides — a variant picked via Purity/Gold Colour/
@@ -66,6 +79,18 @@ export function AttributesList({
   if (diamondConfigName) rows.push(['Natural Diamond Quality', diamondConfigName]);
   if (product.diamondCount) rows.push(['Natural Diamond Count', String(product.diamondCount)]);
   if (product.gemstone) rows.push(['Gemstone', product.gemstone]);
+
+  const sizeMeasurements = product.productSizeMeasurements;
+  if (sizeMeasurements) {
+    const dimensionText = formatDimensions(sizeMeasurements.measurements, sizeMeasurements.unit);
+    if (dimensionText) rows.push(['Product Dimensions', dimensionText]);
+    if (sizeMeasurements.excludedParts.length > 0) {
+      rows.push(['Measurement Note', `Measurement excludes the ${sizeMeasurements.excludedParts.join(', ')}.`]);
+    } else if (sizeMeasurements.includedParts.length > 0) {
+      rows.push(['Measurement Note', `Measurement includes the ${sizeMeasurements.includedParts.join(', ')}.`]);
+    }
+    if (sizeMeasurements.note) rows.push(['Note', sizeMeasurements.note]);
+  }
 
   return (
     <dl className={styles.list}>

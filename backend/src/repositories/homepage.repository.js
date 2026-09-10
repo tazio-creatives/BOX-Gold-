@@ -82,63 +82,45 @@ export async function getEnabledSectionsWithItems() {
     }
   }
 
-  // NEW_ARRIVALS tiles are likewise auto-derived — the most recently
-  // published products, newest first — rather than manually added per
-  // product. Any homepage_items rows still stored against this section
-  // type are ignored on read, same reasoning as BENTO_CATEGORIES above.
+  // NEW_ARRIVALS keeps the "one item, many products" shape used by
+  // COLLECTION_SHOWCASE below — the item carries the admin-editable banner
+  // (image/heading/subheading, via the ordinary "+ Add Item" form; only the
+  // first item renders), while its `products` array is always auto-derived
+  // (most recently published products, newest first) so the storefront's
+  // product-card component and pricing DTO can be reused as-is instead of
+  // hand-rolled offer math. If no admin item exists yet, a blank synthetic
+  // one stands in so the section still renders (frontend falls back to
+  // default banner copy/art for a null image_url/heading/subheading).
   const newArrivalsSections = sections.filter((s) => s.type === 'NEW_ARRIVALS');
   if (newArrivalsSections.length > 0) {
-    const { rows: recentProducts } = await query(
-      `SELECT p.id, p.name, p.slug, p.selling_price, p.metal_type, p.purity,
-              p.mrp, p.gold_value, p.diamond_value, p.making_charge, p.gst_percent,
-              p.making_charge_discount_percent, p.diamond_discount_percent,
-              p.effective_making_charge_discount_percent, p.effective_diamond_discount_percent,
-              cat.slug AS category_slug, p_image.url AS product_image_url
-       FROM products p
-       LEFT JOIN categories cat ON cat.id = p.category_id
-       LEFT JOIN LATERAL (
-         SELECT url FROM product_images
-         WHERE product_id = p.id AND is_primary = true AND variant = 'small'
-         LIMIT 1
-       ) p_image ON true
-       WHERE p.status = 'PUBLISHED'
-       ORDER BY p.created_at DESC
-       LIMIT 8`,
+    const { items: recentProducts } = await listProducts(
+      { status: 'PUBLISHED' },
+      { sort: 'newest', page: 1, limit: 10 },
     );
-    const autoItems = recentProducts.map((p) => ({
-      id: p.id,
-      image_url: null,
-      image_url_mobile: null,
-      heading: p.name,
-      subheading: null,
-      cta_label: null,
-      cta_url: p.category_slug ? `/${p.category_slug}/${p.slug}` : `/${p.slug}`,
-      category_id: null,
-      category_name: null,
-      category_slug: null,
-      category_image_url: null,
-      collection_id: null,
-      collection_name: null,
-      collection_slug: null,
-      product_id: p.id,
-      product_name: p.name,
-      product_slug: p.slug,
-      product_selling_price: p.selling_price,
-      product_metal_type: p.metal_type,
-      product_purity: p.purity,
-      product_image_url: p.product_image_url,
-      product_mrp: p.mrp,
-      product_gold_value: p.gold_value,
-      product_diamond_value: p.diamond_value,
-      product_making_charge: p.making_charge,
-      product_gst_percent: p.gst_percent,
-      product_making_charge_discount_percent: p.making_charge_discount_percent,
-      product_diamond_discount_percent: p.diamond_discount_percent,
-      product_effective_making_charge_discount_percent: p.effective_making_charge_discount_percent,
-      product_effective_diamond_discount_percent: p.effective_diamond_discount_percent,
-    }));
     for (const section of newArrivalsSections) {
-      itemsBySection.set(section.id, autoItems);
+      const sectionItems = itemsBySection.get(section.id) ?? [];
+      const bannerItem = sectionItems[0] ?? {
+        id: 'new-arrivals',
+        image_url: null,
+        image_url_mobile: null,
+        heading: null,
+        subheading: null,
+        cta_label: null,
+        cta_url: null,
+        category_id: null,
+        category_name: null,
+        category_slug: null,
+        category_image_url: null,
+        collection_id: null,
+        collection_name: null,
+        collection_slug: null,
+        product_id: null,
+        product_name: null,
+        product_slug: null,
+        product_selling_price: null,
+      };
+      bannerItem.products = recentProducts;
+      itemsBySection.set(section.id, [bannerItem]);
     }
   }
 

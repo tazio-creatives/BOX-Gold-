@@ -1,5 +1,5 @@
 import { apiFetch, ApiError } from './client';
-import type { Category } from './types';
+import type { Category, CategoryInput } from './types';
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? 'http://localhost:4000/api/v1';
 
@@ -27,14 +27,14 @@ export async function uploadCategoryImage(file: File) {
   return response.json() as Promise<{ url: string }>;
 }
 
-export function createCategory(input: Partial<Category>) {
+export function createCategory(input: Partial<CategoryInput>) {
   return apiFetch<{ category: Category }>('/admin/categories', {
     method: 'POST',
     body: JSON.stringify(input),
   });
 }
 
-export function updateCategory(id: string, input: Partial<Category>) {
+export function updateCategory(id: string, input: Partial<CategoryInput>) {
   return apiFetch<{ category: Category }>(`/admin/categories/${id}`, {
     method: 'PATCH',
     body: JSON.stringify(input),

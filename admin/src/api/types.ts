@@ -229,6 +229,22 @@ export interface VariantOverrideInput {
   isAvailable?: boolean;
 }
 
+// Admin always gets the full banner state (including `enabled` and any
+// saved values while disabled) so the edit form can populate its inputs —
+// unlike the storefront's Category type, which collapses a disabled/unset
+// banner straight to `null`.
+export interface CategoryBanner {
+  enabled: boolean;
+  eyebrow: string | null;
+  description: string | null;
+  imageUrl: string | null;
+  imageUrlMobile: string | null;
+  altText: string | null;
+  textColor: 'LIGHT' | 'DARK';
+  textPosition: 'LEFT' | 'CENTER' | 'RIGHT';
+  focalPosition: 'LEFT' | 'CENTER' | 'RIGHT';
+}
+
 export interface Category {
   id: string;
   parentId: string | null;
@@ -238,6 +254,29 @@ export interface Category {
   imageUrl: string | null;
   isActive: boolean;
   sortOrder: number;
+  banner: CategoryBanner;
+}
+
+// What create/update actually accept — flat fields (matching
+// categories.validators.js's schema) rather than Category's nested `banner`
+// GET shape, since the backend has no nested-object input handling.
+export interface CategoryInput {
+  parentId: string | null;
+  name: string;
+  slug?: string;
+  description: string | null;
+  imageUrl: string | null;
+  isActive: boolean;
+  sortOrder: number;
+  bannerEnabled: boolean;
+  bannerEyebrow: string | null;
+  bannerDescription: string | null;
+  bannerImageUrl: string | null;
+  bannerImageUrlMobile: string | null;
+  bannerAltText: string | null;
+  bannerTextColor: 'LIGHT' | 'DARK';
+  bannerTextPosition: 'LEFT' | 'CENTER' | 'RIGHT';
+  bannerFocalPosition: 'LEFT' | 'CENTER' | 'RIGHT';
 }
 
 export interface Collection {
@@ -408,7 +447,8 @@ export type HomepageSectionType =
   | 'NEWSLETTER'
   | 'TRUST_STRIP'
   | 'CAMPAIGN_BANNERS'
-  | 'CATEGORY_PRODUCTS';
+  | 'CATEGORY_PRODUCTS'
+  | 'COLLECTION_SHOWCASE';
 
 export interface HomepageItem {
   id: string;

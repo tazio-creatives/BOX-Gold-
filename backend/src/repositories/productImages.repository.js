@@ -50,6 +50,17 @@ export async function updateSortOrder(productId, oldSortOrder, newSortOrder) {
   );
 }
 
+// The one representative row for a specific group — same 'thumbnail'+'webp'
+// convention as findAllImageGroups, used to preview a single photo (e.g. the
+// Product Size Image) without pulling all 9 variant rows.
+export async function findThumbnailBySortOrder(productId, sortOrder) {
+  const { rows } = await query(
+    `SELECT * FROM product_images WHERE product_id = $1 AND sort_order = $2 AND variant = 'thumbnail' AND format = 'webp'`,
+    [productId, sortOrder],
+  );
+  return rows[0] ?? null;
+}
+
 export async function deleteProductImagesBySortOrder(productId, sortOrder) {
   const { rows } = await query(
     'DELETE FROM product_images WHERE product_id = $1 AND sort_order = $2 RETURNING url',

@@ -16,7 +16,7 @@ const RING_STEPS = STEPS.filter((step) => step.label !== 'Choose Presenter');
 
 interface StudioStepperProps {
   status: StudioJobStatus | null;
-  confirmSubStep: 'analyse' | 'presenter' | 'prompts';
+  confirmSubStep: 'analyse' | 'measurements' | 'presenter' | 'prompts';
   generateCount: number;
   isRing?: boolean;
 }

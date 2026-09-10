@@ -232,6 +232,11 @@ function toDetailDto(row, deliveryEstimate = calculateDeliveryEstimate()) {
       sortOrder: img.sort_order,
     })),
 
+    // Only present when the admin has saved Product Size Image measurements
+    // for this product — separate from whether an eligible generated photo
+    // currently exists (see productsService.js's attachProductSizeImage).
+    productSizeMeasurements: row.productSizeMeasurements ?? null,
+
     // Admin-defined dimensions this product offers values on (Purity, Gold
     // Color, Diamond Quality, Size, and whatever's added later) — replaces
     // the old fixed goldColorOptions/purityOptions/diamondOptions/sizes

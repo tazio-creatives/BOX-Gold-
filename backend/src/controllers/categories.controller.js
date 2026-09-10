@@ -15,6 +15,39 @@ function toDto(row) {
     imageUrl: row.image_url,
     isActive: row.is_active,
     sortOrder: row.sort_order,
+    banner: row.banner_enabled
+      ? {
+          eyebrow: row.banner_eyebrow,
+          description: row.banner_description,
+          imageUrl: row.banner_image_url,
+          imageUrlMobile: row.banner_image_url_mobile,
+          altText: row.banner_alt_text,
+          textColor: row.banner_text_color,
+          textPosition: row.banner_text_position,
+          focalPosition: row.banner_focal_position,
+        }
+      : null,
+  };
+}
+
+// Admin form needs the raw fields (including when disabled/blank) to
+// populate its edit inputs — the public toDto above collapses a disabled
+// banner to `null` so storefront callers never have to check an `enabled`
+// flag themselves.
+function toAdminDto(row) {
+  return {
+    ...toDto(row),
+    banner: {
+      enabled: row.banner_enabled,
+      eyebrow: row.banner_eyebrow,
+      description: row.banner_description,
+      imageUrl: row.banner_image_url,
+      imageUrlMobile: row.banner_image_url_mobile,
+      altText: row.banner_alt_text,
+      textColor: row.banner_text_color,
+      textPosition: row.banner_text_position,
+      focalPosition: row.banner_focal_position,
+    },
   };
 }
 
@@ -65,7 +98,7 @@ export async function getFilterCounts(req, res, next) {
 export async function adminList(req, res, next) {
   try {
     const categories = await categoriesService.listCategories({ activeOnly: false });
-    res.json({ categories: categories.map(toDto) });
+    res.json({ categories: categories.map(toAdminDto) });
   } catch (err) {
     next(err);
   }
@@ -75,7 +108,7 @@ export async function adminCreate(req, res, next) {
   try {
     const input = createCategorySchema.parse(req.body);
     const category = await categoriesService.createCategory(input);
-    res.status(201).json({ category: toDto(category) });
+    res.status(201).json({ category: toAdminDto(category) });
   } catch (err) {
     next(err);
   }
@@ -85,7 +118,7 @@ export async function adminUpdate(req, res, next) {
   try {
     const input = updateCategorySchema.parse(req.body);
     const category = await categoriesService.updateCategory(req.params.id, input);
-    res.json({ category: toDto(category) });
+    res.json({ category: toAdminDto(category) });
   } catch (err) {
     next(err);
   }

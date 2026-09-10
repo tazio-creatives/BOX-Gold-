@@ -20,10 +20,12 @@ import {
 import { fetchAdminCategories } from '../../api/categories';
 import { fetchAdminProduct } from '../../api/products';
 import { fetchPresenters } from '../../api/presenters';
+import { fetchProductSizeMeasurements } from '../../api/productSizeImage';
 import { ApiError } from '../../api/client';
 import { StudioStepper } from '../../features/aiStudio/StudioStepper';
 import { UploadStep } from '../../features/aiStudio/UploadStep';
 import { AnalyseConfirmStep } from '../../features/aiStudio/AnalyseConfirmStep';
+import { ManualMeasurementsForm } from '../../features/aiStudio/ManualMeasurementsForm';
 import { PresenterStep } from '../../features/aiStudio/PresenterStep';
 import { ReviewPromptsStep } from '../../features/aiStudio/ReviewPromptsStep';
 import { GenerateStep } from '../../features/aiStudio/GenerateStep';
@@ -50,7 +52,13 @@ export function AiImageStudioPage() {
 
   const [jobId, setJobId] = useState<string | null>(requestedJobId);
   const [hasCheckedActiveJob, setHasCheckedActiveJob] = useState(!!requestedJobId);
-  const [confirmSubStep, setConfirmSubStep] = useState<'analyse' | 'presenter' | 'prompts'>('analyse');
+  const [confirmSubStep, setConfirmSubStep] = useState<'analyse' | 'measurements' | 'presenter' | 'prompts'>('analyse');
+  // Default off (plan: "Include Product Size Image" toggle). A fully
+  // decoupled generation pipeline from everything else on this page — see
+  // productSizeImage.controller.js on the backend — so this state only ever
+  // decides whether the 'measurements' sub-step appears in this wizard; it
+  // is never sent as part of confirmStudioJob's payload.
+  const [includeProductSizeImage, setIncludeProductSizeImage] = useState(false);
   const [jewelleryType, setJewelleryType] = useState<JewelleryType | ''>('');
   // Requires an explicit "Keep Product Category" / "Use AI-Detected
   // Category" / "Select Another Category" click before Continue unlocks —
@@ -91,6 +99,14 @@ export function AiImageStudioPage() {
     queryFn: () => fetchPresenters(),
   });
   const presenters = presentersData?.presenters ?? [];
+
+  const sizeMeasurementsQueryKey = ['product-size-measurements', productId];
+  const { data: sizeMeasurementsData } = useQuery({
+    queryKey: sizeMeasurementsQueryKey,
+    queryFn: () => fetchProductSizeMeasurements(productId as string),
+    enabled: !!productId,
+    refetchInterval: (query) => (query.state.data?.generatedImage?.status === 'generating' ? 2000 : false),
+  });
 
   // Resume an in-progress job for this product instead of always starting at
   // Upload — runs once on mount.
@@ -297,6 +313,8 @@ export function AiImageStudioPage() {
               onCustomerCategoryChange={setCustomerCategory}
               customerCategoryConfirmed={customerCategoryConfirmed}
               onCustomerCategoryConfirmedChange={setCustomerCategoryConfirmed}
+              includeProductSizeImage={includeProductSizeImage}
+              onIncludeProductSizeImageChange={setIncludeProductSizeImage}
             />
             {confirmError && isRing && <p className={sharedStyles.error}>{confirmError}</p>}
             <div className={styles.actions}>
@@ -307,12 +325,76 @@ export function AiImageStudioPage() {
                   !jewelleryType ||
                   !categoryConfirmed ||
                   !customerCategoryConfirmed ||
-                  (isRing && confirmMutation.isPending)
+                  (isRing && !includeProductSizeImage && confirmMutation.isPending)
                 }
                 // Ring skips both the presenter/hand-pose choice and the Review
                 // Prompts screen entirely — generation starts immediately once
                 // the category is confirmed, per spec: no pose selection, no
-                // additional confirmation step in between.
+                // additional confirmation step in between. The new
+                // measurements sub-step takes priority over both when the
+                // toggle is on, for Ring and non-Ring jobs alike.
+                onClick={() => {
+                  if (includeProductSizeImage) {
+                    setConfirmSubStep('measurements');
+                    return;
+                  }
+                  if (isRing) {
+                    confirmMutation.mutate();
+                    return;
+                  }
+                  setConfirmSubStep('presenter');
+                }}
+              >
+                {isRing && !includeProductSizeImage
+                  ? confirmMutation.isPending
+                    ? 'Starting…'
+                    : `Confirm & Generate ${generateCount} Images`
+                  : 'Continue'}
+              </button>
+            </div>
+          </>
+        )}
+
+        {job && job.status === 'awaiting_confirmation' && confirmSubStep === 'measurements' && jewelleryType && (
+          <>
+            <ManualMeasurementsForm
+              productId={productId as string}
+              jewelleryType={jewelleryType}
+              initial={sizeMeasurementsData?.measurements}
+              onSaved={() => queryClient.invalidateQueries({ queryKey: sizeMeasurementsQueryKey })}
+              onGenerating={() => {
+                queryClient.invalidateQueries({ queryKey: sizeMeasurementsQueryKey });
+                if (isRing) {
+                  confirmMutation.mutate();
+                } else {
+                  setConfirmSubStep('presenter');
+                }
+              }}
+              onCancel={() => setConfirmSubStep('analyse')}
+            />
+            {sizeMeasurementsData?.generatedImage && (
+              <>
+                <p className={styles.subtitle}>
+                  Product Size Image status: {sizeMeasurementsData.generatedImage.status}
+                  {sizeMeasurementsData.generatedImage.status === 'stale' && ' — Measurements changed — regeneration required'}
+                  {sizeMeasurementsData.generatedImage.failureReason && ` — ${sizeMeasurementsData.generatedImage.failureReason}`}
+                </p>
+                {sizeMeasurementsData.generatedImage.imageUrl && (
+                  <img
+                    src={sizeMeasurementsData.generatedImage.imageUrl}
+                    alt="Product Size Image preview"
+                    style={{ display: 'block', width: 220, height: 220, objectFit: 'contain', marginTop: 10, border: '1px solid #e2e2e2', borderRadius: 8 }}
+                  />
+                )}
+              </>
+            )}
+            <div className={styles.actions}>
+              <button type="button" className={sharedStyles.button} onClick={() => setConfirmSubStep('analyse')}>
+                Back
+              </button>
+              <button
+                type="button"
+                className={sharedStyles.buttonPrimary}
                 onClick={() => (isRing ? confirmMutation.mutate() : setConfirmSubStep('presenter'))}
               >
                 {isRing ? (confirmMutation.isPending ? 'Starting…' : `Confirm & Generate ${generateCount} Images`) : 'Continue'}

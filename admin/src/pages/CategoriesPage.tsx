@@ -1,7 +1,7 @@
 import { useState, type ReactNode } from 'react';
 import { useQuery, useQueryClient, useMutation } from '@tanstack/react-query';
 import { fetchAdminCategories, createCategory, updateCategory, deleteCategory } from '../api/categories';
-import type { Category } from '../api/types';
+import type { Category, CategoryInput } from '../api/types';
 import { buildCategoryTree, type CategoryTreeNode } from '../utils/categoryTree';
 import { CategoryForm } from '../features/categories/CategoryForm';
 import { Toast } from '../components/Toast';
@@ -21,7 +21,7 @@ export function CategoriesPage() {
   const invalidate = () => queryClient.invalidateQueries({ queryKey: ['admin-categories'] });
 
   const createMutation = useMutation({
-    mutationFn: (input: Partial<Category>) => createCategory(input),
+    mutationFn: (input: Partial<CategoryInput>) => createCategory(input),
     onSuccess: () => {
       invalidate();
       setMode({ type: 'none' });
@@ -29,7 +29,7 @@ export function CategoriesPage() {
   });
 
   const updateMutation = useMutation({
-    mutationFn: ({ id, input }: { id: string; input: Partial<Category> }) => updateCategory(id, input),
+    mutationFn: ({ id, input }: { id: string; input: Partial<CategoryInput> }) => updateCategory(id, input),
     onSuccess: () => {
       invalidate();
       setMode({ type: 'none' });

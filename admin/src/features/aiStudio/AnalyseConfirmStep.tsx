@@ -27,6 +27,8 @@ interface AnalyseConfirmStepProps {
   onCustomerCategoryChange: (_v: CustomerCategory) => void;
   customerCategoryConfirmed: boolean;
   onCustomerCategoryConfirmedChange: (_v: boolean) => void;
+  includeProductSizeImage: boolean;
+  onIncludeProductSizeImageChange: (_v: boolean) => void;
 }
 
 // AI-detected attributes are suggestions only — nothing here is ever applied
@@ -49,6 +51,8 @@ export function AnalyseConfirmStep({
   onCustomerCategoryChange,
   customerCategoryConfirmed,
   onCustomerCategoryConfirmedChange,
+  includeProductSizeImage,
+  onIncludeProductSizeImageChange,
 }: AnalyseConfirmStepProps) {
   const [isPickingCategory, setIsPickingCategory] = useState(false);
   const [categoryFilter, setCategoryFilter] = useState('');
@@ -275,6 +279,15 @@ export function AnalyseConfirmStep({
           helperText="Creates Rose Gold catalogue and presenter images in addition to the Yellow Gold images."
         />
         {generationSummary && <p className={styles.confirmedNotice}>{generationSummary}</p>}
+      </section>
+
+      <section className={styles.generationPlan}>
+        <Toggle
+          checked={includeProductSizeImage}
+          onChange={onIncludeProductSizeImageChange}
+          label="Include Product Size Image"
+          helperText="Generate a size-guide image using the product's actual measurements."
+        />
       </section>
     </div>
   );

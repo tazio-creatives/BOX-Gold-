@@ -15,6 +15,7 @@ import { previewPricing } from '../../api/pricing';
 import { fetchDiamondConfigs } from '../../api/diamondConfigs';
 import { fetchWeightRules } from '../../api/weightRules';
 import { fetchPurityPricingRules } from '../../api/purityPricingRules';
+import { ProductSizeImagePanel } from '../../features/aiStudio/ProductSizeImagePanel';
 import type {
   GoldColor,
   MetalType,
@@ -823,6 +824,13 @@ export function ProductFormPage() {
             </div>
           </div>
         </section>
+
+        {isEditing && (
+          <ProductSizeImagePanel
+            productId={id as string}
+            categoryName={categories.find((c) => c.id === form.categoryId)?.name ?? null}
+          />
+        )}
 
         <section className={sharedStyles.cardPadded}>
           <h2 className={styles.sectionHeading}>Metal, Diamond &amp; Pricing</h2>

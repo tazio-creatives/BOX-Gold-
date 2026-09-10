@@ -30,6 +30,7 @@ interface GalleryPhoto {
   id: string;
   mainUrl: string;
   thumbUrl: string;
+  type: ProductImage['type'];
 }
 
 function groupPhotos(images: ProductImage[]): GalleryPhoto[] {
@@ -44,6 +45,7 @@ function groupPhotos(images: ProductImage[]): GalleryPhoto[] {
       id: rows[0].id,
       mainUrl: pickUrl(rows, 'large') as string,
       thumbUrl: pickUrl(rows, 'small') as string,
+      type: rows[0].type,
     }))
     .filter((photo) => !!photo.mainUrl);
 }
@@ -150,6 +152,7 @@ export function ImageGallery({
                 aria-label={`View image ${i + 1}`}
               >
                 <img src={img.thumbUrl} alt="" />
+                {img.type === 'PRODUCT_SIZE' && <span className={styles.sizeGuideLabel}>Size Guide</span>}
               </button>
             ))}
           </div>

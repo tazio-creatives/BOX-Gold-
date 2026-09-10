@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import type { GoldColor, PriceBreakup, ProductDetail } from '../../api/types';
 import { formatPrice } from '../../utils/formatPrice';
 import { DeliveryEstimateDetail } from '../../components/DeliveryEstimate';
+import { ProductAssuranceGrid } from '../../components/ProductAssuranceGrid';
 import { DeliveryChecker } from './DeliveryChecker';
 import { SizeSelector } from './SizeSelector';
 import { ColorSelector } from './ColorSelector';
@@ -216,6 +217,13 @@ export function ProductInfo({
   const selectedDiamondOption = product.diamondOptions.find((d) => d.id === selectedDiamondConfigId) ?? null;
   const diamondChipText = selectedDiamondOption?.name ?? product.diamondConfigName;
 
+  const hasDiamonds =
+    (product.diamondWeightCarats ?? 0) > 0 ||
+    product.diamondOptions.length > 0 ||
+    !!product.diamondConfigId ||
+    !!product.diamondConfigName;
+  const isGold = product.metalType === 'GOLD';
+
   return (
     <div className={styles.info}>
       {product.isNew && (
@@ -364,6 +372,8 @@ export function ProductInfo({
           Buy Now
         </button>
       </div>
+
+      <ProductAssuranceGrid hasDiamonds={hasDiamonds} isGold={isGold} />
 
       <div className={styles.detailsStack}>
         <DetailsCard title="Price Breakup" className={styles.detailsCardHeading}>

@@ -1,8 +1,10 @@
 import { useEffect, useRef, useState } from 'react';
 import { useInfiniteQuery, useQuery, keepPreviousData } from '@tanstack/react-query';
 import { fetchCategoryFilterCounts } from '../../api/categories';
+import type { CategoryBanner as CategoryBannerData } from '../../api/types';
 import { PlpProductCard } from '../../components/PlpProductCard';
 import { Breadcrumbs, type Crumb } from '../../components/Breadcrumbs';
+import { CategoryBanner } from './CategoryBanner';
 import { productsQueryKey, fetchProductsPage, getNextProductsPageParam } from './productsQuery';
 import { FilterSidebar, type CategoryFilterGroup } from './FilterSidebar';
 import { SortSelect } from './SortSelect';
@@ -24,6 +26,10 @@ interface ProductListingProps {
   breadcrumbs: Crumb[];
   canonicalPath: string;
   subcategories?: { name: string; href: string; slug: string }[];
+  // Category-only — collection/new-arrivals pages never pass this, and keep
+  // their existing plain <h1> heading exactly as before. When present, this
+  // banner's own <h1> is the page's only heading (see render below).
+  banner?: CategoryBannerData | null;
 }
 
 export function ProductListing({
@@ -34,6 +40,7 @@ export function ProductListing({
   breadcrumbs,
   canonicalPath,
   subcategories,
+  banner,
 }: ProductListingProps) {
   const { metal, purity, goldColor, priceMin, priceMax, sort, updateFilters, updateSort, clearFilters } =
     usePlpFilters();
@@ -119,14 +126,23 @@ export function ProductListing({
         }
       : undefined;
 
+  const showBanner = !!banner?.imageUrl;
+
   return (
     <div className={styles.page}>
       <div className={styles.top}>
         <Breadcrumbs items={breadcrumbs} />
+
+        {showBanner && banner && <CategoryBanner banner={banner} title={heading} />}
+
         <div className={styles.headerRow}>
           <div className={styles.headerLeft}>
-            <h1 className={styles.heading}>{heading}</h1>
-            {description && <p className={styles.description}>{description}</p>}
+            {!showBanner && (
+              <>
+                <h1 className={styles.heading}>{heading}</h1>
+                {description && <p className={styles.description}>{description}</p>}
+              </>
+            )}
             <p className={styles.count} aria-live="polite">
               {data ? `${total} ${total === 1 ? 'Product' : 'Products'}` : ' '}
             </p>
