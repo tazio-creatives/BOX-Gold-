@@ -33,6 +33,11 @@ export function HomePage() {
     return <p className={styles.error}>Couldn't load the homepage right now.</p>;
   }
 
+  // Only the FIRST Hero section counts — the admin's section list can (and in
+  // production does) contain more than one enabled HERO row, and matching on
+  // type alone rendered the strip once per row, showing it twice on the page.
+  const firstHeroIndex = data.sections.findIndex((s) => s.type === 'HERO');
+
   return (
     <div>
       {data.sections.map((section, i) => (
@@ -42,7 +47,7 @@ export function HomePage() {
               it's placed here positionally right after HERO rather than in
               HomepageSection.tsx's data-driven switch (plan: "Add only the
               assurance strip" / "Do not add an admin configuration screen"). */}
-          {section.type === 'HERO' && <AssuranceStrip />}
+          {i === firstHeroIndex && <AssuranceStrip />}
         </Fragment>
       ))}
     </div>
