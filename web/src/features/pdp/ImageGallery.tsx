@@ -122,7 +122,13 @@ export function ImageGallery({
           className={styles.mainImage}
           style={isSizeGuide ? { objectFit: 'contain' } : undefined}
         />
-        {isZooming && (
+        {/* The follow-mouse 200% magnify pane makes sense for a regular photo
+            but shows only a small cropped region at a time — exactly what
+            looked like "left/right cut off" for the size-guide diagram,
+            whose whole point is being seen in full. Skip it for that type;
+            the zoom-hint button below still opens the full, uncropped
+            lightbox view. */}
+        {isZooming && !isSizeGuide && (
           <div
             className={styles.zoomPane}
             style={{ backgroundImage: `url(${activeUrl})`, backgroundPosition: `${zoomPos.x}% ${zoomPos.y}%` }}
