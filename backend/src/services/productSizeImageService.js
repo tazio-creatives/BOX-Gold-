@@ -116,52 +116,75 @@ export async function validateProductSizeBase({ generatedBuffer, referenceBuffer
 // (>=95% of the canvas — same conclusion) or implausibly small (<=5% —
 // trim likely ate into the product itself, common with pale/white-metal
 // pieces against a near-white background).
-export async function detectProductBoundingBox(buffer) {
-  const threshold = env.productSizeImageTrimThreshold;
-  const image = sharp(buffer);
-  const { width: canvasWidth, height: canvasHeight } = await image.metadata();
+// Corner sample size (px) — averaging a small patch per corner instead of a
+// single pixel absorbs the faint anti-aliasing/gradient noise real "white
+// background" generations often have right at the very corner, which a
+// single-pixel sample would otherwise pick up as the trim colour and throw
+// the whole detection off. Clamped to the canvas so this still works on a
+// (theoretically) tiny generated image.
+const CORNER_SAMPLE = 16;
 
+async function sampleCornerBackground(buffer, canvasWidth, canvasHeight) {
+  const size = Math.max(1, Math.min(CORNER_SAMPLE, canvasWidth, canvasHeight));
   const corners = await Promise.all(
     [
       { left: 0, top: 0 },
-      { left: canvasWidth - 1, top: 0 },
-      { left: 0, top: canvasHeight - 1 },
-      { left: canvasWidth - 1, top: canvasHeight - 1 },
+      { left: canvasWidth - size, top: 0 },
+      { left: 0, top: canvasHeight - size },
+      { left: canvasWidth - size, top: canvasHeight - size },
     ].map((pos) =>
-      sharp(buffer)
-        .extract({ left: pos.left, top: pos.top, width: 1, height: 1 })
-        .raw()
-        .toBuffer(),
+      sharp(buffer).extract({ ...pos, width: size, height: size }).raw().toBuffer({ resolveWithObject: true }),
     ),
   );
-  const channels = corners[0].length;
-  const avgColor = Array.from({ length: Math.min(channels, 3) }, (_, c) =>
-    Math.round(corners.reduce((sum, px) => sum + px[c], 0) / corners.length),
-  );
-  const background = { r: avgColor[0], g: avgColor[1], b: avgColor[2] };
+  const channels = corners[0].info.channels;
+  const sums = [0, 0, 0];
+  let pixelCount = 0;
+  for (const { data } of corners) {
+    for (let i = 0; i < data.length; i += channels) {
+      sums[0] += data[i];
+      sums[1] += data[i + 1];
+      sums[2] += data[i + 2];
+      pixelCount += 1;
+    }
+  }
+  return { r: Math.round(sums[0] / pixelCount), g: Math.round(sums[1] / pixelCount), b: Math.round(sums[2] / pixelCount) };
+}
 
+async function tryTrim(buffer, background, threshold, canvasWidth, canvasHeight) {
   let trimmed;
   try {
     trimmed = await sharp(buffer).trim({ background, threshold }).toBuffer({ resolveWithObject: true });
   } catch {
     return null;
   }
-
   const { info } = trimmed;
   if (info.trimOffsetLeft === 0 && info.trimOffsetTop === 0 && info.width === canvasWidth && info.height === canvasHeight) {
-    return null; // nothing was trimmed — background wasn't clean enough
+    return null; // nothing was trimmed
   }
-
-  const box = {
-    left: -info.trimOffsetLeft,
-    top: -info.trimOffsetTop,
-    width: info.width,
-    height: info.height,
-  };
-
+  const box = { left: -info.trimOffsetLeft, top: -info.trimOffsetTop, width: info.width, height: info.height };
   const canvasArea = canvasWidth * canvasHeight;
   const boxArea = box.width * box.height;
   if (boxArea >= canvasArea * 0.95 || boxArea <= canvasArea * 0.05) return null;
+  return box;
+}
+
+export async function detectProductBoundingBox(buffer) {
+  const threshold = env.productSizeImageTrimThreshold;
+  const { width: canvasWidth, height: canvasHeight } = await sharp(buffer).metadata();
+
+  const background = await sampleCornerBackground(buffer, canvasWidth, canvasHeight);
+  let box = await tryTrim(buffer, background, threshold, canvasWidth, canvasHeight);
+
+  // Fallback: the generation prompt explicitly asks for a pure white
+  // background, so if the corner-sampled colour didn't produce a usable
+  // trim (e.g. a stray artifact skewed the sample away from true white),
+  // retry once against literal white with a more permissive threshold
+  // before giving up — this is what actually recovers otherwise-clean
+  // generations that would previously have been rejected outright.
+  if (!box) {
+    box = await tryTrim(buffer, { r: 255, g: 255, b: 255 }, Math.max(threshold, 24), canvasWidth, canvasHeight);
+  }
+  if (!box) return null;
 
   return { ...box, canvasWidth, canvasHeight };
 }
