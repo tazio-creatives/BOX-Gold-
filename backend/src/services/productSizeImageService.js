@@ -203,14 +203,17 @@ function toMm(value, unit) {
 // resolution actually shown on the storefront, no gallery/variant change
 // needed.
 const CANVAS_SIZE = 1600;
-const LEFT_MARGIN = 210;
-const BOTTOM_MARGIN = 210;
-const TOP_MARGIN = 170;
+const LEFT_MARGIN = 220;
+// Larger top/bottom margins than a first pass would suggest — the approved
+// reference keeps the product+ruler group to roughly 55–65% of the canvas
+// (generous whitespace on every edge), not filling the frame edge to edge.
+const BOTTOM_MARGIN = 270;
+const TOP_MARGIN = 270;
 // Wide enough to hold the callout column (dimension arrow + label, and the
 // included/excluded-part annotation) to the right of the product — matches
 // the approved mockup's layout, where those live in open space beside the
 // piece rather than overlapping it.
-const RIGHT_MARGIN = 420;
+const RIGHT_MARGIN = 380;
 
 // Tick/line/text hierarchy for the 1600px master — thicker and larger than
 // the old 1200px constants so the ruler reads as a real physical measuring
@@ -321,24 +324,41 @@ function buildRulerOverlaySvg({
     }
   }
 
-  parts.push(`<text x="${origin.x - 12}" y="${origin.y + CM_NUMBER_SIZE * 0.35}" font-size="${CM_NUMBER_SIZE}" font-family="Liberation Sans, Arial, sans-serif" fill="${dark}" text-anchor="end">0</text>`);
-  parts.push(`<text x="${origin.x - 12}" y="${origin.y + CM_TICK_LEN + CM_NUMBER_SIZE + 6 + 34}" font-size="${Math.round(CM_NUMBER_SIZE * 0.6)}" font-family="Liberation Sans, Arial, sans-serif" fill="${dark}" text-anchor="middle">cm</text>`);
+  // "0" and "Cm" stacked directly below it, right at the corner — matches
+  // the approved reference (both rulers share this one corner label).
+  parts.push(`<text x="${origin.x - 14}" y="${origin.y + CM_NUMBER_SIZE * 0.35}" font-size="${CM_NUMBER_SIZE}" font-family="Liberation Sans, Arial, sans-serif" fill="${dark}" text-anchor="end">0</text>`);
+  parts.push(`<text x="${origin.x - 14}" y="${origin.y + CM_NUMBER_SIZE * 0.35 + Math.round(CM_NUMBER_SIZE * 0.85)}" font-size="${Math.round(CM_NUMBER_SIZE * 0.65)}" font-family="Liberation Sans, Arial, sans-serif" fill="${dark}" text-anchor="end">Cm</text>`);
 
   // The product sits FLUSH against both ruler baselines (left edge exactly
   // on the vertical axis, bottom edge exactly on the horizontal axis) — so
   // its zero edges are exactly at zero by construction, with no gap to
   // measure or misalign, and its far edges (top/right) land at their exact
-  // declared value on the axis they touch. A declared value is rarely a
-  // whole mm, so it won't coincide with a labelled cm tick — these
-  // highlighted ticks (heavier than a normal tick) mark exactly where the
-  // product's own edge crosses the ruler, doubling as the "guide" the spec
-  // asks for without any gap-bridging arithmetic that could drift out of
-  // alignment.
-  if (measuredTopY != null) {
-    parts.push(`<line x1="${origin.x - CM_TICK_LEN - 6}" y1="${measuredTopY}" x2="${origin.x}" y2="${measuredTopY}" stroke="${dark}" stroke-width="${GUIDE_STROKE}" ${dash} />`);
+  // declared value on the axis they touch. The height guide then traces
+  // across from the product's RIGHT edge (not its left/top — the product
+  // itself occupies that space) across to the right-hand callout, framing
+  // the measured region like the approved reference without ever crossing
+  // over the jewellery, and without any gap-bridging arithmetic that could
+  // drift out of alignment with the ticks.
+  const labelX = CANVAS_SIZE - RIGHT_MARGIN + 98;
+  if (measuredTopY != null && measuredRightX != null) {
+    parts.push(`<line x1="${measuredRightX}" y1="${measuredTopY}" x2="${labelX - 14}" y2="${measuredTopY}" stroke="${dark}" stroke-width="${GUIDE_STROKE}" ${dash} />`);
   }
-  if (measuredRightX != null) {
-    parts.push(`<line x1="${measuredRightX}" y1="${origin.y}" x2="${measuredRightX}" y2="${origin.y + CM_TICK_LEN + 6}" stroke="${dark}" stroke-width="${GUIDE_STROKE}" ${dash} />`);
+  if (measuredRightX != null && measuredTopY != null && measuredBottomY != null) {
+    parts.push(`<line x1="${measuredRightX}" y1="${measuredBottomY}" x2="${measuredRightX}" y2="${measuredTopY}" stroke="${dark}" stroke-width="${GUIDE_STROKE}" ${dash} />`);
+  }
+
+  // Horizontal double-headed width arrow + label, BELOW the ruler's own
+  // cm numbers (never over the jewellery, which occupies the space directly
+  // above the axis) — spans exactly the product's measured width, matching
+  // the approved reference's "8 mm" arrow.
+  if (measuredRightX != null && measuredWidthValue != null) {
+    const widthArrowY = origin.y + CM_TICK_LEN + CM_NUMBER_SIZE + 64;
+    parts.push(`<line x1="${origin.x}" y1="${widthArrowY}" x2="${measuredRightX}" y2="${widthArrowY}" stroke="${dark}" stroke-width="${ARROW_STROKE}" />`);
+    parts.push(`<path d="M ${origin.x} ${widthArrowY} l 18 -10 l 0 20 z" fill="${dark}" />`);
+    parts.push(`<path d="M ${measuredRightX} ${widthArrowY} l -18 -10 l 0 20 z" fill="${dark}" />`);
+    parts.push(
+      `<text x="${(origin.x + measuredRightX) / 2}" y="${widthArrowY + NOTE_SIZE + 10}" font-size="${NOTE_SIZE}" font-weight="600" font-family="Liberation Sans, Arial, sans-serif" fill="${dark}" text-anchor="middle">${measuredWidthValue} ${escapeXml(unit)}</text>`,
+    );
   }
 
   // Double-headed height arrow + label in the right-hand callout column —
@@ -346,7 +366,6 @@ function buildRulerOverlaySvg({
   // measured top/bottom (product bottom = ruler zero, top = declared
   // height) rather than a centred placement.
   const arrowX = CANVAS_SIZE - RIGHT_MARGIN + 70;
-  const labelX = arrowX + 28;
   if (measuredTopY != null && measuredBottomY != null) {
     parts.push(`<line x1="${arrowX}" y1="${measuredTopY}" x2="${arrowX}" y2="${measuredBottomY}" stroke="${dark}" stroke-width="${ARROW_STROKE}" />`);
     parts.push(`<path d="M ${arrowX} ${measuredTopY} l -10 18 l 20 0 z" fill="${dark}" />`);
@@ -357,22 +376,32 @@ function buildRulerOverlaySvg({
       `<text x="${labelX}" y="${labelMidY - 10}" font-size="${DIM_VALUE_SIZE}" font-weight="700" font-family="Liberation Sans, Arial, sans-serif" fill="${dark}">${escapeXml(categoryTitleFor(jewelleryType))}</text>`,
     );
     if (measuredHeightValue != null) {
+      const cmValue = Math.round((measuredHeightValue / 10) * 100) / 100;
       parts.push(
-        `<text x="${labelX}" y="${labelMidY + 26}" font-size="${DIM_VALUE_SIZE}" font-family="Liberation Sans, Arial, sans-serif" fill="${dark}">${measuredHeightValue} ${escapeXml(unit)}</text>`,
+        `<text x="${labelX}" y="${labelMidY + 26}" font-size="${DIM_VALUE_SIZE}" font-family="Liberation Sans, Arial, sans-serif" fill="${dark}">${measuredHeightValue} ${escapeXml(unit)} = ${cmValue} cm</text>`,
       );
     }
   }
 
-  // Included/excluded-part callout (loop/hook/clasp) — a short pointer line
-  // from a text label to the approximate part location. The location is
+  // Included/excluded-part callout (loop/hook/clasp) — a solid arrow from
+  // the text label pointing at the approximate part location, matching the
+  // approved reference's style (not a dashed pointer). The location is
   // measurement-data-driven arithmetic (proportion of the declared
   // part/whole heights against the placed product box), not a visually
   // detected boundary — see INCLUSION_RULES' own comment.
   if (loopCallout) {
     const { targetX, targetY, text } = loopCallout;
     const calloutLabelY = Math.max(TOP_MARGIN + 20, targetY - 60);
-    parts.push(`<line x1="${labelX - 6}" y1="${calloutLabelY + 6}" x2="${targetX}" y2="${targetY}" stroke="${dark}" stroke-width="${MM_TICK_STROKE}" ${dash} />`);
-    parts.push(`<circle cx="${targetX}" cy="${targetY}" r="5" fill="${dark}" />`);
+    const lineStartX = labelX - 6;
+    const lineStartY = calloutLabelY + 6;
+    const angle = Math.atan2(targetY - lineStartY, targetX - lineStartX);
+    const headLen = 16;
+    const backX = targetX - headLen * Math.cos(angle - Math.PI / 7);
+    const backY = targetY - headLen * Math.sin(angle - Math.PI / 7);
+    const back2X = targetX - headLen * Math.cos(angle + Math.PI / 7);
+    const back2Y = targetY - headLen * Math.sin(angle + Math.PI / 7);
+    parts.push(`<line x1="${lineStartX}" y1="${lineStartY}" x2="${targetX}" y2="${targetY}" stroke="${dark}" stroke-width="${MM5_TICK_STROKE}" />`);
+    parts.push(`<path d="M ${targetX} ${targetY} L ${backX} ${backY} L ${back2X} ${back2Y} Z" fill="${dark}" />`);
     parts.push(
       `<text x="${labelX}" y="${calloutLabelY}" font-size="${NOTE_SIZE}" font-family="Liberation Sans, Arial, sans-serif" fill="${dark}">${escapeXml(text)}</text>`,
     );
