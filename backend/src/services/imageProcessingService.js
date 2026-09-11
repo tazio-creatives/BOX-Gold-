@@ -25,18 +25,24 @@ const WEBP_QUALITY = 75;
 // literal uploaded bytes, since product_images.format is constrained to
 // ('avif','webp','jpeg') at the DB level (plan §3). "Never modified" in the
 // plan means no cropping/retouching, not byte-for-byte format preservation.
-export async function processAndStoreImage(productId, sourceBuffer) {
+// `quality` lets a caller raise both encoders above the photographic
+// defaults above — used only by productSizeImageJob.js, whose source is
+// thin black ruler lines and small text rather than a photo, and visibly
+// blurs/rings at the AVIF-85/WebP-75 settings tuned for photographic noise.
+export async function processAndStoreImage(productId, sourceBuffer, { quality } = {}) {
+  const avifQuality = quality?.avif ?? AVIF_QUALITY;
+  const webpQuality = quality?.webp ?? WEBP_QUALITY;
   const baseKey = `products/${productId}/${crypto.randomUUID()}`;
   const results = [];
 
   for (const [variant, width] of Object.entries(VARIANT_WIDTHS)) {
     const resized = sharp(sourceBuffer).resize({ width, withoutEnlargement: true });
 
-    const avifBuffer = await resized.clone().avif({ quality: AVIF_QUALITY }).toBuffer();
+    const avifBuffer = await resized.clone().avif({ quality: avifQuality }).toBuffer();
     const avifSaved = await storageProvider.save(`${baseKey}-${variant}.avif`, avifBuffer);
     results.push({ variant, format: 'avif', url: avifSaved.url, key: avifSaved.key });
 
-    const webpBuffer = await resized.clone().webp({ quality: WEBP_QUALITY }).toBuffer();
+    const webpBuffer = await resized.clone().webp({ quality: webpQuality }).toBuffer();
     const webpSaved = await storageProvider.save(`${baseKey}-${variant}.webp`, webpBuffer);
     results.push({ variant, format: 'webp', url: webpSaved.url, key: webpSaved.key });
   }

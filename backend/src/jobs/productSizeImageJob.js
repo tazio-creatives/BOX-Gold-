@@ -39,7 +39,10 @@ async function generateHandler(jobs) {
   const before = await findByProductId(productId);
   const previousSortOrder = before?.image_sort_order ?? null;
 
-  const variants = await processAndStoreImage(productId, result.buffer);
+  // Higher encoder quality than the photographic default (imageProcessingService's
+  // AVIF 85 / WebP 75) — this source is thin black ruler lines and small text on
+  // flat white, exactly the content those quality settings visibly blur/ring on.
+  const variants = await processAndStoreImage(productId, result.buffer, { quality: { avif: 92, webp: 92 } });
 
   await withTransaction(async (client) => {
     const { rows: maxRows } = await client.query(

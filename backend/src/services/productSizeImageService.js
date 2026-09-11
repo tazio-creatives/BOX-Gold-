@@ -195,16 +195,49 @@ function toMm(value, unit) {
 
 // Fixed canvas layout — same margins every time, not data-dependent, so the
 // ruler always occupies the same visual footprint regardless of product
-// size (plan point 4's "fixed measurement canvas").
-const CANVAS_SIZE = 1200;
-const LEFT_MARGIN = 140;
-const BOTTOM_MARGIN = 140;
-const TOP_MARGIN = 120;
+// size (plan point 4's "fixed measurement canvas"). 1600px master (up from
+// 1200) — matches imageProcessingService.js's own 'large' variant target
+// (VARIANT_WIDTHS.large = 1600), which was previously unable to reach its
+// own target width because withoutEnlargement:true can't upscale a smaller
+// source; the PDP gallery already prefers 'large', so this alone raises the
+// resolution actually shown on the storefront, no gallery/variant change
+// needed.
+const CANVAS_SIZE = 1600;
+const LEFT_MARGIN = 210;
+const BOTTOM_MARGIN = 210;
+const TOP_MARGIN = 170;
 // Wide enough to hold the callout column (dimension arrow + label, and the
 // included/excluded-part annotation) to the right of the product — matches
 // the approved mockup's layout, where those live in open space beside the
 // piece rather than overlapping it.
-const RIGHT_MARGIN = 340;
+const RIGHT_MARGIN = 420;
+
+// Tick/line/text hierarchy for the 1600px master — thicker and larger than
+// the old 1200px constants so the ruler reads as a real physical measuring
+// tool rather than a thin technical-drawing line (previous values, scaled
+// for reference: strokeMajor 3, tickMajorLen 22 — both roughly doubled).
+const AXIS_STROKE = 5.5;
+const CM_TICK_LEN = 34;
+const CM_TICK_STROKE = 5.5;
+const MM5_TICK_LEN = 24;
+const MM5_TICK_STROKE = 4;
+const MM_TICK_LEN = 15;
+const MM_TICK_STROKE = 3;
+const CM_NUMBER_SIZE = 36;
+const HEADING_SIZE = 34;
+const DIM_VALUE_SIZE = 30;
+const NOTE_SIZE = 26;
+const GUIDE_STROKE = 3.5;
+const ARROW_STROKE = 4.5;
+
+// Spec: "maximumScaleCm = ceil(measurementInMm / 10)" — the ruler extends
+// only as far as the rounded-up centimetre the declared value needs, never
+// a fixed 0–3cm regardless of the actual measurement (the previous formula
+// always added one extra unused centimetre beyond that).
+function rulerLengthMmFor(valueMm) {
+  if (valueMm == null) return null;
+  return Math.max(10, Math.ceil(valueMm / 10) * 10);
+}
 
 function categoryTitleFor(jewelleryType) {
   const titles = {
@@ -235,84 +268,97 @@ function buildRulerOverlaySvg({
   measurements,
   pxPerMm,
   origin,
-  rulerLengthMm,
+  rulerLengthMmX,
+  rulerLengthMmY,
   inclusionNote,
   measuredTopY,
   measuredBottomY,
   measuredHeightValue,
+  measuredRightX,
+  measuredWidthValue,
   loopCallout,
 }) {
-  const strokeMinor = 1.5;
-  const strokeMajor = 3;
-  const guideStroke = 2;
-  const tickMinorLen = 12;
-  const tickMajorLen = 22;
-  const dark = '#2a2a2a';
-  const dash = 'stroke-dasharray="8 7"';
+  const dark = '#1c1c1c';
+  const dash = 'stroke-dasharray="10 8"';
 
   const parts = [];
 
-  // Horizontal ruler baseline + vertical ruler baseline.
+  // Horizontal ruler baseline + vertical ruler baseline — each extends only
+  // as far as its own axis's declared value needs (rulerLengthMmX/Y), not a
+  // shared fixed length, since a tall-narrow or short-wide product needs a
+  // different range on each axis (plan: "the horizontal and vertical ruler
+  // ranges may be different").
   parts.push(
-    `<line x1="${origin.x}" y1="${origin.y}" x2="${origin.x + rulerLengthMm * pxPerMm}" y2="${origin.y}" stroke="${dark}" stroke-width="${strokeMajor}" stroke-linecap="round" />`,
+    `<line x1="${origin.x}" y1="${origin.y}" x2="${origin.x + rulerLengthMmX * pxPerMm}" y2="${origin.y}" stroke="${dark}" stroke-width="${AXIS_STROKE}" stroke-linecap="round" />`,
   );
   parts.push(
-    `<line x1="${origin.x}" y1="${origin.y}" x2="${origin.x}" y2="${origin.y - rulerLengthMm * pxPerMm}" stroke="${dark}" stroke-width="${strokeMajor}" stroke-linecap="round" />`,
+    `<line x1="${origin.x}" y1="${origin.y}" x2="${origin.x}" y2="${origin.y - rulerLengthMmY * pxPerMm}" stroke="${dark}" stroke-width="${AXIS_STROKE}" stroke-linecap="round" />`,
   );
 
-  // Ticks + numbers, 1mm minor / 10mm (1cm) major, both axes.
-  for (let mm = 0; mm <= rulerLengthMm; mm += 1) {
-    const isMajor = mm % 10 === 0;
-    const tickLen = isMajor ? tickMajorLen : tickMinorLen;
-    const strokeW = isMajor ? strokeMajor : strokeMinor;
+  // Ticks + numbers — three tiers per mm: full-length+numbered at every
+  // 10mm (1cm), medium at the halfway 5mm point, short for the rest, always
+  // exactly ten equal mm divisions per cm (plan section 4).
+  function tickStyle(mm) {
+    if (mm % 10 === 0) return { len: CM_TICK_LEN, stroke: CM_TICK_STROKE, major: true };
+    if (mm % 5 === 0) return { len: MM5_TICK_LEN, stroke: MM5_TICK_STROKE, major: false };
+    return { len: MM_TICK_LEN, stroke: MM_TICK_STROKE, major: false };
+  }
 
+  for (let mm = 0; mm <= rulerLengthMmX; mm += 1) {
+    const { len, stroke, major } = tickStyle(mm);
     const hx = origin.x + mm * pxPerMm;
-    parts.push(`<line x1="${hx}" y1="${origin.y}" x2="${hx}" y2="${origin.y + tickLen}" stroke="${dark}" stroke-width="${strokeW}" />`);
-    if (isMajor && mm > 0) {
-      parts.push(`<text x="${hx}" y="${origin.y + tickLen + 22}" font-size="20" font-family="Liberation Sans, Arial, sans-serif" fill="${dark}" text-anchor="middle">${mm / 10}</text>`);
+    parts.push(`<line x1="${hx}" y1="${origin.y}" x2="${hx}" y2="${origin.y + len}" stroke="${dark}" stroke-width="${stroke}" />`);
+    if (major && mm > 0) {
+      parts.push(`<text x="${hx}" y="${origin.y + CM_TICK_LEN + CM_NUMBER_SIZE + 6}" font-size="${CM_NUMBER_SIZE}" font-family="Liberation Sans, Arial, sans-serif" fill="${dark}" text-anchor="middle">${mm / 10}</text>`);
     }
-
+  }
+  for (let mm = 0; mm <= rulerLengthMmY; mm += 1) {
+    const { len, stroke, major } = tickStyle(mm);
     const vy = origin.y - mm * pxPerMm;
-    parts.push(`<line x1="${origin.x}" y1="${vy}" x2="${origin.x - tickLen}" y2="${vy}" stroke="${dark}" stroke-width="${strokeW}" />`);
-    if (isMajor && mm > 0) {
-      parts.push(`<text x="${origin.x - tickLen - 12}" y="${vy + 7}" font-size="20" font-family="Liberation Sans, Arial, sans-serif" fill="${dark}" text-anchor="end">${mm / 10}</text>`);
+    parts.push(`<line x1="${origin.x}" y1="${vy}" x2="${origin.x - len}" y2="${vy}" stroke="${dark}" stroke-width="${stroke}" />`);
+    if (major && mm > 0) {
+      parts.push(`<text x="${origin.x - CM_TICK_LEN - 14}" y="${vy + CM_NUMBER_SIZE * 0.35}" font-size="${CM_NUMBER_SIZE}" font-family="Liberation Sans, Arial, sans-serif" fill="${dark}" text-anchor="end">${mm / 10}</text>`);
     }
   }
 
-  parts.push(`<text x="${origin.x - 10}" y="${origin.y + 26}" font-size="20" font-family="Liberation Sans, Arial, sans-serif" fill="${dark}" text-anchor="end">0</text>`);
-  parts.push(`<text x="${origin.x - 10}" y="${origin.y + 58}" font-size="18" font-family="Liberation Sans, Arial, sans-serif" fill="${dark}" text-anchor="end">Cm</text>`);
+  parts.push(`<text x="${origin.x - 12}" y="${origin.y + CM_NUMBER_SIZE * 0.35}" font-size="${CM_NUMBER_SIZE}" font-family="Liberation Sans, Arial, sans-serif" fill="${dark}" text-anchor="end">0</text>`);
+  parts.push(`<text x="${origin.x - 12}" y="${origin.y + CM_TICK_LEN + CM_NUMBER_SIZE + 6 + 34}" font-size="${Math.round(CM_NUMBER_SIZE * 0.6)}" font-family="Liberation Sans, Arial, sans-serif" fill="${dark}" text-anchor="middle">cm</text>`);
 
-  // Two full-width dashed guides at the measured span's top and bottom edges
-  // — read off directly against the left ruler, same as the approved
-  // mockup — plus a double-headed arrow + label in the right-hand callout
-  // column marking that span. All Y positions are derived from where the
-  // product was placed on the fixed canvas; the printed dimension is always
-  // the admin's declared value, never a pixel measurement (plan: "never
-  // display an invented measurement"). Skipped entirely for a category with
-  // no meaningful height dimension (see primaryDimensionsFor) — there is
-  // nothing to arrow-measure vertically, so only the ruler ticks apply.
-  const arrowX = CANVAS_SIZE - RIGHT_MARGIN + 60;
-  const labelX = arrowX + 24;
+  // The product sits FLUSH against both ruler baselines (left edge exactly
+  // on the vertical axis, bottom edge exactly on the horizontal axis) — so
+  // its zero edges are exactly at zero by construction, with no gap to
+  // measure or misalign, and its far edges (top/right) land at their exact
+  // declared value on the axis they touch. A declared value is rarely a
+  // whole mm, so it won't coincide with a labelled cm tick — these
+  // highlighted ticks (heavier than a normal tick) mark exactly where the
+  // product's own edge crosses the ruler, doubling as the "guide" the spec
+  // asks for without any gap-bridging arithmetic that could drift out of
+  // alignment.
+  if (measuredTopY != null) {
+    parts.push(`<line x1="${origin.x - CM_TICK_LEN - 6}" y1="${measuredTopY}" x2="${origin.x}" y2="${measuredTopY}" stroke="${dark}" stroke-width="${GUIDE_STROKE}" ${dash} />`);
+  }
+  if (measuredRightX != null) {
+    parts.push(`<line x1="${measuredRightX}" y1="${origin.y}" x2="${measuredRightX}" y2="${origin.y + CM_TICK_LEN + 6}" stroke="${dark}" stroke-width="${GUIDE_STROKE}" ${dash} />`);
+  }
+
+  // Double-headed height arrow + label in the right-hand callout column —
+  // matches the approved mockup's layout, now anchored to the actual
+  // measured top/bottom (product bottom = ruler zero, top = declared
+  // height) rather than a centred placement.
+  const arrowX = CANVAS_SIZE - RIGHT_MARGIN + 70;
+  const labelX = arrowX + 28;
   if (measuredTopY != null && measuredBottomY != null) {
-    const guideEndX = arrowX + 14;
-    parts.push(
-      `<line x1="${origin.x}" y1="${measuredTopY}" x2="${guideEndX}" y2="${measuredTopY}" stroke="${dark}" stroke-width="${guideStroke}" ${dash} />`,
-    );
-    parts.push(
-      `<line x1="${origin.x}" y1="${measuredBottomY}" x2="${guideEndX}" y2="${measuredBottomY}" stroke="${dark}" stroke-width="${guideStroke}" ${dash} />`,
-    );
-
-    parts.push(`<line x1="${arrowX}" y1="${measuredTopY}" x2="${arrowX}" y2="${measuredBottomY}" stroke="${dark}" stroke-width="${strokeMajor}" />`);
-    parts.push(`<path d="M ${arrowX} ${measuredTopY} l -9 16 l 18 0 z" fill="${dark}" />`);
-    parts.push(`<path d="M ${arrowX} ${measuredBottomY} l -9 -16 l 18 0 z" fill="${dark}" />`);
+    parts.push(`<line x1="${arrowX}" y1="${measuredTopY}" x2="${arrowX}" y2="${measuredBottomY}" stroke="${dark}" stroke-width="${ARROW_STROKE}" />`);
+    parts.push(`<path d="M ${arrowX} ${measuredTopY} l -10 18 l 20 0 z" fill="${dark}" />`);
+    parts.push(`<path d="M ${arrowX} ${measuredBottomY} l -10 -18 l 20 0 z" fill="${dark}" />`);
 
     const labelMidY = (measuredTopY + measuredBottomY) / 2;
     parts.push(
-      `<text x="${labelX}" y="${labelMidY - 8}" font-size="24" font-weight="700" font-family="Liberation Sans, Arial, sans-serif" fill="${dark}">${escapeXml(categoryTitleFor(jewelleryType))}</text>`,
+      `<text x="${labelX}" y="${labelMidY - 10}" font-size="${DIM_VALUE_SIZE}" font-weight="700" font-family="Liberation Sans, Arial, sans-serif" fill="${dark}">${escapeXml(categoryTitleFor(jewelleryType))}</text>`,
     );
     if (measuredHeightValue != null) {
       parts.push(
-        `<text x="${labelX}" y="${labelMidY + 24}" font-size="24" font-family="Liberation Sans, Arial, sans-serif" fill="${dark}">${measuredHeightValue} ${escapeXml(unit)}</text>`,
+        `<text x="${labelX}" y="${labelMidY + 26}" font-size="${DIM_VALUE_SIZE}" font-family="Liberation Sans, Arial, sans-serif" fill="${dark}">${measuredHeightValue} ${escapeXml(unit)}</text>`,
       );
     }
   }
@@ -324,11 +370,11 @@ function buildRulerOverlaySvg({
   // detected boundary — see INCLUSION_RULES' own comment.
   if (loopCallout) {
     const { targetX, targetY, text } = loopCallout;
-    const calloutLabelY = Math.max(TOP_MARGIN + 20, targetY - 50);
-    parts.push(`<line x1="${labelX - 6}" y1="${calloutLabelY + 6}" x2="${targetX}" y2="${targetY}" stroke="${dark}" stroke-width="${strokeMinor}" />`);
-    parts.push(`<circle cx="${targetX}" cy="${targetY}" r="4" fill="${dark}" />`);
+    const calloutLabelY = Math.max(TOP_MARGIN + 20, targetY - 60);
+    parts.push(`<line x1="${labelX - 6}" y1="${calloutLabelY + 6}" x2="${targetX}" y2="${targetY}" stroke="${dark}" stroke-width="${MM_TICK_STROKE}" ${dash} />`);
+    parts.push(`<circle cx="${targetX}" cy="${targetY}" r="5" fill="${dark}" />`);
     parts.push(
-      `<text x="${labelX}" y="${calloutLabelY}" font-size="21" font-family="Liberation Sans, Arial, sans-serif" fill="${dark}">${escapeXml(text)}</text>`,
+      `<text x="${labelX}" y="${calloutLabelY}" font-size="${NOTE_SIZE}" font-family="Liberation Sans, Arial, sans-serif" fill="${dark}">${escapeXml(text)}</text>`,
     );
   }
 
@@ -341,12 +387,12 @@ function buildRulerOverlaySvg({
   if (dims.heightValue != null) dimParts.push(`${dims.heightValue} ${unit}`);
   const dimText = dimParts.join(' × ');
 
-  parts.push(`<text x="${LEFT_MARGIN}" y="48" font-size="30" font-weight="700" font-family="Liberation Sans, Arial, sans-serif" fill="${dark}">${escapeXml(categoryTitleFor(jewelleryType))}</text>`);
+  parts.push(`<text x="${LEFT_MARGIN}" y="56" font-size="${HEADING_SIZE}" font-weight="600" font-family="Liberation Sans, Arial, sans-serif" fill="${dark}">${escapeXml(categoryTitleFor(jewelleryType))}</text>`);
   if (dimText) {
-    parts.push(`<text x="${LEFT_MARGIN}" y="82" font-size="24" font-family="Liberation Sans, Arial, sans-serif" fill="${dark}">${escapeXml(dimText)}</text>`);
+    parts.push(`<text x="${LEFT_MARGIN}" y="96" font-size="${DIM_VALUE_SIZE}" font-family="Liberation Sans, Arial, sans-serif" fill="${dark}">${escapeXml(dimText)}</text>`);
   }
   if (inclusionNote) {
-    parts.push(`<text x="${LEFT_MARGIN}" y="110" font-size="20" font-family="Liberation Sans, Arial, sans-serif" fill="${dark}">${escapeXml(inclusionNote)}</text>`);
+    parts.push(`<text x="${LEFT_MARGIN}" y="130" font-size="${NOTE_SIZE}" font-family="Liberation Sans, Arial, sans-serif" fill="${dark}">${escapeXml(inclusionNote)}</text>`);
   }
 
   return `<svg width="${CANVAS_SIZE}" height="${CANVAS_SIZE}" viewBox="0 0 ${CANVAS_SIZE} ${CANVAS_SIZE}" xmlns="http://www.w3.org/2000/svg">${parts.join('')}</svg>`;
@@ -354,8 +400,10 @@ function buildRulerOverlaySvg({
 
 // The fixed-canvas renderer (plan point 4's numbered process): crop tightly
 // to the detected product, resize it by ONE uniform factor (never stretched
-// independently per axis), place it centred in a fixed photo area, derive
-// one shared px-per-mm scale from its declared width, then draw the ruler
+// independently per axis), place it FLUSH against the ruler's zero origin
+// (touching both baselines, so its edges land exactly on their ruler
+// values with no gap arithmetic to drift), derive one shared px-per-mm
+// scale from the ruler's own dynamic per-axis range, then draw the ruler
 // overlay and composite everything onto a clean white canvas.
 export async function composeMeasurementImage({ productBuffer, boundingBox, jewelleryType, unit, measurements, includedParts, excludedParts }) {
   const cropped = sharp(productBuffer).extract({
@@ -368,35 +416,37 @@ export async function composeMeasurementImage({ productBuffer, boundingBox, jewe
   const croppedWidth = croppedMeta.width;
   const croppedHeight = croppedMeta.height;
 
+  const { widthValue, heightValue } = primaryDimensionsFor(jewelleryType, measurements);
+  const declaredWidthMm = widthValue != null ? toMm(widthValue, unit) : null;
+  const declaredHeightMm = heightValue != null ? toMm(heightValue, unit) : null;
+
+  // Dynamic per-axis ruler range — "maximumScaleCm = ceil(measurementInMm /
+  // 10)" on each axis independently (a 10x15.5mm piece gets a 0–1cm
+  // horizontal ruler and a 0–2cm vertical ruler, not one shared 0–3cm
+  // range). A missing axis (e.g. a Bangle's single outer-diameter value)
+  // mirrors whichever axis IS declared, purely to keep the L-shape's
+  // vertical guide visually present — no arrow/value is drawn on it.
+  const rulerLengthMmX = rulerLengthMmFor(declaredWidthMm) ?? rulerLengthMmFor(declaredHeightMm) ?? 10;
+  const rulerLengthMmY = rulerLengthMmFor(declaredHeightMm) ?? rulerLengthMmX;
+
   const photoArea = {
     x: LEFT_MARGIN,
     y: TOP_MARGIN,
     width: CANVAS_SIZE - LEFT_MARGIN - RIGHT_MARGIN,
     height: CANVAS_SIZE - TOP_MARGIN - BOTTOM_MARGIN,
   };
-
-  const { widthValue, heightValue } = primaryDimensionsFor(jewelleryType, measurements);
-  const declaredWidthMm = widthValue != null ? toMm(widthValue, unit) : null;
-  const declaredHeightMm = heightValue != null ? toMm(heightValue, unit) : null;
-
-  // Scale is decided FIRST, from the ruler's own required length — not from
-  // maximizing the product's pixel size — because the ruler must extend
-  // somewhat past the product (plan: "extend the ruler only as far as
-  // required") and both share one px-per-mm value (plan point 3). Sizing the
-  // product to fill the frame first (an earlier version of this function did
-  // that) forces an impossibly large scale that the ruler then can't fit
-  // inside the same canvas — verified by an actual rendered smoke test.
-  const rulerLengthMm = (Math.ceil(Math.max(declaredWidthMm ?? 0, declaredHeightMm ?? 0) / 10) + 1) * 10;
-  const pxPerMm = Math.min(photoArea.width, photoArea.height) / rulerLengthMm;
+  // One shared px-per-mm scale (a real ruler reads the same both
+  // directions) sized so BOTH axes' full ruler length fits inside the
+  // available area — whichever axis is more space-constrained determines
+  // the scale for both.
+  const pxPerMm = Math.min(photoArea.width / rulerLengthMmX, photoArea.height / rulerLengthMmY);
 
   // The product's displayed pixel size is DERIVED from that scale applied to
-  // the declared values (which already passed the aspect-ratio-vs-detected
-  // check above within a strict 4% tolerance, so using the declared numbers
-  // directly for both axes keeps the display uniformly scaled without
-  // needing a second, independent height-fit computation). When only one
+  // the declared values directly (the admin's declared numbers are trusted
+  // as-is — see composeMeasurementImage's resize call below). When only one
   // primary dimension is declared (e.g. a Bangle's outer diameter alone),
   // the other axis falls back to the cropped photo's own aspect ratio, since
-  // there's no declared value to size or validate it against.
+  // there's no declared value to size it from.
   const resizedWidth = declaredWidthMm
     ? Math.round(declaredWidthMm * pxPerMm)
     : Math.round(croppedWidth * ((declaredHeightMm * pxPerMm) / croppedHeight));
@@ -404,14 +454,21 @@ export async function composeMeasurementImage({ productBuffer, boundingBox, jewe
     ? Math.round(declaredHeightMm * pxPerMm)
     : Math.round(croppedHeight * ((declaredWidthMm * pxPerMm) / croppedWidth));
 
+  const origin = { x: photoArea.x, y: photoArea.y + photoArea.height };
+
+  // Anchor the product FLUSH against both ruler baselines — left edge
+  // exactly on the vertical axis, bottom edge exactly on the horizontal
+  // axis — so the measured product body starts exactly at zero on both
+  // rulers by construction (touching, like an object laid directly against
+  // a tape measure), never floating centred inside an unrelated frame, and
+  // never needing a gap-bridging guide line that could drift out of exact
+  // alignment with the ticks.
   const placedBox = {
-    left: Math.round(photoArea.x + (photoArea.width - resizedWidth) / 2),
-    top: Math.round(photoArea.y + (photoArea.height - resizedHeight) / 2),
+    left: origin.x,
+    top: Math.round(origin.y - resizedHeight),
     width: resizedWidth,
     height: resizedHeight,
   };
-
-  const origin = { x: photoArea.x, y: photoArea.y + photoArea.height };
 
   // Measured span for the right-hand callout arrow, and the included/
   // excluded-part pointer — see buildRulerOverlaySvg's own comments. No
@@ -466,11 +523,14 @@ export async function composeMeasurementImage({ productBuffer, boundingBox, jewe
     measurements,
     pxPerMm,
     origin,
-    rulerLengthMm,
+    rulerLengthMmX,
+    rulerLengthMmY,
     inclusionNote,
     measuredTopY: measuredHeightValue != null ? measuredTopY : null,
     measuredBottomY: measuredHeightValue != null ? measuredBottomY : null,
     measuredHeightValue,
+    measuredRightX: declaredWidthMm != null ? placedBox.left + placedBox.width : null,
+    measuredWidthValue: widthValue,
     loopCallout,
   });
   const overlayBuffer = await sharp(Buffer.from(overlaySvg)).png().toBuffer();
