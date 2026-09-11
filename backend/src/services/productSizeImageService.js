@@ -203,17 +203,17 @@ function toMm(value, unit) {
 // resolution actually shown on the storefront, no gallery/variant change
 // needed.
 const CANVAS_SIZE = 1600;
-const LEFT_MARGIN = 220;
-// Larger top/bottom margins than a first pass would suggest — the approved
-// reference keeps the product+ruler group to roughly 55–65% of the canvas
-// (generous whitespace on every edge), not filling the frame edge to edge.
-const BOTTOM_MARGIN = 270;
-const TOP_MARGIN = 270;
+const LEFT_MARGIN = 240;
+// Product+ruler group targets roughly 60–70% of the canvas, jewellery alone
+// roughly 40–50% — generous whitespace on every edge, not filling the frame
+// edge to edge.
+const BOTTOM_MARGIN = 300;
+const TOP_MARGIN = 300;
 // Wide enough to hold the callout column (dimension arrow + label, and the
 // included/excluded-part annotation) to the right of the product — matches
 // the approved mockup's layout, where those live in open space beside the
 // piece rather than overlapping it.
-const RIGHT_MARGIN = 380;
+const RIGHT_MARGIN = 400;
 
 // Tick/line/text hierarchy for the 1600px master — thicker and larger than
 // the old 1200px constants so the ruler reads as a real physical measuring
@@ -233,13 +233,71 @@ const NOTE_SIZE = 26;
 const GUIDE_STROKE = 3.5;
 const ARROW_STROKE = 4.5;
 
-// Spec: "maximumScaleCm = ceil(measurementInMm / 10)" — the ruler extends
-// only as far as the rounded-up centimetre the declared value needs, never
-// a fixed 0–3cm regardless of the actual measurement (the previous formula
-// always added one extra unused centimetre beyond that).
-function rulerLengthMmFor(valueMm) {
+// Dynamic scale-range rule: a ruler that exactly matches the declared value
+// (the previous rule) makes small jewellery fill the whole ruler and look
+// oversized — a minimum 0–2cm range gives normal-sized pieces (up to 20mm)
+// visible surrounding scale context instead of the product spanning the
+// entire ruler. Anything past 20mm rounds up to its own next centimetre
+// (unchanged). A sub-millimetre value gets its own 0–1mm/10×0.1mm
+// "inspection" scale, never forced onto a cm ruler where it would be
+// invisible.
+function rulerRangeFor(valueMm) {
   if (valueMm == null) return null;
-  return Math.max(10, Math.ceil(valueMm / 10) * 10);
+  if (valueMm <= 1) return { lengthMm: 1, special: true };
+  if (valueMm <= 20) return { lengthMm: 20, special: false };
+  return { lengthMm: Math.ceil(valueMm / 10) * 10, special: false };
+}
+
+// One shared physical px-per-mm scale for both axes, EXCEPT a "special"
+// (sub-mm) axis paired with a normal-range axis: that axis just inherits
+// the normal axis's scale (rendering its own tiny true 0–1mm ruler
+// accurately, even if small) rather than distorting the shared scale to
+// artificially enlarge it — an artificial per-axis zoom would force the
+// product to stretch non-uniformly to match, which the spec explicitly
+// forbids. Only when EVERY declared axis is itself sub-mm does the normal
+// formula naturally produce a large, comfortably inspectable scale on its
+// own (photoArea / 1mm is already a big number), with nothing special
+// needed.
+function pxPerMmFor(photoArea, rangeX, rangeY) {
+  const normal = [];
+  if (!rangeX.special) normal.push(photoArea.width / rangeX.lengthMm);
+  if (!rangeY.special) normal.push(photoArea.height / rangeY.lengthMm);
+  if (normal.length > 0) return Math.min(...normal);
+  return Math.min(photoArea.width / rangeX.lengthMm, photoArea.height / rangeY.lengthMm);
+}
+
+// Tick plan for one axis, expressed as physical mm-distance from the
+// origin so the same pxPerMm scale places every tick regardless of whether
+// this is a normal cm ruler or the special 0–1mm/10×0.1mm inspection
+// scale — three-tier hierarchy (major/medium/minor) either way, endpoint
+// numbers only for the special scale (no intermediate mm numbers), "1 mm"
+// literally spelled out rather than mislabelled "1 cm".
+function axisTickPlan(range) {
+  const ticks = [];
+  if (range.special) {
+    for (let i = 0; i <= 10; i += 1) {
+      const major = i === 0 || i === 10;
+      const medium = i === 5;
+      ticks.push({
+        mm: i * 0.1,
+        len: major ? CM_TICK_LEN : medium ? MM5_TICK_LEN : MM_TICK_LEN,
+        stroke: major ? CM_TICK_STROKE : medium ? MM5_TICK_STROKE : MM_TICK_STROKE,
+        label: i === 0 ? '0' : i === 10 ? '1 mm' : null,
+      });
+    }
+  } else {
+    for (let mm = 0; mm <= range.lengthMm; mm += 1) {
+      const major = mm % 10 === 0;
+      const medium = !major && mm % 5 === 0;
+      ticks.push({
+        mm,
+        len: major ? CM_TICK_LEN : medium ? MM5_TICK_LEN : MM_TICK_LEN,
+        stroke: major ? CM_TICK_STROKE : medium ? MM5_TICK_STROKE : MM_TICK_STROKE,
+        label: major ? String(mm / 10) : null,
+      });
+    }
+  }
+  return ticks;
 }
 
 function categoryTitleFor(jewelleryType) {
@@ -271,8 +329,8 @@ function buildRulerOverlaySvg({
   measurements,
   pxPerMm,
   origin,
-  rulerLengthMmX,
-  rulerLengthMmY,
+  rangeX,
+  rangeY,
   inclusionNote,
   measuredTopY,
   measuredBottomY,
@@ -287,47 +345,47 @@ function buildRulerOverlaySvg({
   const parts = [];
 
   // Horizontal ruler baseline + vertical ruler baseline — each extends only
-  // as far as its own axis's declared value needs (rulerLengthMmX/Y), not a
-  // shared fixed length, since a tall-narrow or short-wide product needs a
+  // as far as its own axis's dynamic range needs (rangeX/Y), not a shared
+  // fixed length, since a tall-narrow or short-wide product needs a
   // different range on each axis (plan: "the horizontal and vertical ruler
   // ranges may be different").
   parts.push(
-    `<line x1="${origin.x}" y1="${origin.y}" x2="${origin.x + rulerLengthMmX * pxPerMm}" y2="${origin.y}" stroke="${dark}" stroke-width="${AXIS_STROKE}" stroke-linecap="round" />`,
+    `<line x1="${origin.x}" y1="${origin.y}" x2="${origin.x + rangeX.lengthMm * pxPerMm}" y2="${origin.y}" stroke="${dark}" stroke-width="${AXIS_STROKE}" stroke-linecap="round" />`,
   );
   parts.push(
-    `<line x1="${origin.x}" y1="${origin.y}" x2="${origin.x}" y2="${origin.y - rulerLengthMmY * pxPerMm}" stroke="${dark}" stroke-width="${AXIS_STROKE}" stroke-linecap="round" />`,
+    `<line x1="${origin.x}" y1="${origin.y}" x2="${origin.x}" y2="${origin.y - rangeY.lengthMm * pxPerMm}" stroke="${dark}" stroke-width="${AXIS_STROKE}" stroke-linecap="round" />`,
   );
 
-  // Ticks + numbers — three tiers per mm: full-length+numbered at every
-  // 10mm (1cm), medium at the halfway 5mm point, short for the rest, always
-  // exactly ten equal mm divisions per cm (plan section 4).
-  function tickStyle(mm) {
-    if (mm % 10 === 0) return { len: CM_TICK_LEN, stroke: CM_TICK_STROKE, major: true };
-    if (mm % 5 === 0) return { len: MM5_TICK_LEN, stroke: MM5_TICK_STROKE, major: false };
-    return { len: MM_TICK_LEN, stroke: MM_TICK_STROKE, major: false };
-  }
-
-  for (let mm = 0; mm <= rulerLengthMmX; mm += 1) {
-    const { len, stroke, major } = tickStyle(mm);
-    const hx = origin.x + mm * pxPerMm;
-    parts.push(`<line x1="${hx}" y1="${origin.y}" x2="${hx}" y2="${origin.y + len}" stroke="${dark}" stroke-width="${stroke}" />`);
-    if (major && mm > 0) {
-      parts.push(`<text x="${hx}" y="${origin.y + CM_TICK_LEN + CM_NUMBER_SIZE + 6}" font-size="${CM_NUMBER_SIZE}" font-family="Liberation Sans, Arial, sans-serif" fill="${dark}" text-anchor="middle">${mm / 10}</text>`);
+  // Ticks + numbers, including "0" at the origin — drawn through the exact
+  // same per-axis position formula as every other number (origin.y +
+  // fixed offset for the horizontal axis, origin.x - fixed offset for the
+  // vertical axis), so "0" can never overlap the ruler lines/ticks the way
+  // a specially-positioned combined label could.
+  for (const t of axisTickPlan(rangeX)) {
+    const hx = origin.x + t.mm * pxPerMm;
+    parts.push(`<line x1="${hx}" y1="${origin.y}" x2="${hx}" y2="${origin.y + t.len}" stroke="${dark}" stroke-width="${t.stroke}" />`);
+    if (t.label != null) {
+      parts.push(`<text x="${hx}" y="${origin.y + CM_TICK_LEN + CM_NUMBER_SIZE + 6}" font-size="${CM_NUMBER_SIZE}" font-family="Liberation Sans, Arial, sans-serif" fill="${dark}" text-anchor="middle">${escapeXml(t.label)}</text>`);
     }
   }
-  for (let mm = 0; mm <= rulerLengthMmY; mm += 1) {
-    const { len, stroke, major } = tickStyle(mm);
-    const vy = origin.y - mm * pxPerMm;
-    parts.push(`<line x1="${origin.x}" y1="${vy}" x2="${origin.x - len}" y2="${vy}" stroke="${dark}" stroke-width="${stroke}" />`);
-    if (major && mm > 0) {
-      parts.push(`<text x="${origin.x - CM_TICK_LEN - 14}" y="${vy + CM_NUMBER_SIZE * 0.35}" font-size="${CM_NUMBER_SIZE}" font-family="Liberation Sans, Arial, sans-serif" fill="${dark}" text-anchor="end">${mm / 10}</text>`);
+  for (const t of axisTickPlan(rangeY)) {
+    const vy = origin.y - t.mm * pxPerMm;
+    parts.push(`<line x1="${origin.x}" y1="${vy}" x2="${origin.x - t.len}" y2="${vy}" stroke="${dark}" stroke-width="${t.stroke}" />`);
+    if (t.label != null && t.mm > 0) {
+      // mm===0 is the shared origin "0", already drawn by the horizontal
+      // axis's own tick plan above — skip a second one here so the two
+      // rulers' zero labels don't sit on top of each other.
+      parts.push(`<text x="${origin.x - CM_TICK_LEN - 14}" y="${vy + CM_NUMBER_SIZE * 0.35}" font-size="${CM_NUMBER_SIZE}" font-family="Liberation Sans, Arial, sans-serif" fill="${dark}" text-anchor="end">${escapeXml(t.label)}</text>`);
     }
   }
 
-  // "0" and "Cm" stacked directly below it, right at the corner — matches
-  // the approved reference (both rulers share this one corner label).
-  parts.push(`<text x="${origin.x - 14}" y="${origin.y + CM_NUMBER_SIZE * 0.35}" font-size="${CM_NUMBER_SIZE}" font-family="Liberation Sans, Arial, sans-serif" fill="${dark}" text-anchor="end">0</text>`);
-  parts.push(`<text x="${origin.x - 14}" y="${origin.y + CM_NUMBER_SIZE * 0.35 + Math.round(CM_NUMBER_SIZE * 0.85)}" font-size="${Math.round(CM_NUMBER_SIZE * 0.65)}" font-family="Liberation Sans, Arial, sans-serif" fill="${dark}" text-anchor="end">Cm</text>`);
+  // "0" is drawn to the LEFT of the vertical ruler (never touching either
+  // ruler line or a tick), reusing the vertical axis's own number position
+  // formula. "Cm"/"mm" sits directly below it with clear spacing — matches
+  // the recommended positioning (a dedicated label gutter, not text drawn
+  // over the L-corner).
+  parts.push(`<text x="${origin.x - CM_TICK_LEN - 14}" y="${origin.y + CM_NUMBER_SIZE * 0.35}" font-size="${CM_NUMBER_SIZE}" font-family="Liberation Sans, Arial, sans-serif" fill="${dark}" text-anchor="end">0</text>`);
+  parts.push(`<text x="${origin.x - CM_TICK_LEN - 14}" y="${origin.y + CM_NUMBER_SIZE * 0.35 + Math.round(CM_NUMBER_SIZE * 0.85)}" font-size="${Math.round(CM_NUMBER_SIZE * 0.65)}" font-family="Liberation Sans, Arial, sans-serif" fill="${dark}" text-anchor="end">${rangeY.special ? 'mm' : 'Cm'}</text>`);
 
   // The product sits FLUSH against both ruler baselines (left edge exactly
   // on the vertical axis, bottom edge exactly on the horizontal axis) — so
@@ -449,14 +507,27 @@ export async function composeMeasurementImage({ productBuffer, boundingBox, jewe
   const declaredWidthMm = widthValue != null ? toMm(widthValue, unit) : null;
   const declaredHeightMm = heightValue != null ? toMm(heightValue, unit) : null;
 
-  // Dynamic per-axis ruler range — "maximumScaleCm = ceil(measurementInMm /
-  // 10)" on each axis independently (a 10x15.5mm piece gets a 0–1cm
-  // horizontal ruler and a 0–2cm vertical ruler, not one shared 0–3cm
-  // range). A missing axis (e.g. a Bangle's single outer-diameter value)
-  // mirrors whichever axis IS declared, purely to keep the L-shape's
-  // vertical guide visually present — no arrow/value is drawn on it.
-  const rulerLengthMmX = rulerLengthMmFor(declaredWidthMm) ?? rulerLengthMmFor(declaredHeightMm) ?? 10;
-  const rulerLengthMmY = rulerLengthMmFor(declaredHeightMm) ?? rulerLengthMmX;
+  // Dynamic per-axis ruler range — a minimum 0–2cm range for any normal
+  // (>1mm, <=20mm) piece so it doesn't fill the entire ruler and look
+  // oversized, rounding up to the next whole centimetre past 20mm, and its
+  // own true 0–1mm inspection scale below 1mm (see rulerRangeFor). A
+  // missing axis (e.g. a Bangle's single outer-diameter value) mirrors
+  // whichever axis IS declared, purely to keep the L-shape's vertical guide
+  // visually present — no arrow/value is drawn on it.
+  //
+  // The special 0–1mm scale only activates when EVERY declared axis
+  // qualifies for it — pairing a sub-mm axis with a normal-range one would
+  // force that axis's ruler down to a sliver only ~1mm long at the OTHER
+  // axis's (much coarser) scale, too short to fit its own "0"/"1 mm"
+  // labels without them colliding (confirmed by an actual rendered smoke
+  // test). A lone sub-mm value paired with a normal one instead falls into
+  // the same 0–2cm bucket as any other 1–20mm value — still correct, just
+  // without the extra sub-mm tick subdivisions.
+  const declaredValues = [declaredWidthMm, declaredHeightMm].filter((v) => v != null);
+  const allSpecial = declaredValues.length > 0 && declaredValues.every((v) => v <= 1);
+  const rangeFor = (valueMm) => (allSpecial ? rulerRangeFor(valueMm) : rulerRangeFor(valueMm && valueMm <= 1 ? 20 : valueMm));
+  const rangeX = rangeFor(declaredWidthMm) ?? rangeFor(declaredHeightMm) ?? { lengthMm: 20, special: false };
+  const rangeY = rangeFor(declaredHeightMm) ?? rangeX;
 
   const photoArea = {
     x: LEFT_MARGIN,
@@ -464,11 +535,7 @@ export async function composeMeasurementImage({ productBuffer, boundingBox, jewe
     width: CANVAS_SIZE - LEFT_MARGIN - RIGHT_MARGIN,
     height: CANVAS_SIZE - TOP_MARGIN - BOTTOM_MARGIN,
   };
-  // One shared px-per-mm scale (a real ruler reads the same both
-  // directions) sized so BOTH axes' full ruler length fits inside the
-  // available area — whichever axis is more space-constrained determines
-  // the scale for both.
-  const pxPerMm = Math.min(photoArea.width / rulerLengthMmX, photoArea.height / rulerLengthMmY);
+  const pxPerMm = pxPerMmFor(photoArea, rangeX, rangeY);
 
   // The product's displayed pixel size is DERIVED from that scale applied to
   // the declared values directly (the admin's declared numbers are trusted
@@ -552,8 +619,8 @@ export async function composeMeasurementImage({ productBuffer, boundingBox, jewe
     measurements,
     pxPerMm,
     origin,
-    rulerLengthMmX,
-    rulerLengthMmY,
+    rangeX,
+    rangeY,
     inclusionNote,
     measuredTopY: measuredHeightValue != null ? measuredTopY : null,
     measuredBottomY: measuredHeightValue != null ? measuredBottomY : null,
