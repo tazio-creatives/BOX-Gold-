@@ -52,12 +52,24 @@ export function WeightDefaults({ purities, sizes, value, onChange }: WeightDefau
   const [purityDrafts, setPurityDrafts] = useState<Record<string, string>>({});
   const [matrixDrafts, setMatrixDrafts] = useState<Record<string, string>>({});
 
-  // Reconciles local drafts whenever the checked purities/sizes change: seed
-  // from the incoming `value` (so hydrating an existing product, or the
-  // response of a just-completed Save, pre-fills correctly), preserve
-  // whatever's already typed for a combination that's still valid, and drop
-  // drafts for combinations no longer possible — mirrors
-  // VariantMatrixEditor's reconciliation.
+  // Reconciles local drafts whenever the checked purities/sizes change OR
+  // the saved `value` itself changes: seed from the incoming `value` (so
+  // hydrating an existing product, or the response of a just-completed
+  // Save, pre-fills correctly), preserve whatever's already typed for a
+  // combination that's still valid, and drop drafts for combinations no
+  // longer possible — mirrors VariantMatrixEditor's reconciliation.
+  //
+  // Depending on `value` too (not just `axisSignature`) matters because
+  // ProductFormPage fetches the product (which sets purities/sizes) and the
+  // saved weight rules (this `value`) as two independent, unordered network
+  // requests. If the rules response lands AFTER purities/sizes have already
+  // settled, axisSignature alone would never change again and this effect
+  // would never re-run — silently leaving the saved rules out of the
+  // visible inputs even though they loaded correctly. Re-running on every
+  // `value` change is safe: the "prev ?? seeded" merge below always prefers
+  // whatever's already typed, so an echo of the admin's own edit (value
+  // changing because onChange just fired) reproduces the same drafts rather
+  // than clobbering them.
   useEffect(() => {
     const seeded = draftsFromValue(value);
     setPurityDrafts((prev) => {
@@ -76,7 +88,7 @@ export function WeightDefaults({ purities, sizes, value, onChange }: WeightDefau
       return next;
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [axisSignature]);
+  }, [axisSignature, value]);
 
   function updatePurityDraft(purity: string, raw: string) {
     const next = { ...purityDrafts, [purity]: raw };

@@ -88,9 +88,21 @@ export function PurityPricingRules({ purities, productDefaults, value, onChange 
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const axisSignature = purities.join(',');
 
-  // Same reconciliation strategy as WeightDefaults — seed from `value` once
-  // per axis change, preserve whatever's already typed for a purity that's
-  // still selected, drop drafts for a purity that was removed.
+  // Same reconciliation strategy as WeightDefaults — seed from `value` on
+  // every axis change AND every `value` change, preserve whatever's already
+  // typed for a purity that's still selected, drop drafts for a purity
+  // that was removed.
+  //
+  // Depending on `value` (not just axisSignature) matters here for the same
+  // reason as WeightDefaults: ProductFormPage loads the product's purities
+  // (driving axisSignature) and the saved purity pricing rules (this
+  // `value`) via two independent, unordered network requests. If the rules
+  // response resolves after purities have already settled, axisSignature
+  // never changes again and this effect would never re-run — leaving the
+  // saved rules out of the visible inputs even though they loaded fine.
+  // Re-running on every `value` change is safe: "prev ?? seeded" always
+  // prefers what's already typed, so the admin's own edits echoing back
+  // through onChange just reproduce the same drafts.
   useEffect(() => {
     const seeded = draftsFromValue(value);
     setDrafts((prev) => {
@@ -99,7 +111,7 @@ export function PurityPricingRules({ purities, productDefaults, value, onChange 
       return next;
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [axisSignature]);
+  }, [axisSignature, value]);
 
   function errorKey(purity: string, field: Field) {
     return `${purity}:${field}`;
