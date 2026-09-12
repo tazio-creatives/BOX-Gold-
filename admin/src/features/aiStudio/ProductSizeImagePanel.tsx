@@ -10,6 +10,14 @@ function formatType(type: string) {
   return type.replace(/_/g, ' ').toLowerCase().replace(/\b\w/g, (c) => c.toUpperCase());
 }
 
+function formatGeneratedAt(iso: string | null) {
+  if (!iso) return null;
+  return new Date(iso).toLocaleString(undefined, {
+    dateStyle: 'medium',
+    timeStyle: 'short',
+  });
+}
+
 const STATUS_LABEL: Record<string, string> = {
   generating: 'Generating…',
   passed: 'Passed',
@@ -67,6 +75,15 @@ export function ProductSizeImagePanel({ productId, categoryName }: { productId: 
       {generatedImage && (
         <p className={generatedImage.status === 'passed' ? sharedStyles.badgeSuccess : sharedStyles.badgeNeutral} style={{ display: 'inline-block', marginTop: 10 }}>
           {STATUS_LABEL[generatedImage.status] ?? generatedImage.status}
+        </p>
+      )}
+      {generatedImage?.generatedAt && (
+        // Shown even when status is now 'stale' (measurements were edited
+        // since) or 'failed' (a regeneration attempt since failed) — this
+        // is when the image CURRENTLY being previewed below was actually
+        // produced, which the status label alone doesn't tell the admin.
+        <p className={sharedStyles.empty} style={{ marginTop: 4 }}>
+          Last generated: {formatGeneratedAt(generatedImage.generatedAt)}
         </p>
       )}
       {generatedImage?.failureReason && <p className={sharedStyles.error}>{generatedImage.failureReason}</p>}

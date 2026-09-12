@@ -233,19 +233,20 @@ const NOTE_SIZE = 26;
 const GUIDE_STROKE = 3.5;
 const ARROW_STROKE = 4.5;
 
-// Dynamic scale-range rule: a ruler that exactly matches the declared value
-// (the previous rule) makes small jewellery fill the whole ruler and look
-// oversized — a minimum 0–2cm range gives normal-sized pieces (up to 20mm)
-// visible surrounding scale context instead of the product spanning the
-// entire ruler. Anything past 20mm rounds up to its own next centimetre
-// (unchanged). A sub-millimetre value gets its own 0–1mm/10×0.1mm
-// "inspection" scale, never forced onto a cm ruler where it would be
-// invisible.
+// Dynamic scale-range rule: the ruler always extends exactly one full extra
+// centimetre beyond the product's own whole-cm span, on each axis
+// independently — 10mm/1cm -> 0-2cm, 20mm/2cm -> 0-3cm, 30mm/3cm -> 0-4cm,
+// 12.25mm/1.225cm -> 0-2cm. A plain ceiling of the cm value would give NO
+// extra room whenever the value is already an exact multiple of 10mm (e.g.
+// 20mm would ceiling to itself, 0-2cm) — flooring the cm portion first and
+// always adding one full centimetre guarantees the buffer in every case,
+// including exact-centimetre values. A sub-millimetre value keeps its own
+// 0–1mm/10×0.1mm "inspection" scale, never forced onto a cm ruler where it
+// would be invisible.
 function rulerRangeFor(valueMm) {
   if (valueMm == null) return null;
   if (valueMm <= 1) return { lengthMm: 1, special: true };
-  if (valueMm <= 20) return { lengthMm: 20, special: false };
-  return { lengthMm: Math.ceil(valueMm / 10) * 10, special: false };
+  return { lengthMm: (Math.floor(valueMm / 10) + 1) * 10, special: false };
 }
 
 // One shared physical px-per-mm scale for both axes, EXCEPT a "special"
@@ -385,7 +386,7 @@ function buildRulerOverlaySvg({
   // the recommended positioning (a dedicated label gutter, not text drawn
   // over the L-corner).
   parts.push(`<text x="${origin.x - CM_TICK_LEN - 14}" y="${origin.y + CM_NUMBER_SIZE * 0.35}" font-size="${CM_NUMBER_SIZE}" font-family="Liberation Sans, Arial, sans-serif" fill="${dark}" text-anchor="end">0</text>`);
-  parts.push(`<text x="${origin.x - CM_TICK_LEN - 14}" y="${origin.y + CM_NUMBER_SIZE * 0.35 + Math.round(CM_NUMBER_SIZE * 0.85)}" font-size="${Math.round(CM_NUMBER_SIZE * 0.65)}" font-family="Liberation Sans, Arial, sans-serif" fill="${dark}" text-anchor="end">${rangeY.special ? 'mm' : 'Cm'}</text>`);
+  parts.push(`<text x="${origin.x - CM_TICK_LEN - 14}" y="${origin.y + CM_NUMBER_SIZE * 0.35 + Math.round(CM_NUMBER_SIZE * 0.85)}" font-size="${Math.round(CM_NUMBER_SIZE * 0.65)}" font-family="Liberation Sans, Arial, sans-serif" fill="${dark}" text-anchor="end">${rangeY.special ? 'mm' : 'cm'}</text>`);
 
   // The product sits FLUSH against both ruler baselines (left edge exactly
   // on the vertical axis, bottom edge exactly on the horizontal axis) — so
@@ -401,6 +402,13 @@ function buildRulerOverlaySvg({
   if (measuredTopY != null && measuredRightX != null) {
     parts.push(`<line x1="${measuredRightX}" y1="${measuredTopY}" x2="${labelX - 14}" y2="${measuredTopY}" stroke="${dark}" stroke-width="${GUIDE_STROKE}" ${dash} />`);
   }
+  // Lower guide — mirrors the upper one above, from the product's actual
+  // bottom-right corner (its lowest measured point, on the 0cm baseline)
+  // across to the same label column, so the dimension arrow is bounded by
+  // two guides that both touch a real product edge, not just one.
+  if (measuredBottomY != null && measuredRightX != null) {
+    parts.push(`<line x1="${measuredRightX}" y1="${measuredBottomY}" x2="${labelX - 14}" y2="${measuredBottomY}" stroke="${dark}" stroke-width="${GUIDE_STROKE}" ${dash} />`);
+  }
   if (measuredRightX != null && measuredTopY != null && measuredBottomY != null) {
     parts.push(`<line x1="${measuredRightX}" y1="${measuredBottomY}" x2="${measuredRightX}" y2="${measuredTopY}" stroke="${dark}" stroke-width="${GUIDE_STROKE}" ${dash} />`);
   }
@@ -408,9 +416,14 @@ function buildRulerOverlaySvg({
   // Horizontal double-headed width arrow + label, BELOW the ruler's own
   // cm numbers (never over the jewellery, which occupies the space directly
   // above the axis) — spans exactly the product's measured width, matching
-  // the approved reference's "8 mm" arrow.
+  // the approved reference's "8 mm" arrow. Vertical dashed guides drop
+  // straight down from the product's actual left/right edges (at the 0cm
+  // baseline) to the arrow itself, so the arrow reads as touching the real
+  // product boundaries rather than floating disconnected below them.
   if (measuredRightX != null && measuredWidthValue != null) {
     const widthArrowY = origin.y + CM_TICK_LEN + CM_NUMBER_SIZE + 64;
+    parts.push(`<line x1="${origin.x}" y1="${origin.y}" x2="${origin.x}" y2="${widthArrowY}" stroke="${dark}" stroke-width="${GUIDE_STROKE}" ${dash} />`);
+    parts.push(`<line x1="${measuredRightX}" y1="${origin.y}" x2="${measuredRightX}" y2="${widthArrowY}" stroke="${dark}" stroke-width="${GUIDE_STROKE}" ${dash} />`);
     parts.push(`<line x1="${origin.x}" y1="${widthArrowY}" x2="${measuredRightX}" y2="${widthArrowY}" stroke="${dark}" stroke-width="${ARROW_STROKE}" />`);
     parts.push(`<path d="M ${origin.x} ${widthArrowY} l 18 -10 l 0 20 z" fill="${dark}" />`);
     parts.push(`<path d="M ${measuredRightX} ${widthArrowY} l -18 -10 l 0 20 z" fill="${dark}" />`);
@@ -507,22 +520,22 @@ export async function composeMeasurementImage({ productBuffer, boundingBox, jewe
   const declaredWidthMm = widthValue != null ? toMm(widthValue, unit) : null;
   const declaredHeightMm = heightValue != null ? toMm(heightValue, unit) : null;
 
-  // Dynamic per-axis ruler range — a minimum 0–2cm range for any normal
-  // (>1mm, <=20mm) piece so it doesn't fill the entire ruler and look
-  // oversized, rounding up to the next whole centimetre past 20mm, and its
-  // own true 0–1mm inspection scale below 1mm (see rulerRangeFor). A
-  // missing axis (e.g. a Bangle's single outer-diameter value) mirrors
-  // whichever axis IS declared, purely to keep the L-shape's vertical guide
-  // visually present — no arrow/value is drawn on it.
+  // Dynamic per-axis ruler range — always one full extra centimetre beyond
+  // the product's own whole-cm span (see rulerRangeFor), and its own true
+  // 0–1mm inspection scale below 1mm. A missing axis (e.g. a Bangle's
+  // single outer-diameter value) mirrors whichever axis IS declared, purely
+  // to keep the L-shape's vertical guide visually present — no arrow/value
+  // is drawn on it.
   //
   // The special 0–1mm scale only activates when EVERY declared axis
   // qualifies for it — pairing a sub-mm axis with a normal-range one would
   // force that axis's ruler down to a sliver only ~1mm long at the OTHER
   // axis's (much coarser) scale, too short to fit its own "0"/"1 mm"
   // labels without them colliding (confirmed by an actual rendered smoke
-  // test). A lone sub-mm value paired with a normal one instead falls into
-  // the same 0–2cm bucket as any other 1–20mm value — still correct, just
-  // without the extra sub-mm tick subdivisions.
+  // test). A lone sub-mm value paired with a normal one instead falls back
+  // to a 20mm placeholder so it lands in the same normal-range bucket as
+  // any other small value — still correct, just without the extra sub-mm
+  // tick subdivisions.
   const declaredValues = [declaredWidthMm, declaredHeightMm].filter((v) => v != null);
   const allSpecial = declaredValues.length > 0 && declaredValues.every((v) => v <= 1);
   const rangeFor = (valueMm) => (allSpecial ? rulerRangeFor(valueMm) : rulerRangeFor(valueMm && valueMm <= 1 ? 20 : valueMm));
@@ -537,17 +550,44 @@ export async function composeMeasurementImage({ productBuffer, boundingBox, jewe
   };
   const pxPerMm = pxPerMmFor(photoArea, rangeX, rangeY);
 
+  // Hook/loop/clasp exclusion: the declared height is the PART (body) only
+  // — the generated photo still shows the whole piece (hook/loop included,
+  // per the base prompt's "preserve ... any loops, hooks or clasps exactly
+  // as shown"), so the whole photo must NOT be squeezed to fit inside a box
+  // sized to the body alone (that would incorrectly pull the excluded part
+  // down into the measured region). There's no separate admin-entered
+  // "whole piece" height for these categories any more (see INCLUSION_RULES'
+  // own comment) — the exact pixel split between body and excluded part is
+  // therefore unknown, so an estimated fraction gives the excluded part
+  // visible headroom above the body's EXACT ruler position (bodyTopY below,
+  // derived straight from the declared value, never from this estimate).
+  const inclusionRule = INCLUSION_RULES[jewelleryType];
+  const isPartExcluded = !!inclusionRule && (excludedParts ?? []).includes(inclusionRule.part);
+  const hasExactPartRatio = !!(inclusionRule?.partHeightKey && inclusionRule?.wholeHeightKey);
+  const ESTIMATED_EXCLUDED_PART_HEIGHT_FRACTION = 0.15;
+  const excludedHeightInflation =
+    isPartExcluded && !hasExactPartRatio && declaredHeightMm != null
+      ? 1 / (1 - ESTIMATED_EXCLUDED_PART_HEIGHT_FRACTION)
+      : 1;
+
   // The product's displayed pixel size is DERIVED from that scale applied to
   // the declared values directly (the admin's declared numbers are trusted
   // as-is — see composeMeasurementImage's resize call below). When only one
   // primary dimension is declared (e.g. a Bangle's outer diameter alone),
   // the other axis falls back to the cropped photo's own aspect ratio, since
-  // there's no declared value to size it from.
+  // there's no declared value to size it from. Width is never inflated —
+  // exclusion only ever pushes an excluded part further UP along the height
+  // axis, never wider.
   const resizedWidth = declaredWidthMm
     ? Math.round(declaredWidthMm * pxPerMm)
     : Math.round(croppedWidth * ((declaredHeightMm * pxPerMm) / croppedHeight));
+  // Capped at the ruler's own top tick (rangeY already guarantees at least
+  // one full extra centimetre above declaredHeightMm — see rulerRangeFor)
+  // so an unusually large body paired with the estimated inflation above
+  // can never push the excluded part above the visible ruler into the
+  // heading text.
   const resizedHeight = declaredHeightMm
-    ? Math.round(declaredHeightMm * pxPerMm)
+    ? Math.min(Math.round(declaredHeightMm * pxPerMm * excludedHeightInflation), Math.round(rangeY.lengthMm * pxPerMm))
     : Math.round(croppedHeight * ((declaredWidthMm * pxPerMm) / croppedWidth));
 
   const origin = { x: photoArea.x, y: photoArea.y + photoArea.height };
@@ -566,16 +606,20 @@ export async function composeMeasurementImage({ productBuffer, boundingBox, jewe
     height: resizedHeight,
   };
 
-  // Measured span for the right-hand callout arrow, and the included/
-  // excluded-part pointer — see buildRulerOverlaySvg's own comments. No
-  // category currently has a part-vs-whole pair to divide proportionally
-  // for an exact boundary (INCLUSION_RULES no longer defines one for any
-  // category — see its own comment); every category with an inclusion rule
-  // gets an approximate top-of-piece pointer instead — there is no admin-
-  // entered part measurement to place it precisely (INCLUSION_RULES'
-  // comment documents this is arithmetic on declared numbers, never a
-  // visually detected edge).
-  const inclusionRule = INCLUSION_RULES[jewelleryType];
+  // Measured span for the right-hand callout arrow, the vertical dimension
+  // arrow, and the included/excluded-part pointer — see
+  // buildRulerOverlaySvg's own comments.
+  //
+  // Body-only exclusion boundary: bodyTopY is computed directly from the
+  // declared (body-only) height against the ruler's own px-per-mm scale —
+  // NOT as a proportion of placedBox (which is now deliberately taller than
+  // the body, per excludedHeightInflation above, to leave room for the
+  // excluded part above it). This is what guarantees the body sits at
+  // EXACTLY 0..declaredHeightMm on the ruler (e.g. a 20mm body always
+  // occupies exactly 0-2cm) regardless of the estimated inflation factor —
+  // the estimate only affects how far the excluded part is allowed to
+  // extend above that exact line, never the line's own position.
+  const bodyTopY = declaredHeightMm != null ? Math.round(origin.y - declaredHeightMm * pxPerMm) : placedBox.top;
   let inclusionNote = null;
   let measuredTopY = placedBox.top;
   let measuredBottomY = placedBox.top + placedBox.height;
@@ -583,12 +627,19 @@ export async function composeMeasurementImage({ productBuffer, boundingBox, jewe
   let loopCallout = null;
 
   if (inclusionRule) {
-    const isExcluded = (excludedParts ?? []).includes(inclusionRule.part);
+    const isExcluded = isPartExcluded;
     const isIncluded = (includedParts ?? []).includes(inclusionRule.part);
     if (isExcluded) {
       inclusionNote = `${inclusionRule.label} excluded`;
+      // Default: no height axis at all for this category (e.g. Bracelet's
+      // clasp) — keep the old approximate near-top pointer, since there's
+      // no vertical dimension line to anchor to either way.
       let calloutTopY = placedBox.top + placedBox.height * 0.08;
-      if (inclusionRule.partHeightKey && inclusionRule.wholeHeightKey) {
+      if (hasExactPartRatio) {
+        // Kept for forward compatibility — no current category defines
+        // this pair (see INCLUSION_RULES' own comment), but if one ever
+        // does, its exact part/whole ratio takes priority over the
+        // estimate below.
         const partValue = measurements[inclusionRule.partHeightKey];
         const wholeValue = measurements[inclusionRule.wholeHeightKey];
         if (partValue != null && wholeValue != null) {
@@ -597,6 +648,14 @@ export async function composeMeasurementImage({ productBuffer, boundingBox, jewe
           measuredHeightValue = partValue;
           calloutTopY = (placedBox.top + measuredTopY) / 2;
         }
+      } else if (declaredHeightMm != null) {
+        // The real path exercised today: the declared height IS the body
+        // (see excludedHeightInflation's own comment) — the measurement
+        // line sits at its exact ruler position, and the excluded part
+        // (hook/loop/clasp) renders in the space above it, up to
+        // placedBox.top.
+        measuredTopY = bodyTopY;
+        calloutTopY = (placedBox.top + bodyTopY) / 2;
       }
       loopCallout = {
         targetX: placedBox.left + placedBox.width * 0.5,

@@ -26,6 +26,11 @@ function toGeneratedImageDto(row, imageUrl) {
     status: row.status,
     failureReason: row.failure_reason,
     measurementVersion: row.measurement_version,
+    // Set only when a generation attempt actually finishes (see
+    // markResult) — survives a later status='stale' flip, so this always
+    // shows when the CURRENT image was really produced, not when the row
+    // was last touched for any reason.
+    generatedAt: row.generated_at,
     // A preview is only worth showing once there's an actual photo group to
     // point at — a 'generating'/'failed' row before any success has none.
     imageUrl: row.image_sort_order != null ? (imageUrl ?? null) : null,

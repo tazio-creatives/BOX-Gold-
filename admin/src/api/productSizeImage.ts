@@ -20,6 +20,11 @@ export interface ProductSizeGeneratedImage {
   status: ProductSizeImageStatus;
   failureReason: string | null;
   measurementVersion: number;
+  // Set only when a generation attempt actually finished (pass/warning/
+  // fail) — stays put across a later status='stale' flip, so it always
+  // reflects when the CURRENTLY shown image was really produced. Null
+  // before the first generation attempt has ever completed.
+  generatedAt: string | null;
   imageUrl: string | null;
 }
 

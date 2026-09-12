@@ -30,10 +30,14 @@ export async function beginGeneration(productId, measurementVersion) {
 // On success, imageSortOrder overwrites the stored pointer (COALESCE keeps
 // the previous value on a failure, where imageSortOrder is passed as null —
 // so a failed regeneration never loses track of the still-live prior image).
+// generated_at is set here — and ONLY here — so it reflects the moment a
+// generation attempt actually finished (pass/warning/fail), never touched by
+// beginGeneration (job enqueued) or markStale (measurements edited), unlike
+// updated_at which changes on all three.
 export async function markResult(productId, { status, imageSortOrder = null, failureReason = null }) {
   const { rows } = await query(
     `UPDATE product_size_generated_images
-     SET status = $2, image_sort_order = COALESCE($3, image_sort_order), failure_reason = $4, updated_at = now()
+     SET status = $2, image_sort_order = COALESCE($3, image_sort_order), failure_reason = $4, updated_at = now(), generated_at = now()
      WHERE product_id = $1
      RETURNING *`,
     [productId, status, imageSortOrder, failureReason],
