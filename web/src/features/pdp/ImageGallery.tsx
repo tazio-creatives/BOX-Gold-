@@ -1,4 +1,4 @@
-import { useRef, useState, type MouseEvent } from 'react';
+import { useRef, useState, type MouseEvent, type TouchEvent } from 'react';
 import type { ProductImage } from '../../api/types';
 import { placeholderGradient } from '../../utils/placeholderGradient';
 import { WishlistButton } from '../../components/WishlistButton';
@@ -67,6 +67,10 @@ export function ImageGallery({
   const [zoomPos, setZoomPos] = useState({ x: 50, y: 50 });
   const [lightboxOpen, setLightboxOpen] = useState(false);
   const mainRef = useRef<HTMLDivElement>(null);
+  const touchStartX = useRef<number | null>(null);
+  const touchStartY = useRef<number | null>(null);
+  const touchDeltaX = useRef(0);
+  const isSwiping = useRef(false);
 
   const handleMouseMove = (e: MouseEvent<HTMLDivElement>) => {
     const rect = mainRef.current?.getBoundingClientRect();
@@ -74,6 +78,40 @@ export function ImageGallery({
     const x = ((e.clientX - rect.left) / rect.width) * 100;
     const y = ((e.clientY - rect.top) / rect.height) * 100;
     setZoomPos({ x: Math.min(100, Math.max(0, x)), y: Math.min(100, Math.max(0, y)) });
+  };
+
+  const SWIPE_THRESHOLD = 40;
+
+  const handleTouchStart = (e: TouchEvent<HTMLDivElement>) => {
+    touchStartX.current = e.touches[0].clientX;
+    touchStartY.current = e.touches[0].clientY;
+    touchDeltaX.current = 0;
+    isSwiping.current = false;
+  };
+
+  const handleTouchMove = (e: TouchEvent<HTMLDivElement>) => {
+    if (touchStartX.current === null || touchStartY.current === null) return;
+    const dx = e.touches[0].clientX - touchStartX.current;
+    const dy = e.touches[0].clientY - touchStartY.current;
+    // Only treat it as a gallery swipe once horizontal movement clearly
+    // dominates vertical — otherwise a vertical page scroll starting on the
+    // gallery would get hijacked into flipping images.
+    if (!isSwiping.current && Math.abs(dx) > 10 && Math.abs(dx) > Math.abs(dy)) {
+      isSwiping.current = true;
+    }
+    if (isSwiping.current) touchDeltaX.current = dx;
+  };
+
+  const handleTouchEnd = () => {
+    const dx = touchDeltaX.current;
+    if (isSwiping.current && displayImages.length > 1) {
+      if (dx > SWIPE_THRESHOLD) goPrev();
+      else if (dx < -SWIPE_THRESHOLD) goNext();
+    }
+    touchStartX.current = null;
+    touchStartY.current = null;
+    touchDeltaX.current = 0;
+    isSwiping.current = false;
   };
 
   // No upload flow exists yet (Phase 9/15) — every product renders this
@@ -115,6 +153,9 @@ export function ImageGallery({
         onMouseLeave={() => setIsZooming(false)}
         onMouseMove={handleMouseMove}
         onClick={() => setLightboxOpen(true)}
+        onTouchStart={handleTouchStart}
+        onTouchMove={handleTouchMove}
+        onTouchEnd={handleTouchEnd}
       >
         <img
           src={activeUrl}
