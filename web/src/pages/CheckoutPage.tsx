@@ -12,7 +12,7 @@ import { applyCoupon } from '../api/coupons';
 import { CheckoutAddressCard } from '../features/checkout/CheckoutAddressCard';
 import { CheckoutOrderSummary } from '../features/checkout/CheckoutOrderSummary';
 import { StepIndicator } from '../features/checkout/StepIndicator';
-import { TrustStripBar, CART_ASSURANCE_ITEMS } from '../components/TrustStripBar';
+import { ProductAssuranceGrid } from '../components/ProductAssuranceGrid';
 import { Breadcrumbs } from '../components/Breadcrumbs';
 import type { AddressInput, BuyNowItem, CheckoutResponse } from '../api/types';
 import { formatPrice } from '../utils/formatPrice';
@@ -432,7 +432,6 @@ export function CheckoutPage() {
   if (displayItems.length === 0) {
     return (
       <div className={placeholderStyles.container}>
-        <h1 className={placeholderStyles.heading}>Checkout</h1>
         <p className={placeholderStyles.body}>Your bag is empty.</p>
         <Link to="/" className={styles.continueLink}>
           Continue shopping
@@ -504,7 +503,10 @@ export function CheckoutPage() {
         </div>
 
         <div className={styles.mainColumnBottom}>
-          <TrustStripBar variant="boxed" items={CART_ASSURANCE_ITEMS} />
+          {/* Same visual as the Cart/PDP trust banner — checkout isn't tied
+              to one product's real metal/diamond composition either, so
+              both flags are on to show the full, generic assurance set. */}
+          <ProductAssuranceGrid hasDiamonds isGold />
           <div className={styles.backToBagRow}>
             <Link to="/cart" className={styles.backToBagLink}>
               ← Back to Bag

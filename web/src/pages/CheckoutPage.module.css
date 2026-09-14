@@ -3,8 +3,26 @@
 
 .page {
   width: 100%;
-  padding: 0 16px 100px;
-  background: var(--color-bg);
+  /* Establishes a new block-formatting-context so a child's top margin
+     (e.g. .headingRow's margin-top: 24px, the first in-flow child once
+     logged in) can't collapse through this zero-top-padding box and
+     expose the cream body background above the page. */
+  display: flow-root;
+  /* Footer has its own global margin-top: 96px between <main> and
+     <footer> — with nothing painted in that gap it shows the page's
+     cream body background through. Extending padding-bottom by that
+     same 96px paints white across it, and margin-bottom: -96px cancels
+     the added height back out so Footer's own position on the page
+     doesn't move. */
+  /* The 100px base isn't decorative slack — it's the fixed mobile sticky
+     payment bar's worst-case real footprint (54px button + 12px top
+     padding + up to ~34px safe-area-inset-bottom on notched phones), so
+     the page can scroll far enough for the Back to Bag button to clear
+     it. Trimming it risks the bar covering that button on real devices;
+     kept as-is even though it reads as a large number here. */
+  padding: 0 16px calc(100px + 96px);
+  margin-bottom: -96px;
+  background: var(--color-white);
 }
 
 .visuallyHidden {
@@ -43,11 +61,7 @@
 }
 
 .heading {
-  font-family: var(--font-heading);
-  font-size: 28px;
-  font-weight: 500;
-  color: var(--color-text);
-  margin: 0;
+  display: none;
 }
 
 .heroPlain {
@@ -251,8 +265,16 @@
 @media (min-width: 768px) {
   .page {
     max-width: 1400px;
-    margin: 0 auto;
-    padding: 0 var(--space-4) var(--space-12);
+    /* Individual properties, not the `margin` shorthand — a shorthand here
+       would silently zero out the base rule's margin-bottom: -96px fix
+       for the footer gap (see .page's own comment above). */
+    margin-left: auto;
+    margin-right: auto;
+    margin-bottom: -96px;
+    /* No sticky bar to clear at this width (.stickyBar is display:none
+       below), so the base bottom padding only needs to be a normal
+       breathing-room value, not the mobile sticky-bar clearance amount. */
+    padding: 0 var(--space-4) calc(var(--space-6) + 96px);
   }
 
   .headingRow {
