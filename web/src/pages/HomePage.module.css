@@ -1,4 +1,16 @@
+.page {
+  /* Homepage background forced to plain white — overrides the site-wide
+     cream body background (tokens.css --color-bg) for this page only,
+     everywhere a section doesn't already paint its own surface (the
+     default, non-"alt" HomepageSection.module.css sections, and the gaps
+     around full-bleed custom sections like CategoryShowcase/
+     CollectionProductShowcase/DuoBanner, which render with no sectionClass
+     at all). */
+  background: var(--color-white);
+}
+
 .skeleton {
+  background: var(--color-white);
   max-width: var(--container-max);
   margin: 0 auto;
   padding: var(--space-8) var(--space-4);
@@ -14,6 +26,7 @@
 }
 
 .error {
+  background: var(--color-white);
   text-align: center;
   padding: var(--space-10);
   color: var(--color-text-muted);

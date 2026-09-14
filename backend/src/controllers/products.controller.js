@@ -365,7 +365,17 @@ export async function pricePreview(req, res, next) {
 
 export async function getRelated(req, res, next) {
   try {
-    const products = await productsService.getRelatedProducts(req.params.slug, 4);
+    const products = await productsService.getRelatedProducts(req.params.slug, 5);
+    const deliveryEstimate = calculateDeliveryEstimate();
+    res.json({ products: products.map((row) => toListDto(row, deliveryEstimate)) });
+  } catch (err) {
+    next(err);
+  }
+}
+
+export async function getMostLoved(req, res, next) {
+  try {
+    const products = await productsService.getMostLovedProducts(req.params.slug, 8);
     const deliveryEstimate = calculateDeliveryEstimate();
     res.json({ products: products.map((row) => toListDto(row, deliveryEstimate)) });
   } catch (err) {

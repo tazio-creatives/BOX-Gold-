@@ -9,6 +9,26 @@ import { calculateDeliveryEstimate } from '../services/deliveryEstimateService.j
 // expects so this goes through the exact same purity-rule-aware discount
 // resolution as the PLP/search/wishlist, instead of re-deriving the offer
 // from the flat columns only.
+// Hero Banner-only: resolves the admin's chosen redirect into a real
+// storefront URL, re-checking eligibility at read time (not just at save
+// time) so a category/collection/product that's since gone inactive/
+// unpublished never produces a dead link — the banner just renders as a
+// plain, non-clickable image instead (handled by the caller when this
+// returns null).
+function toRedirectUrl(row) {
+  switch (row.redirect_type) {
+    case 'CATEGORY':
+      return row.category_id && row.category_is_active ? `/${row.category_slug}` : null;
+    case 'COLLECTION':
+      return row.collection_id && row.collection_is_active ? `/collections/${row.collection_slug}` : null;
+    case 'PRODUCT':
+      if (!row.product_id || row.product_status !== 'PUBLISHED') return null;
+      return row.product_category_slug ? `/${row.product_category_slug}/${row.product_slug}` : `/${row.product_slug}`;
+    default:
+      return null;
+  }
+}
+
 function toItemDto(row, deliveryEstimate) {
   let product = null;
   if (row.product_id) {
@@ -51,6 +71,9 @@ function toItemDto(row, deliveryEstimate) {
     subheading: row.subheading,
     ctaLabel: row.cta_label,
     ctaUrl: row.cta_url,
+    name: row.name ?? null,
+    redirectUrl: toRedirectUrl(row),
+    openInNewTab: !!row.open_in_new_tab,
     category: row.category_id
       ? { id: row.category_id, name: row.category_name, slug: row.category_slug, imageUrl: row.category_image_url }
       : null,

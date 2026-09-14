@@ -251,11 +251,21 @@ export function CategoryForm({ initial, categories, defaultParentId, onSubmit, o
             <div className={sharedStyles.field}>
               Desktop Banner Image (recommended 1920×600, ~3.2:1)
               {bannerImageUrl && (
-                <img
-                  src={bannerImageUrl}
-                  alt=""
-                  style={{ maxWidth: 320, maxHeight: 100, objectFit: 'cover', display: 'block', margin: '4px 0 8px' }}
-                />
+                <>
+                  <img
+                    src={bannerImageUrl}
+                    alt=""
+                    style={{ maxWidth: 320, maxHeight: 100, objectFit: 'cover', display: 'block', margin: '4px 0 8px' }}
+                  />
+                  <button
+                    type="button"
+                    className={sharedStyles.buttonLink}
+                    style={{ marginBottom: 8 }}
+                    onClick={() => setBannerImageUrl('')}
+                  >
+                    Remove image
+                  </button>
+                </>
               )}
               <input
                 ref={bannerFileInputRef}
@@ -276,11 +286,21 @@ export function CategoryForm({ initial, categories, defaultParentId, onSubmit, o
             <div className={sharedStyles.field}>
               Mobile Banner Image (optional — recommended 800×1000, 4:5; falls back to desktop image if empty)
               {bannerImageUrlMobile && (
-                <img
-                  src={bannerImageUrlMobile}
-                  alt=""
-                  style={{ maxWidth: 160, maxHeight: 200, objectFit: 'cover', display: 'block', margin: '4px 0 8px' }}
-                />
+                <>
+                  <img
+                    src={bannerImageUrlMobile}
+                    alt=""
+                    style={{ maxWidth: 160, maxHeight: 200, objectFit: 'cover', display: 'block', margin: '4px 0 8px' }}
+                  />
+                  <button
+                    type="button"
+                    className={sharedStyles.buttonLink}
+                    style={{ marginBottom: 8 }}
+                    onClick={() => setBannerImageUrlMobile('')}
+                  >
+                    Remove image
+                  </button>
+                </>
               )}
               <input
                 ref={bannerMobileFileInputRef}

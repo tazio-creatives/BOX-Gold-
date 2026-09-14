@@ -450,6 +450,8 @@ export type HomepageSectionType =
   | 'CATEGORY_PRODUCTS'
   | 'COLLECTION_SHOWCASE';
 
+export type HeroRedirectType = 'NONE' | 'CATEGORY' | 'COLLECTION' | 'PRODUCT';
+
 export interface HomepageItem {
   id: string;
   imageUrl: string | null;
@@ -461,6 +463,12 @@ export interface HomepageItem {
   categoryId: string | null;
   collectionId: string | null;
   productId: string | null;
+  // Hero Banner-only fields — unused (and left at their defaults: null /
+  // 'NONE' / false / true) by every other section type's items.
+  name: string | null;
+  redirectType: HeroRedirectType;
+  openInNewTab: boolean;
+  isEnabled: boolean;
   sortOrder: number;
 }
 
@@ -483,6 +491,10 @@ export interface HomepageItemInput {
   categoryId?: string | null;
   collectionId?: string | null;
   productId?: string | null;
+  name?: string | null;
+  redirectType?: HeroRedirectType;
+  openInNewTab?: boolean;
+  isEnabled?: boolean;
 }
 
 export type ReviewStatus = 'PENDING' | 'APPROVED' | 'REJECTED';

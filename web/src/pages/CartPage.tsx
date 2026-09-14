@@ -12,7 +12,7 @@ import { placeholderGradient } from '../utils/placeholderGradient';
 import { useDocumentTitle } from '../utils/useDocumentTitle';
 import { ApiError } from '../api/client';
 import { Breadcrumbs } from '../components/Breadcrumbs';
-import { TrustStripBar, CART_ASSURANCE_ITEMS } from '../components/TrustStripBar';
+import { ProductAssuranceGrid } from '../components/ProductAssuranceGrid';
 import { RelatedProducts } from '../features/pdp/RelatedProducts';
 import { OrderSummary } from '../features/checkout/OrderSummary';
 import styles from './CartPage.module.css';
@@ -107,6 +107,15 @@ export function CartPage() {
 
   const { data, isLoading } = useQuery({ queryKey: ['cart'], queryFn: fetchCart });
 
+  // Same two sections the PDP shows at its own bottom ("You May Also Like" /
+  // "Most Loved") — the cart has no single product/category to scope by, so
+  // both are site-wide, matching the PDP's own newest-vs-bestseller sort
+  // distinction instead.
+  const { data: newestData } = useQuery({
+    queryKey: ['newest-cart'],
+    queryFn: () => fetchProducts({ sort: 'newest', limit: 8 }),
+  });
+
   const { data: featuredData } = useQuery({
     queryKey: ['best-sellers-cart'],
     queryFn: () => fetchProducts({ sort: 'bestseller', limit: 8 }),
@@ -194,11 +203,16 @@ export function CartPage() {
         </div>
 
         <RelatedProducts
-        products={featuredData?.products ?? []}
-        categorySlug={null}
-        heading="Best Sellers"
-        className={styles.bestSellers}
-      />
+          products={newestData?.products ?? []}
+          categorySlug={null}
+          heading="You May Also Like"
+          className={styles.bestSellers}
+        />
+        <RelatedProducts
+          products={featuredData?.products ?? []}
+          categorySlug={null}
+          heading="Most Loved"
+        />
       </div>
     );
   }
@@ -357,20 +371,26 @@ export function CartPage() {
             }}
             showTrustList={false}
             hidePrimaryOnMobile
+            headingClassName={styles.summaryHeading}
+            secondaryActionClassName={styles.continueShoppingButton}
           />
         </div>
 
         <div className={styles.trustSection}>
-          <TrustStripBar variant="boxed" items={CART_ASSURANCE_ITEMS} />
+          {/* Same visual as the PDP's own trust banner — the cart isn't tied
+              to one product's real metal/diamond composition, so both flags
+              are on to show the full, generic assurance set. */}
+          <ProductAssuranceGrid hasDiamonds isGold />
         </div>
       </div>
 
       <RelatedProducts
-        products={featuredData?.products ?? []}
+        products={newestData?.products ?? []}
         categorySlug={null}
-        heading="Best Sellers"
+        heading="You May Also Like"
         className={styles.bestSellers}
       />
+      <RelatedProducts products={featuredData?.products ?? []} categorySlug={null} heading="Most Loved" />
 
       {/* Mobile-only (CSS): the sticky checkout bar is the single source of
           truth for "Proceed to Checkout" below 768px — OrderSummary's own

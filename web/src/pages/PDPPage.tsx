@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useQuery, useQueryClient, useMutation } from '@tanstack/react-query';
-import { fetchProductBySlug, fetchRelatedProducts } from '../api/products';
+import { fetchProductBySlug, fetchRelatedProducts, fetchMostLovedProducts } from '../api/products';
 import { fetchCategories } from '../api/categories';
 import { addCartItem } from '../api/cart';
 import type { Cart, ProductImage } from '../api/types';
@@ -69,6 +69,12 @@ export function PDPPage() {
   const { data: relatedData } = useQuery({
     queryKey: ['related-products', productSlug],
     queryFn: () => fetchRelatedProducts(productSlug as string),
+    enabled: !!productSlug,
+  });
+
+  const { data: mostLovedData } = useQuery({
+    queryKey: ['most-loved-products', productSlug],
+    queryFn: () => fetchMostLovedProducts(productSlug as string),
     enabled: !!productSlug,
   });
 
@@ -267,6 +273,12 @@ export function PDPPage() {
       <ProductTabs product={product} />
 
       <RelatedProducts products={relatedData?.products ?? []} categorySlug={category?.slug ?? null} />
+
+      <RelatedProducts
+        products={mostLovedData?.products ?? []}
+        categorySlug={category?.slug ?? null}
+        heading="Most Loved"
+      />
     </div>
   );
 }

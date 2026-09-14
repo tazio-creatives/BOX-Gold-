@@ -151,6 +151,27 @@ export function ImageGallery({
             <path d="M11 8v6M8 11h6" />
           </svg>
         </button>
+        {/* Mobile-only overlay position indicator (see .carouselPagination's
+            own media query) — additive to the thumbnail row below, which
+            stays as-is on every width. */}
+        {displayImages.length > 1 && (
+          <div className={styles.carouselPagination} role="tablist" aria-label="Image pagination">
+            {displayImages.map((img, i) => (
+              <button
+                key={img.id}
+                type="button"
+                className={i === activeIndex ? `${styles.carouselPaginationDot} ${styles.active}` : styles.carouselPaginationDot}
+                role="tab"
+                aria-selected={i === activeIndex}
+                aria-label={`Go to image ${i + 1}`}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setActiveIndex(i);
+                }}
+              />
+            ))}
+          </div>
+        )}
       </div>
       {displayImages.length > 1 && (
         <div className={styles.thumbRow}>

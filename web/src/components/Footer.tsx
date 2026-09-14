@@ -2,19 +2,25 @@ import { useState, type ReactNode } from 'react';
 import { Link } from 'react-router-dom';
 import styles from './Footer.module.css';
 
-function ChevronIcon({ open }: { open: boolean }) {
+// Desktop never renders this (Footer.module.css hides it above 767px) — the
+// mobile accordion spec calls for a plus/minus glyph specifically, not a
+// rotating chevron: the vertical stroke is simply omitted once open, so
+// "plus" and "minus" are the same element with one line conditionally shown.
+function PlusMinusIcon({ open }: { open: boolean }) {
   return (
     <svg
-      className={open ? styles.colChevronOpen : styles.colChevron}
-      width="16"
-      height="16"
+      className={styles.colIcon}
+      width="14"
+      height="14"
       viewBox="0 0 24 24"
       fill="none"
       stroke="currentColor"
       strokeWidth="2"
+      strokeLinecap="round"
       aria-hidden="true"
     >
-      <path d="M6 9l6 6 6-6" strokeLinecap="round" strokeLinejoin="round" />
+      <line x1="4" y1="12" x2="20" y2="12" />
+      {!open && <line x1="12" y1="4" x2="12" y2="20" />}
     </svg>
   );
 }
@@ -68,17 +74,13 @@ const COLUMNS: { title: string; links: { label: string; to: string }[] }[] = [
 ];
 
 export function Footer() {
-  // Collapsed by default — only matters below 767px (Footer.module.css
-  // forces every group open above that, ignoring this state entirely), so
-  // desktop keeps showing all links at once as before.
-  const [openSections, setOpenSections] = useState<Set<string>>(new Set());
+  // Collapsed by default, and only one group open at a time — only matters
+  // below 767px (Footer.module.css forces every group open above that,
+  // ignoring this state entirely), so desktop keeps showing all links at
+  // once as before.
+  const [openSection, setOpenSection] = useState<string | null>(null);
   function toggleSection(title: string) {
-    setOpenSections((prev) => {
-      const next = new Set(prev);
-      if (next.has(title)) next.delete(title);
-      else next.add(title);
-      return next;
-    });
+    setOpenSection((prev) => (prev === title ? null : title));
   }
 
   return (
@@ -108,7 +110,7 @@ export function Footer() {
         </div>
 
         {COLUMNS.map((col) => {
-          const isOpen = openSections.has(col.title);
+          const isOpen = openSection === col.title;
           return (
             <div key={col.title} className={styles.col}>
               <button
@@ -118,7 +120,7 @@ export function Footer() {
                 onClick={() => toggleSection(col.title)}
               >
                 <span className={styles.colTitle}>{col.title}</span>
-                <ChevronIcon open={isOpen} />
+                <PlusMinusIcon open={isOpen} />
               </button>
               <ul className={isOpen ? `${styles.linkList} ${styles.linkListOpen}` : styles.linkList}>
                 {col.links.map((link) => (

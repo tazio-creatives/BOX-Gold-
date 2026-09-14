@@ -338,7 +338,24 @@
   .info {
     padding-left: 0;
     padding-right: 0;
+    padding-top: 0;
     padding-bottom: 0;
+  }
+
+  .badges {
+    display: none;
+  }
+
+  .name {
+    margin: 0 0 4px;
+    font-size: 18px;
+    font-weight: 500;
+  }
+
+  .price {
+    margin: 0 0 2px;
+    font-size: 18px;
+    font-weight: 500;
   }
 
   .detailsStack {

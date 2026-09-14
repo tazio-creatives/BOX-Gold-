@@ -128,78 +128,120 @@
 }
 
 /* Compact accordion footer on mobile — all four link groups collapsed by
-   default (Footer.tsx), tapping a group's header toggles just that one. */
+   default (Footer.tsx), tapping a group's header toggles just that one and
+   closes whichever other one was open. Row spacing here comes entirely from
+   explicit padding/margin on the pieces below — .top's own grid `gap` is
+   zeroed in this block, since that row-gap (applied between every column
+   regardless of open/closed state) was what produced the large empty band
+   inside a closed accordion row before this redesign. */
 @media (max-width: 767px) {
   .top {
     grid-template-columns: 1fr;
+    gap: 0;
+    padding: 28px 20px 4px;
   }
 
   .brandCol {
     padding-right: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+    margin-bottom: 24px;
+  }
+
+  .logo {
+    width: 104px;
+    height: auto;
+    margin-bottom: 12px;
+  }
+
+  .tagline {
+    font-size: 13px;
+    line-height: 1.5;
+    max-width: 220px;
+    margin: 0 0 16px;
+  }
+
+  .social {
+    justify-content: center;
+    gap: 12px;
+    margin-bottom: 0;
   }
 
   .col {
     border-top: 1px solid rgba(255, 255, 255, 0.12);
-    padding: 14px 0;
+    padding: 0;
+  }
+
+  .col:last-of-type {
+    border-bottom: 1px solid rgba(255, 255, 255, 0.12);
   }
 
   .colTitleButton {
     display: flex;
     align-items: center;
     justify-content: space-between;
-    min-height: 44px;
+    min-height: 52px;
+    margin: 0;
+    padding: 0 4px;
     cursor: pointer;
+  }
+
+  .colTitle {
+    font-size: 13px;
+    font-weight: 500;
+    letter-spacing: 0.06em;
   }
 
   .colChevron,
   .colChevronOpen {
+    display: none;
+  }
+
+  .colIcon {
     display: inline-flex;
     flex-shrink: 0;
-    transition: transform 0.15s ease;
+    color: var(--color-gold);
   }
 
-  .colChevronOpen {
-    transform: rotate(180deg);
-  }
-
+  /* max-height transition (not display:none toggle) — this is what makes
+     opening/closing an animated slide instead of an instant cut. The cap
+     (600px) just needs to clear the tallest group's real content height. */
   .linkList {
-    display: none;
-    margin-top: var(--space-3);
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    align-items: center;
+    max-height: 0;
+    margin: 0;
+    padding: 0 4px;
+    overflow: hidden;
+    opacity: 0;
+    transition: max-height 0.28s ease, opacity 0.2s ease, padding 0.28s ease;
   }
 
   .linkListOpen {
-    display: flex;
-  }
-}
-
-@media (max-width: 480px) {
-  .top {
-    grid-template-columns: 1fr;
-    text-align: center;
+    max-height: 600px;
+    padding: 8px 4px 18px;
+    opacity: 1;
   }
 
-  .brandCol {
-    padding-right: 0;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-  }
-
-  .tagline {
-    max-width: 280px;
-  }
-
-  .social {
-    justify-content: center;
-  }
-
-  .linkList {
-    align-items: center;
+  .link {
+    font-size: 14px;
   }
 
   .bottom {
     flex-direction: column;
     justify-content: center;
     text-align: center;
+    gap: 6px;
+    margin-top: 20px;
+    padding: 18px 20px 20px;
+  }
+
+  .copy,
+  .secure {
+    font-size: 12px;
   }
 }

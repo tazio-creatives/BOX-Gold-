@@ -13,6 +13,7 @@ import {
 } from '../api/homepage';
 import type { HomepageItem, HomepageItemInput, HomepageSection, HomepageSectionType } from '../api/types';
 import { HomepageItemForm } from '../features/homepage/HomepageItemForm';
+import { HeroBannerForm } from '../features/homepage/HeroBannerForm';
 import { ConfirmDialog } from '../components/ConfirmDialog';
 import sharedStyles from '../styles/shared.module.css';
 import styles from './HomepagePage.module.css';
@@ -64,6 +65,23 @@ const SECTION_TYPE_LABELS: Record<HomepageSectionType, string> = {
 
 function imageForItem(item: HomepageItem): string | null {
   return item.imageUrl;
+}
+
+// Names aren't attached to the raw category/collection/product ids on a
+// HomepageItem row (only the id is stored) — a plain "Product" label is good
+// enough for this compact list row; the full name is shown once the admin
+// opens Edit, where HeroBannerForm resolves it via its own queries.
+function heroRedirectSummary(item: HomepageItem): string {
+  switch (item.redirectType) {
+    case 'CATEGORY':
+      return 'Redirects to a Category';
+    case 'COLLECTION':
+      return 'Redirects to a Collection';
+    case 'PRODUCT':
+      return 'Redirects to a Product';
+    default:
+      return 'No Redirect';
+  }
 }
 
 function SectionHeadingInput({ value, onCommit }: { value: string; onCommit: (value: string) => void }) {
@@ -245,6 +263,14 @@ export function HomepagePage() {
 
             {!AUTO_SYNCED_TYPES.includes(section.type) && (
               <div className={styles.itemsPanel}>
+                {section.type === 'HERO' && (
+                  <p className={sharedStyles.empty}>
+                    Each item below is one slide. The uploaded image already contains its own heading, description
+                    and call-to-action artwork — nothing is overlaid on top of it. Choose what the whole banner links
+                    to (or "No Redirect" to make it a plain, non-clickable image), and use Status to hide a slide
+                    without deleting it.
+                  </p>
+                )}
                 {section.type === 'NEW_ARRIVALS' && (
                   <p className={sharedStyles.empty}>
                     Add exactly one item for the feature banner — only the first item renders. Heading is the
@@ -273,12 +299,21 @@ export function HomepagePage() {
                 )}
                 {section.items.map((item, itemIndex) =>
                   editingItem?.id === item.id ? (
-                    <HomepageItemForm
-                      key={item.id}
-                      initial={item}
-                      onSubmit={(input) => updateItemMutation.mutateAsync({ id: item.id, input })}
-                      onCancel={() => setEditingItem(null)}
-                    />
+                    section.type === 'HERO' ? (
+                      <HeroBannerForm
+                        key={item.id}
+                        initial={item}
+                        onSubmit={(input) => updateItemMutation.mutateAsync({ id: item.id, input })}
+                        onCancel={() => setEditingItem(null)}
+                      />
+                    ) : (
+                      <HomepageItemForm
+                        key={item.id}
+                        initial={item}
+                        onSubmit={(input) => updateItemMutation.mutateAsync({ id: item.id, input })}
+                        onCancel={() => setEditingItem(null)}
+                      />
+                    )
                   ) : (
                     <div key={item.id} className={styles.itemRow}>
                       {imageForItem(item) ? (
@@ -298,13 +333,27 @@ export function HomepagePage() {
                           ↓
                         </button>
                       </div>
-                      <span className={styles.itemHeading}>{item.heading ?? '(no heading)'}</span>
-                      <span className={styles.itemMeta}>
-                        {item.categoryId && 'Category'}
-                        {item.collectionId && 'Collection'}
-                        {item.productId && 'Product'}
-                        {item.ctaUrl && `→ ${item.ctaUrl}`}
-                      </span>
+                      {section.type === 'HERO' ? (
+                        <>
+                          <span className={styles.itemHeading}>{item.name || '(unnamed banner)'}</span>
+                          <span className={styles.itemMeta}>
+                            <span className={item.isEnabled ? sharedStyles.badgeSuccess : sharedStyles.badgeNeutral}>
+                              {item.isEnabled ? 'Enabled' : 'Disabled'}
+                            </span>{' '}
+                            {heroRedirectSummary(item)}
+                          </span>
+                        </>
+                      ) : (
+                        <>
+                          <span className={styles.itemHeading}>{item.heading ?? '(no heading)'}</span>
+                          <span className={styles.itemMeta}>
+                            {item.categoryId && 'Category'}
+                            {item.collectionId && 'Collection'}
+                            {item.productId && 'Product'}
+                            {item.ctaUrl && `→ ${item.ctaUrl}`}
+                          </span>
+                        </>
+                      )}
                       <div className={styles.itemActions}>
                         <button type="button" className={sharedStyles.buttonLink} onClick={() => setEditingItem(item)}>
                           Edit
@@ -322,17 +371,24 @@ export function HomepagePage() {
                 )}
 
                 {addingItemTo === section.id ? (
-                  <HomepageItemForm
-                    onSubmit={(input) => createItemMutation.mutateAsync({ sectionId: section.id, input })}
-                    onCancel={() => setAddingItemTo(null)}
-                  />
+                  section.type === 'HERO' ? (
+                    <HeroBannerForm
+                      onSubmit={(input) => createItemMutation.mutateAsync({ sectionId: section.id, input })}
+                      onCancel={() => setAddingItemTo(null)}
+                    />
+                  ) : (
+                    <HomepageItemForm
+                      onSubmit={(input) => createItemMutation.mutateAsync({ sectionId: section.id, input })}
+                      onCancel={() => setAddingItemTo(null)}
+                    />
+                  )
                 ) : (
                   <button
                     type="button"
                     className={sharedStyles.button}
                     onClick={() => setAddingItemTo(section.id)}
                   >
-                    + Add Item
+                    {section.type === 'HERO' ? '+ Add Banner' : '+ Add Item'}
                   </button>
                 )}
               </div>

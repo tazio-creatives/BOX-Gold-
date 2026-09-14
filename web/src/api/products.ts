@@ -42,6 +42,10 @@ export function fetchRelatedProducts(slug: string) {
   return apiFetch<{ products: ProductCard[] }>(`/products/${slug}/related`);
 }
 
+export function fetchMostLovedProducts(slug: string) {
+  return apiFetch<{ products: ProductCard[] }>(`/products/${slug}/most-loved`);
+}
+
 export function fetchVariantPricePreview(productId: string, selection: { variantId: string }) {
   const qs = new URLSearchParams({ variantId: selection.variantId });
   return apiFetch<VariantPricePreview>(`/products/${productId}/price-preview?${qs.toString()}`);

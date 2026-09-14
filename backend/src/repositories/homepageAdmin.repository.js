@@ -89,12 +89,16 @@ export async function insertItem({
   categoryId,
   collectionId,
   productId,
+  name,
+  redirectType,
+  openInNewTab,
+  isEnabled,
   sortOrder,
 }) {
   const { rows } = await query(
     `INSERT INTO homepage_items
-       (section_id, image_url, image_url_mobile, heading, subheading, cta_label, cta_url, category_id, collection_id, product_id, sort_order)
-     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11) RETURNING *`,
+       (section_id, image_url, image_url_mobile, heading, subheading, cta_label, cta_url, category_id, collection_id, product_id, name, redirect_type, open_in_new_tab, is_enabled, sort_order)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15) RETURNING *`,
     [
       sectionId,
       imageUrl ?? null,
@@ -106,6 +110,10 @@ export async function insertItem({
       categoryId ?? null,
       collectionId ?? null,
       productId ?? null,
+      name ?? null,
+      redirectType ?? 'NONE',
+      openInNewTab ?? false,
+      isEnabled ?? true,
       sortOrder,
     ],
   );
@@ -122,6 +130,10 @@ const ITEM_FIELD_MAP = {
   categoryId: 'category_id',
   collectionId: 'collection_id',
   productId: 'product_id',
+  name: 'name',
+  redirectType: 'redirect_type',
+  openInNewTab: 'open_in_new_tab',
+  isEnabled: 'is_enabled',
   sortOrder: 'sort_order',
 };
 

@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { list, getBySlug, getRelated, pricePreview } from '../controllers/products.controller.js';
+import { list, getBySlug, getRelated, getMostLoved, pricePreview } from '../controllers/products.controller.js';
 import { list as listReviews } from '../controllers/reviews.controller.js';
 
 // Mounted at /api/v1/products — public, guest browsing must work (plan §17).
@@ -7,6 +7,7 @@ export const productsRouter = Router();
 
 productsRouter.get('/', list);
 productsRouter.get('/:slug/related', getRelated);
+productsRouter.get('/:slug/most-loved', getMostLoved);
 productsRouter.get('/:slug', getBySlug);
 // Approved reviews only (plan §11a) — public, no session needed. Submitting
 // a review (POST, same path) needs customer auth and is handled by

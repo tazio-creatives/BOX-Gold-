@@ -7,7 +7,7 @@
 
 .alt {
   max-width: none;
-  background: var(--color-bg-alt);
+  background: var(--color-white);
 }
 
 .alt > * {
@@ -27,12 +27,18 @@
   padding: var(--space-3);
 }
 
+@media (max-width: 767px) {
+  .hero {
+    padding: 0;
+  }
+}
+
 .trustSection {
   padding: var(--space-5) var(--space-4);
 }
 
 .newsletter {
-  background: var(--color-bg-alt);
+  background: var(--color-white);
   text-align: center;
   padding: var(--space-10) var(--space-4);
 }

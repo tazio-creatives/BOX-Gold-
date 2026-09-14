@@ -1,7 +1,12 @@
 import { useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import type { HomepageItem } from '../../api/types';
+import { CategoryProductGrid } from './CategoryProductGrid';
 import styles from './CategoryShowcase.module.css';
+
+// The panel id every category tile's aria-controls points at — one fixed id
+// since only one CategoryShowcase instance exists per homepage render.
+const PRODUCTS_PANEL_ID = 'home-category-products-panel';
 
 function linkFor(item: HomepageItem): string | null {
   if (item.ctaUrl) return item.ctaUrl;
@@ -26,8 +31,27 @@ function ChevronIcon({ direction }: { direction: 'left' | 'right' }) {
   );
 }
 
-function CategoryCard({ item }: { item: HomepageItem }) {
-  const href = linkFor(item);
+// Shown in place of a blank tinted box when a category has no image of its
+// own configured yet (mobile-only — see .imagePlaceholder's media query;
+// desktop keeps its prior blank-box appearance untouched).
+function PlaceholderIcon() {
+  return (
+    <svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.4" aria-hidden="true">
+      <path d="M6 3h12l4 6-10 12L2 9z" />
+      <path d="M2 9h20M9 3l3 6-3 12M15 3l-3 6 3 12" />
+    </svg>
+  );
+}
+
+function CategoryCard({
+  item,
+  isSelected,
+  onSelect,
+}: {
+  item: HomepageItem;
+  isSelected: boolean;
+  onSelect: (item: HomepageItem) => void;
+}) {
   const imageUrl = imageFor(item);
   const name = nameFor(item);
 
@@ -38,18 +62,43 @@ function CategoryCard({ item }: { item: HomepageItem }) {
             dedicated badge field exists on HomepageItem, and this one is already
             unused elsewhere in this section. */}
         {item.subheading && <span className={styles.badge}>{item.subheading}</span>}
-        {imageUrl && <img src={imageUrl} alt="" loading="lazy" decoding="async" />}
+        {imageUrl ? (
+          <img src={imageUrl} alt="" loading="lazy" decoding="async" />
+        ) : (
+          <span className={styles.imagePlaceholder} aria-hidden="true">
+            <PlaceholderIcon />
+          </span>
+        )}
       </div>
       {name && <p className={styles.cardName}>{name}</p>}
     </>
   );
 
-  return href ? (
-    <Link to={href} className={styles.categoryCard}>
+  // A real category tile selects and loads products in-place below (per the
+  // in-place product browsing feature) rather than navigating away — a
+  // non-category tile (e.g. a pure collection/CTA promo, which has nothing
+  // to select products by) keeps its original navigate-away link behaviour.
+  if (!item.category) {
+    const href = linkFor(item);
+    return href ? (
+      <Link to={href} className={styles.categoryCard}>
+        {content}
+      </Link>
+    ) : (
+      <div className={styles.categoryCard}>{content}</div>
+    );
+  }
+
+  return (
+    <button
+      type="button"
+      className={`${styles.categoryCard} ${isSelected ? styles.categoryCardActive : ''}`}
+      aria-selected={isSelected}
+      aria-controls={PRODUCTS_PANEL_ID}
+      onClick={() => onSelect(item)}
+    >
       {content}
-    </Link>
-  ) : (
-    <div className={styles.categoryCard}>{content}</div>
+    </button>
   );
 }
 
@@ -65,6 +114,13 @@ export function CategoryShowcase({ items, heading }: CategoryShowcaseProps) {
   const trackRef = useRef<HTMLDivElement>(null);
   const [canScrollLeft, setCanScrollLeft] = useState(false);
   const [canScrollRight, setCanScrollRight] = useState(false);
+  // No "configured default category" concept exists in the homepage data
+  // model today — falls back directly to "the first active category" (every
+  // BENTO_CATEGORIES item is already an active category tile server-side),
+  // satisfying the DEFAULT CATEGORY rule's fallback branch.
+  const [selectedItemId, setSelectedItemId] = useState<string | null>(
+    () => items.find((i) => i.category)?.id ?? null,
+  );
 
   function updateScrollState() {
     const el = trackRef.current;
@@ -86,6 +142,8 @@ export function CategoryShowcase({ items, heading }: CategoryShowcaseProps) {
 
   if (items.length === 0) return null;
 
+  const selectedItem = items.find((i) => i.id === selectedItemId && i.category) ?? items.find((i) => i.category) ?? null;
+
   return (
     <div className={styles.categorySection}>
       {heading && <h2 className={styles.heading}>{heading}</h2>}
@@ -102,7 +160,12 @@ export function CategoryShowcase({ items, heading }: CategoryShowcaseProps) {
         )}
         <div className={styles.categoryTrack} ref={trackRef} onScroll={updateScrollState}>
           {items.map((item) => (
-            <CategoryCard key={item.id} item={item} />
+            <CategoryCard
+              key={item.id}
+              item={item}
+              isSelected={item.id === selectedItem?.id}
+              onSelect={(selected) => setSelectedItemId(selected.id)}
+            />
           ))}
         </div>
         {canScrollRight && (
@@ -116,6 +179,14 @@ export function CategoryShowcase({ items, heading }: CategoryShowcaseProps) {
           </button>
         )}
       </div>
+      {selectedItem?.category && (
+        <CategoryProductGrid
+          key={selectedItem.category.id}
+          panelId={PRODUCTS_PANEL_ID}
+          categorySlug={selectedItem.category.slug}
+          categoryName={selectedItem.category.name}
+        />
+      )}
     </div>
   );
 }

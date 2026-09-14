@@ -49,6 +49,11 @@ interface OrderSummaryProps {
   // there too would duplicate the "Proceed to Checkout" button. Checkout
   // page never passes primaryAction at all, so this only ever matters here.
   hidePrimaryOnMobile?: boolean;
+  // Lets one caller (CartPage) restyle just these two pieces without
+  // touching Checkout's — same reasoning as RelatedProducts' own
+  // `className` prop (PDP vs Cart's "Best Sellers" spacing).
+  headingClassName?: string;
+  secondaryActionClassName?: string;
 }
 
 function ChevronIcon({ expanded }: { expanded: boolean }) {
@@ -125,6 +130,8 @@ export function OrderSummary({
   secondaryAction,
   showTrustList = true,
   hidePrimaryOnMobile = false,
+  headingClassName,
+  secondaryActionClassName,
 }: OrderSummaryProps) {
   const [itemsExpanded, setItemsExpanded] = useState(false);
   const PREVIEW_COUNT = 2;
@@ -134,7 +141,7 @@ export function OrderSummary({
   return (
     <aside className={styles.card}>
       <div className={styles.headingRow}>
-        <h2 className={styles.heading}>
+        <h2 className={headingClassName ? `${styles.heading} ${headingClassName}` : styles.heading}>
           Order Summary
           {items && items.length > 0 && (
             <span className={styles.headingCount}>
@@ -306,7 +313,9 @@ export function OrderSummary({
       {secondaryAction && (
         <button
           type="button"
-          className={styles.secondaryAction}
+          className={
+            secondaryActionClassName ? `${styles.secondaryAction} ${secondaryActionClassName}` : styles.secondaryAction
+          }
           disabled={secondaryAction.disabled}
           onClick={secondaryAction.onClick}
         >

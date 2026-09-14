@@ -213,3 +213,71 @@
   flex: 1;
   padding: var(--space-4);
 }
+
+/* Strips the individual card-layer chrome (background/border/shadow/
+   radius, body padding) so the product sits directly on whatever surface
+   the caller's own background is — only below 640px, and only for callers
+   that opt in via the `flat` prop (Shop by Category's mobile grid). At
+   every wider breakpoint these rules simply don't match anything, so
+   tablet/desktop and every other ProductCard caller render exactly as
+   before. */
+@media (max-width: 639px) {
+  .flat {
+    background: transparent;
+    border: 0.5px solid #e9e3dc;
+    border-radius: 5px;
+    box-shadow: none;
+  }
+
+  .flat:hover {
+    box-shadow: none;
+    transform: none;
+  }
+
+  /* Fills the tile edge-to-edge (no 20px inset, no background box behind
+     it) instead of sitting as a smaller inset photo on its own light
+     background. */
+  .flat .image {
+    padding: 0;
+    background: transparent;
+  }
+
+  /* The "Out of Stock" tag is dropped here only — narrower flat tiles crowd
+     it against the wishlist button, and the disabled/greyed presentation
+     this card doesn't have anyway made it read as more prominent than
+     intended. "New" and low-stock badges are unaffected. */
+  .flat .badgeOut {
+    display: none;
+  }
+
+  .flat .body {
+    padding: 8px;
+    min-height: 0;
+  }
+
+  .flat .name {
+    font-size: 12px;
+    font-weight: 500;
+    line-height: 18px;
+  }
+
+  .flat .price {
+    font-size: 14px;
+    font-weight: 500;
+    line-height: 18px;
+  }
+
+  .flat .offerBanner {
+    min-height: 0;
+    border: 0;
+    border-radius: 0;
+    background: transparent;
+    margin: 5px 0 0;
+    padding: 2px 0;
+    line-height: 1.2;
+  }
+
+  .flat .offerBannerNote {
+    display: none;
+  }
+}

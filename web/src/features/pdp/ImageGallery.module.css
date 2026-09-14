@@ -37,6 +37,32 @@
   display: block;
 }
 
+/* Desktop no-op — shown only inside the <768px media query below, where the
+   main image itself is what a shopper is swiping through. */
+.carouselPagination {
+  display: none;
+}
+
+.carouselPaginationDot {
+  width: 7px;
+  height: 7px;
+  flex: 0 0 auto;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.5);
+  cursor: pointer;
+  transition:
+    width 180ms ease,
+    background-color 180ms ease;
+}
+
+.carouselPaginationDot.active {
+  width: 16px;
+  border-radius: 999px;
+  background: #ffffff;
+}
+
 /* Size-guide diagram: the whole square canvas (rulers/labels right at the
    edges) must stay fully visible — cover-crop or an edge-to-edge fill would
    cut ruler ticks/labels off. object-fit is also set inline (belt-and-
@@ -293,13 +319,27 @@
     object-fit: contain;
   }
 
-  .thumbRow {
-    padding: 0 var(--space-2);
+  .carouselPagination {
+    position: absolute;
+    left: 16px;
+    bottom: 16px;
+    z-index: 10;
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    padding: 5px 7px;
+    border-radius: 999px;
+    background: rgba(0, 0, 0, 0.42);
+    backdrop-filter: blur(2px);
   }
 
-  .thumb,
-  .thumbActive {
-    width: 72px;
-    height: 72px;
+  /* Replaced by the overlay pagination dots on the main image above — no
+     longer shown on mobile. */
+  .thumbRow {
+    display: none;
+  }
+
+  .overlayBadges {
+    display: none;
   }
 }

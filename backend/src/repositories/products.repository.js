@@ -66,6 +66,7 @@ function buildFilters({
   status,
   excludeId,
   search,
+  excludeZeroPrice,
 }) {
   const clauses = [];
   const params = [];
@@ -112,6 +113,13 @@ function buildFilters({
   if (priceMax != null) {
     params.push(priceMax);
     clauses.push(`p.selling_price <= $${params.length}`);
+  }
+  // Customer-facing listings only (PLP, related products) — a PUBLISHED
+  // product with no valid calculated selling price (e.g. a pricing input
+  // still missing) should never reach a shopper as a ₹0 card. Admin listing
+  // never sets this, since admins need to see and fix exactly those rows.
+  if (excludeZeroPrice) {
+    clauses.push(`p.selling_price > 0`);
   }
 
   return { where: clauses.length ? `WHERE ${clauses.join(' AND ')}` : '', params };

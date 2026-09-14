@@ -281,7 +281,17 @@ export async function listPublicProducts({
   }
 
   return listProductsRow(
-    { categoryIds, collectionId, metalType, purity, goldColor, priceMin, priceMax, status: 'PUBLISHED' },
+    {
+      categoryIds,
+      collectionId,
+      metalType,
+      purity,
+      goldColor,
+      priceMin,
+      priceMax,
+      status: 'PUBLISHED',
+      excludeZeroPrice: true,
+    },
     { sort, page, limit },
   );
 }
@@ -347,8 +357,23 @@ export async function getRelatedProducts(slug, limit = 4) {
   if (!product || product.status !== 'PUBLISHED') return [];
   const categoryIds = await getCategoryAndDescendantIds(product.category_id);
   const { items } = await listProductsRow(
-    { categoryIds, status: 'PUBLISHED', excludeId: product.id },
+    { categoryIds, status: 'PUBLISHED', excludeId: product.id, excludeZeroPrice: true },
     { sort: 'newest', page: 1, limit },
+  );
+  return items;
+}
+
+// PDP "Most Loved" section — same category-scoping/exclusion as related
+// products, just ranked by the existing best-seller sort (sold_count, same
+// one the PLP's "Best Sellers" sort option and homepage use) instead of
+// recency.
+export async function getMostLovedProducts(slug, limit = 8) {
+  const product = await findProductBySlug(slug);
+  if (!product || product.status !== 'PUBLISHED') return [];
+  const categoryIds = await getCategoryAndDescendantIds(product.category_id);
+  const { items } = await listProductsRow(
+    { categoryIds, status: 'PUBLISHED', excludeId: product.id, excludeZeroPrice: true },
+    { sort: 'bestseller', page: 1, limit },
   );
   return items;
 }

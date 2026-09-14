@@ -24,6 +24,7 @@ export function ProductCard({
   imageFit = 'cover',
   imageHeight,
   imagePadding = true,
+  flat = false,
 }: {
   product: ProductCardType;
   index?: number;
@@ -36,13 +37,23 @@ export function ProductCard({
   // it (the default) — the homepage collection showcase is the one case
   // that wants the photo to fill the tile edge-to-edge instead.
   imagePadding?: boolean;
+  // Strips the card's own background/border/shadow/radius and the body's
+  // padding, but ONLY below 640px (see .flat's own media query in
+  // ProductCard.module.css) — at every wider breakpoint this is a no-op, so
+  // a caller can pass this unconditionally without touching tablet/desktop.
+  // Only CategoryProductGrid (Shop by Category) opts into this; every other
+  // caller (PLP, NewArrivals, etc.) keeps the normal card chrome everywhere.
+  flat?: boolean;
 }) {
   const isOutOfStock = product.availableStock <= 0;
   const isLowStock = !isOutOfStock && product.availableStock <= LOW_STOCK_THRESHOLD;
   const strikePrice = product.strikePrice;
 
   return (
-    <Link to={productUrl(product)} className={`${styles.card} ${layout === 'list' ? styles.cardList : ''}`}>
+    <Link
+      to={productUrl(product)}
+      className={`${styles.card} ${layout === 'list' ? styles.cardList : ''} ${flat ? styles.flat : ''}`}
+    >
       <div
         className={`${styles.image} ${layout === 'list' ? styles.imageList : ''}`}
         style={{

@@ -38,6 +38,13 @@ export const reorderSchema = z.object({
   order: z.array(z.number().int()).min(1),
 });
 
+// Hero Banner-only fields (every other section type's admin form never sends
+// these, so they simply stay at their column defaults — NONE/false/true —
+// for every other item). Kept in the same shared schema rather than a
+// separate one so create/update still go through the one generic
+// createItem/updateItem endpoint.
+export const HERO_REDIRECT_TYPES = ['NONE', 'CATEGORY', 'COLLECTION', 'PRODUCT'];
+
 export const createItemSchema = z.object({
   imageUrl: z.string().trim().max(500).nullable().optional(),
   imageUrlMobile: z.string().trim().max(500).nullable().optional(),
@@ -48,6 +55,10 @@ export const createItemSchema = z.object({
   categoryId: z.string().uuid().nullable().optional(),
   collectionId: z.string().uuid().nullable().optional(),
   productId: z.string().uuid().nullable().optional(),
+  name: z.string().trim().max(200).nullable().optional(),
+  redirectType: z.enum(HERO_REDIRECT_TYPES).optional(),
+  openInNewTab: z.boolean().optional(),
+  isEnabled: z.boolean().optional(),
 });
 
 export const updateItemSchema = createItemSchema.partial();

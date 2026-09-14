@@ -88,6 +88,15 @@ export interface HomepageItem {
   // products in the item's linked collection) — see homepage.repository.js.
   // Empty array for every other section type.
   products: ProductCard[];
+  // Hero Banner-only fields — null/false for every other section type's
+  // items. `name` is the admin's internal-only label (used only as an
+  // aria-label, never rendered visibly); `redirectUrl` is already fully
+  // resolved server-side (including the active/published eligibility
+  // check), so the storefront never re-derives a category/collection/
+  // product link itself.
+  name: string | null;
+  redirectUrl: string | null;
+  openInNewTab: boolean;
 }
 
 export type HomepageSectionType =

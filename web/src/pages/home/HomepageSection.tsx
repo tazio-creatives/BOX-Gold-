@@ -31,7 +31,7 @@ export function HomepageSection({ section, alternate }: Props) {
     case 'HERO':
       return (
         <section className={`${styles.section} ${styles.hero}`}>
-          <HeroCarousel items={section.items} eyebrow={section.heading} />
+          <HeroCarousel items={section.items} />
         </section>
       );
 

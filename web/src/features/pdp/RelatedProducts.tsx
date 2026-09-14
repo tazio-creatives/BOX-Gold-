@@ -31,7 +31,7 @@ export function RelatedProducts({
       <div className={styles.grid}>
         {products.map((p, i) => (
           <div key={p.id} className={styles.gridItem}>
-            <ProductCard product={p} index={i} imageFit="contain" />
+            <ProductCard product={p} index={i} imagePadding={false} />
           </div>
         ))}
       </div>

@@ -23,6 +23,9 @@ import {
 } from '../repositories/homepageAdmin.repository.js';
 import { invalidatePageCache } from '../repositories/pageCache.repository.js';
 import { processAndStoreHomepageImage } from '../services/homepageImageService.js';
+import { findCategoryById } from '../repositories/categories.repository.js';
+import { findCollectionById } from '../repositories/collections.repository.js';
+import { findProductById } from '../repositories/products.repository.js';
 import { AppError, NotFoundError } from '../utils/AppError.js';
 
 const invalidateHome = () => invalidatePageCache(['/']);
@@ -50,8 +53,58 @@ function toItemDto(item) {
     categoryId: item.category_id,
     collectionId: item.collection_id,
     productId: item.product_id,
+    name: item.name,
+    redirectType: item.redirect_type,
+    openInNewTab: item.open_in_new_tab,
+    isEnabled: item.is_enabled,
     sortOrder: item.sort_order,
   };
+}
+
+// Hero Banner-only cross-field rule: only the destination matching
+// redirectType is meaningful, so the other two are force-cleared rather than
+// trusted from the request body, and the chosen one must reference a real,
+// currently-active/published row (point: "prevent saving invalid or deleted
+// categories, collections or products"). Every other section type's item
+// requests never send `redirectType`, so this is a no-op for them.
+async function resolveHeroRedirect(input) {
+  if (input.redirectType === undefined) return input;
+  const result = { ...input };
+
+  if (result.redirectType === 'NONE') {
+    result.categoryId = null;
+    result.collectionId = null;
+    result.productId = null;
+    return result;
+  }
+
+  if (result.redirectType === 'CATEGORY') {
+    result.collectionId = null;
+    result.productId = null;
+    if (!result.categoryId) throw new AppError(400, 'Select a category for the redirect destination.');
+    const category = await findCategoryById(result.categoryId);
+    if (!category || !category.is_active) {
+      throw new AppError(400, 'Selected category is invalid, inactive, or has been deleted.');
+    }
+  } else if (result.redirectType === 'COLLECTION') {
+    result.categoryId = null;
+    result.productId = null;
+    if (!result.collectionId) throw new AppError(400, 'Select a collection for the redirect destination.');
+    const collection = await findCollectionById(result.collectionId);
+    if (!collection || !collection.is_active) {
+      throw new AppError(400, 'Selected collection is invalid, inactive, or has been deleted.');
+    }
+  } else if (result.redirectType === 'PRODUCT') {
+    result.categoryId = null;
+    result.collectionId = null;
+    if (!result.productId) throw new AppError(400, 'Select a product for the redirect destination.');
+    const product = await findProductById(result.productId);
+    if (!product || product.status !== 'PUBLISHED') {
+      throw new AppError(400, 'Selected product is invalid, unpublished, or has been deleted.');
+    }
+  }
+
+  return result;
 }
 
 export async function list(req, res, next) {
@@ -140,7 +193,7 @@ export async function createItem(req, res, next) {
     const section = await findSectionById(sectionId);
     if (!section) throw new NotFoundError('Section not found');
 
-    const input = createItemSchema.parse(req.body);
+    const input = await resolveHeroRedirect(createItemSchema.parse(req.body));
     const sortOrder = (await findMaxItemSortOrder(sectionId)) + 1;
     const item = await insertItem({ ...input, sectionId, sortOrder });
     await invalidateHome();
@@ -154,7 +207,7 @@ export async function updateItem(req, res, next) {
   try {
     const existing = await findItemById(req.params.id);
     if (!existing) throw new NotFoundError('Item not found');
-    const input = updateItemSchema.parse(req.body);
+    const input = await resolveHeroRedirect(updateItemSchema.parse(req.body));
     const item = await updateItemRow(req.params.id, input);
     await invalidateHome();
     res.json({ item: toItemDto(item) });

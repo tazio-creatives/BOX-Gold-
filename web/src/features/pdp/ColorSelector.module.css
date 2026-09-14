@@ -72,6 +72,10 @@
 }
 
 @media (max-width: 767px) {
+  .label {
+    font-size: 14px;
+  }
+
   .card,
   .cardActive,
   .cardDisabled {

@@ -1,160 +1,150 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState, type TouchEvent as ReactTouchEvent } from 'react';
 import { Link } from 'react-router-dom';
 import type { HomepageItem } from '../../api/types';
 import { placeholderGradient } from '../../utils/placeholderGradient';
 import styles from './HeroCarousel.module.css';
 
-function linkFor(item: HomepageItem): string | null {
-  if (item.ctaUrl) return item.ctaUrl;
-  if (item.category) return `/${item.category.slug}`;
-  if (item.collection) return `/collections/${item.collection.slug}`;
-  return null;
-}
-
 const ROTATE_MS = 6000;
+const SWIPE_THRESHOLD_PX = 40;
 // Kept in sync with the media query in HeroCarousel.module.css — the
 // <source> breakpoint below must match the CSS one, otherwise the browser
 // and the layout would switch images at different widths.
 const MOBILE_BREAKPOINT = '(max-width: 767px)';
 
-export function HeroCarousel({ items, eyebrow }: { items: HomepageItem[]; eyebrow?: string | null }) {
+// The uploaded banner image already contains its own heading/description/
+// CTA artwork, so there is nothing visible to label it with — this is
+// screen-reader-only text, never rendered on the page itself.
+function ariaLabelFor(item: HomepageItem): string {
+  return item.name || item.category?.name || item.collection?.name || item.product?.name || 'Promotional banner';
+}
+
+export function HeroCarousel({ items }: { items: HomepageItem[] }) {
   const [active, setActive] = useState(0);
+  const [isHovering, setIsHovering] = useState(false);
+  const [isTouching, setIsTouching] = useState(false);
+  const [isFocused, setIsFocused] = useState(false);
+  const touchStartX = useRef<number | null>(null);
+  const touchDeltaX = useRef(0);
+  const wrapRef = useRef<HTMLDivElement>(null);
+
+  const hasMultiple = items.length > 1;
+  const isPaused = isHovering || isTouching || isFocused;
+
+  function goTo(index: number) {
+    setActive(((index % items.length) + items.length) % items.length);
+  }
+  const next = () => goTo(active + 1);
+  const prev = () => goTo(active - 1);
 
   useEffect(() => {
-    if (items.length < 2) return;
+    if (!hasMultiple || isPaused) return;
     const id = window.setInterval(() => {
       setActive((prev) => (prev + 1) % items.length);
     }, ROTATE_MS);
     return () => window.clearInterval(id);
-  }, [items.length]);
+  }, [items.length, hasMultiple, isPaused]);
+
+  // Pause while browser focus is anywhere inside the slider (keyboard users
+  // tabbing to the prev/next buttons or the banner link itself).
+  useEffect(() => {
+    const el = wrapRef.current;
+    if (!el) return;
+    function onFocusIn() {
+      setIsFocused(true);
+    }
+    function onFocusOut(e: FocusEvent) {
+      if (!el?.contains(e.relatedTarget as Node)) setIsFocused(false);
+    }
+    el.addEventListener('focusin', onFocusIn);
+    el.addEventListener('focusout', onFocusOut);
+    return () => {
+      el.removeEventListener('focusin', onFocusIn);
+      el.removeEventListener('focusout', onFocusOut);
+    };
+  }, []);
+
+  function onTouchStart(e: ReactTouchEvent) {
+    touchStartX.current = e.touches[0].clientX;
+    touchDeltaX.current = 0;
+    setIsTouching(true);
+  }
+  function onTouchMove(e: ReactTouchEvent) {
+    if (touchStartX.current == null) return;
+    touchDeltaX.current = e.touches[0].clientX - touchStartX.current;
+  }
+  function onTouchEnd() {
+    if (touchDeltaX.current > SWIPE_THRESHOLD_PX) prev();
+    else if (touchDeltaX.current < -SWIPE_THRESHOLD_PX) next();
+    touchStartX.current = null;
+    touchDeltaX.current = 0;
+    setIsTouching(false);
+  }
 
   const item = items[active];
   if (!item) return null;
-  const href = linkFor(item);
   const gradient = placeholderGradient(active);
+  const label = ariaLabelFor(item);
+  // No separately-uploaded mobile image — the desktop image stands in on
+  // mobile too, but must render at its own natural ratio (never forced into
+  // the 4:5 portrait frame, which would crop it) — see .mediaWrapFallback.
+  const isMobileFallback = !item.imageUrlMobile;
+
+  const media = item.imageUrl ? (
+    <picture>
+      {item.imageUrlMobile && <source media={MOBILE_BREAKPOINT} srcSet={item.imageUrlMobile} />}
+      <img
+        src={item.imageUrl}
+        alt=""
+        className={styles.bgImg}
+        loading="eager"
+        fetchPriority="high"
+        decoding="async"
+      />
+    </picture>
+  ) : (
+    <div className={styles.bgImg} style={{ background: gradient }} />
+  );
+
+  const mediaWrapClass = `${styles.mediaWrap} ${isMobileFallback ? styles.mediaWrapFallback : ''}`;
+  const touchHandlers = { onTouchStart, onTouchMove, onTouchEnd };
 
   return (
-    <div className={styles.hero}>
-      <div className={styles.bg}>
-        {item.imageUrl ? (
-          <picture>
-            {item.imageUrlMobile && <source media={MOBILE_BREAKPOINT} srcSet={item.imageUrlMobile} />}
-            <img
-              src={item.imageUrl}
-              alt=""
-              className={styles.bgImg}
-              loading="eager"
-              fetchPriority="high"
-              decoding="async"
-            />
-          </picture>
-        ) : (
-          <div className={styles.bgImg} style={{ background: gradient }} />
-        )}
-        <div className={styles.scrim} />
-      </div>
-
-      <div className={styles.copy}>
-        <div className={styles.copyInner}>
-          {eyebrow && <p className={styles.eyebrow}>{eyebrow}</p>}
-          {item.heading && <h1 className={styles.heading}>{item.heading}</h1>}
-          {item.subheading && <p className={styles.subheading}>{item.subheading}</p>}
-          {item.ctaLabel && (
-            <div className={styles.ctaRow}>
-              {href ? (
-                <Link to={href} className={styles.cta}>
-                  {item.ctaLabel}
-                  <ArrowIcon />
-                </Link>
-              ) : (
-                <span className={styles.cta}>
-                  {item.ctaLabel}
-                  <ArrowIcon />
-                </span>
-              )}
-              <Link to="/about" className={styles.secondaryCta}>
-                Explore Our Story
-                <ArrowIcon />
-              </Link>
-            </div>
-          )}
+    <div
+      className={styles.hero}
+      ref={wrapRef}
+      onMouseEnter={() => setIsHovering(true)}
+      onMouseLeave={() => setIsHovering(false)}
+    >
+      {item.redirectUrl ? (
+        <Link
+          to={item.redirectUrl}
+          target={item.openInNewTab ? '_blank' : undefined}
+          rel={item.openInNewTab ? 'noopener noreferrer' : undefined}
+          className={mediaWrapClass}
+          aria-label={label}
+          {...touchHandlers}
+        >
+          {media}
+        </Link>
+      ) : (
+        <div className={mediaWrapClass} aria-label={label} role="img" {...touchHandlers}>
+          {media}
         </div>
+      )}
 
-        <div className={styles.trustRow}>
-          <div className={styles.trustItem}>
-            <span className={styles.trustIcon}>
-              <DiamondIcon />
-            </span>
-            100% Certified Natural Diamonds
-          </div>
-          <span className={styles.trustSep} />
-          <div className={styles.trustItem}>
-            <span className={styles.trustIcon}>
-              <ExchangeIcon />
-            </span>
-            Lifetime Exchange
-          </div>
-          <span className={styles.trustSep} />
-          <div className={styles.trustItem}>
-            <span className={styles.trustIcon}>
-              <ShippingIcon />
-            </span>
-            Secure &amp; Insured Shipping
-          </div>
-        </div>
-      </div>
-
-      {items.length > 1 && (
-        <div className={styles.dots}>
+      {hasMultiple && (
+        <div className={styles.dotsRow}>
           {items.map((it, i) => (
             <button
               key={it.id}
               type="button"
               className={`${styles.dot} ${i === active ? styles.dotActive : ''}`}
               aria-label={`Show slide ${i + 1}`}
-              onClick={() => setActive(i)}
+              onClick={() => goTo(i)}
             />
           ))}
         </div>
       )}
     </div>
-  );
-}
-
-function ArrowIcon() {
-  return (
-    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-      <path d="M5 12h14M13 6l6 6-6 6" />
-    </svg>
-  );
-}
-
-function DiamondIcon() {
-  return (
-    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-      <path d="M6 3h12l4 6-10 12L2 9z" />
-      <path d="M2 9h20M9 3l3 6-3 12M15 3l-3 6 3 12" />
-    </svg>
-  );
-}
-
-function ExchangeIcon() {
-  return (
-    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-      <path d="M17 2l4 4-4 4" />
-      <path d="M3 11V9a4 4 0 0 1 4-4h14" />
-      <path d="M7 22l-4-4 4-4" />
-      <path d="M21 13v2a4 4 0 0 1-4 4H3" />
-    </svg>
-  );
-}
-
-function ShippingIcon() {
-  return (
-    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-      <path d="M2 8h11v8H2zM13 11h4l3 3v2h-7z" />
-      <circle cx="6" cy="18" r="1.5" />
-      <circle cx="16.5" cy="18" r="1.5" />
-    </svg>
   );
 }

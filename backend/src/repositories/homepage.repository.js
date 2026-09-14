@@ -13,9 +13,13 @@ export async function getEnabledSectionsWithItems() {
   const { rows: items } = await query(
     `SELECT
        hi.id, hi.section_id, hi.image_url, hi.image_url_mobile, hi.heading, hi.subheading, hi.cta_label, hi.cta_url, hi.sort_order,
+       hi.name, hi.redirect_type, hi.open_in_new_tab,
        c.id AS category_id, c.name AS category_name, c.slug AS category_slug, c.image_url AS category_image_url,
+       c.is_active AS category_is_active,
        col.id AS collection_id, col.name AS collection_name, col.slug AS collection_slug,
-       p.id AS product_id, p.name AS product_name, p.slug AS product_slug,
+       col.is_active AS collection_is_active,
+       p.id AS product_id, p.name AS product_name, p.slug AS product_slug, p.status AS product_status,
+       p_cat.slug AS product_category_slug,
        p.selling_price AS product_selling_price, p.metal_type AS product_metal_type,
        p.purity AS product_purity, p_image.url AS product_image_url,
        p.mrp AS product_mrp, p.gold_value AS product_gold_value, p.diamond_value AS product_diamond_value,
@@ -28,12 +32,13 @@ export async function getEnabledSectionsWithItems() {
      LEFT JOIN categories c ON c.id = hi.category_id
      LEFT JOIN collections col ON col.id = hi.collection_id
      LEFT JOIN products p ON p.id = hi.product_id
+     LEFT JOIN categories p_cat ON p_cat.id = p.category_id
      LEFT JOIN LATERAL (
        SELECT url FROM product_images
        WHERE product_id = p.id AND is_primary = true AND variant = 'small'
        LIMIT 1
      ) p_image ON true
-     WHERE hi.section_id = ANY($1)
+     WHERE hi.section_id = ANY($1) AND hi.is_enabled = true
      ORDER BY hi.section_id, hi.sort_order`,
     [sectionIds],
   );
@@ -222,9 +227,14 @@ export async function getEnabledSectionsWithItems() {
         item.products = [];
         continue;
       }
+      // limit matches CollectionProductShowcase.tsx's own PAGE_SIZE — this is
+      // page 1 of that same client-side "Load More" pagination (both against
+      // the same /products endpoint/sort), so the two must stay in lockstep
+      // or a mismatched limit here would skip or repeat products on the
+      // first "Load More" click.
       const { items: products } = await listProducts(
         { collectionId: item.collection_id, status: 'PUBLISHED' },
-        { sort: 'newest', page: 1, limit: 10 },
+        { sort: 'newest', page: 1, limit: 6 },
       );
       item.products = products;
     }

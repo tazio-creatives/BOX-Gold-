@@ -39,7 +39,7 @@ export function HomePage() {
   const firstHeroIndex = data.sections.findIndex((s) => s.type === 'HERO');
 
   return (
-    <div>
+    <div className={styles.page}>
       {data.sections.map((section, i) => (
         <Fragment key={section.id}>
           <HomepageSection section={section} alternate={i % 2 === 1} />

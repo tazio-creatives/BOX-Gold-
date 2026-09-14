@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { Link } from 'react-router-dom';
 import { useInfiniteQuery, useQuery, keepPreviousData } from '@tanstack/react-query';
 import { fetchCategoryFilterCounts } from '../../api/categories';
 import type { CategoryBanner as CategoryBannerData } from '../../api/types';
@@ -127,22 +128,71 @@ export function ProductListing({
       : undefined;
 
   const showBanner = !!banner?.imageUrl;
+  // The desktop image is the required "master" — no desktop banner means no
+  // banner area on mobile either, even if a mobile-only image were somehow
+  // set without one (not a supported admin state). When a dedicated mobile
+  // image isn't uploaded, this falls back to the desktop image itself, which
+  // needs different (unconstrained) rendering below — see
+  // isMobileBannerFallback and .mobileBannerFallback in the CSS module.
+  const mobileBannerUrl = showBanner ? banner?.imageUrlMobile || banner?.imageUrl || null : null;
+  const isMobileBannerFallback = showBanner && !banner?.imageUrlMobile;
 
   return (
     <div className={styles.page}>
       <div className={styles.top}>
-        <Breadcrumbs items={breadcrumbs} />
+        {/* Desktop/tablet hero — unchanged behaviour, hidden below 768px via
+            CSS (ProductListing.module.css). */}
+        <div className={styles.desktopHero}>
+          <Breadcrumbs items={breadcrumbs} />
 
-        {showBanner && banner && <CategoryBanner banner={banner} title={heading} />}
+          {showBanner && banner && <CategoryBanner banner={banner} title={heading} />}
+
+          {!showBanner && (
+            <>
+              <h1 className={styles.heading}>{heading}</h1>
+              {description && <p className={styles.description}>{description}</p>}
+            </>
+          )}
+        </div>
+
+        {/* Mobile-only hero — plain full-width banner (no text overlay),
+            always-visible heading + breadcrumb, and a horizontally
+            scrollable subcategory pill row. Hidden at 768px+ via CSS. */}
+        <div className={styles.mobileHero}>
+          {mobileBannerUrl && (
+            <div
+              className={
+                isMobileBannerFallback ? `${styles.mobileBanner} ${styles.mobileBannerFallback}` : styles.mobileBanner
+              }
+            >
+              <img src={mobileBannerUrl} alt={banner?.altText || ''} loading="lazy" decoding="async" />
+            </div>
+          )}
+
+          <p className={styles.mobileBreadcrumb}>
+            <Link to="/">Home</Link>
+            <span aria-hidden="true"> › </span>
+            <span>{heading}</span>
+          </p>
+
+          <h1 className={styles.mobileHeading}>{categorySlug ? `All ${heading}` : heading}</h1>
+
+          {subcategories && subcategories.length > 0 && (
+            <nav className={styles.subcategoryNav} aria-label={`${heading} subcategories`}>
+              <Link to={canonicalPath} className={`${styles.subcategoryPill} ${styles.subcategoryPillActive}`}>
+                All
+              </Link>
+              {subcategories.map((sc) => (
+                <Link key={sc.slug} to={sc.href} className={styles.subcategoryPill}>
+                  {sc.name}
+                </Link>
+              ))}
+            </nav>
+          )}
+        </div>
 
         <div className={styles.headerRow}>
           <div className={styles.headerLeft}>
-            {!showBanner && (
-              <>
-                <h1 className={styles.heading}>{heading}</h1>
-                {description && <p className={styles.description}>{description}</p>}
-              </>
-            )}
             <p className={styles.count} aria-live="polite">
               {data ? `${total} ${total === 1 ? 'Product' : 'Products'}` : ' '}
             </p>
