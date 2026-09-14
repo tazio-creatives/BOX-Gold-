@@ -309,10 +309,24 @@
     border-radius: 0;
     border-left: none;
     border-right: none;
+    /* Without this, touch-action is "auto" and the browser is free to
+       claim a horizontal drag for its own gestures (iOS edge-swipe-back,
+       Chrome's default heuristics) before our touchmove handler ever sees
+       a clean sequence of deltas — the JS swipe logic silently never
+       fires on a real device even though it works fine when a touch
+       sequence is dispatched synthetically (e.g. via CDP/devtools).
+       Vertical page scroll still passes through untouched. */
+    touch-action: pan-y;
   }
 
   .mainImage {
     object-fit: cover;
+    /* iOS Safari's long-press image callout (save/copy sheet) and its
+       built-in image drag can otherwise swallow the same gesture our
+       swipe handler is trying to read. */
+    -webkit-touch-callout: none;
+    -webkit-user-select: none;
+    user-select: none;
   }
 
   .productSizeImage {
