@@ -74,6 +74,13 @@
   background: var(--color-surface);
 }
 
+.headingHint {
+  display: block;
+  margin: 2px 0 0 var(--space-2);
+  font-size: var(--text-xs);
+  color: var(--color-text-muted);
+}
+
 .sectionActions {
   display: flex;
   gap: var(--space-4);

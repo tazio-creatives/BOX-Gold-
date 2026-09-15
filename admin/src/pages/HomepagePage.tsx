@@ -84,18 +84,27 @@ function heroRedirectSummary(item: HomepageItem): string {
   }
 }
 
+// This is the only per-section label that's admin-only — every other
+// "Heading"/"Subheading" field further down (inside Edit Item / Add Item)
+// is real storefront content. An unlabeled input with just a placeholder
+// wasn't distinct enough from those to make that clear, so it gets an
+// explicit caption rather than relying on the placeholder alone (which
+// disappears once something's typed).
 function SectionHeadingInput({ value, onCommit }: { value: string; onCommit: (value: string) => void }) {
   const [draft, setDraft] = useState(value);
   return (
-    <input
-      className={styles.headingInput}
-      value={draft}
-      placeholder="(no heading)"
-      onChange={(e) => setDraft(e.target.value)}
-      onBlur={() => {
-        if (draft !== value) onCommit(draft);
-      }}
-    />
+    <div>
+      <input
+        className={styles.headingInput}
+        value={draft}
+        placeholder="Admin label"
+        onChange={(e) => setDraft(e.target.value)}
+        onBlur={() => {
+          if (draft !== value) onCommit(draft);
+        }}
+      />
+      <span className={styles.headingHint}>Admin-only — not shown on the storefront</span>
+    </div>
   );
 }
 
