@@ -17,7 +17,29 @@ const port = Number(process.env.WEB_PORT ?? 5173);
 // (Phases 9-12 added several of these after this classifier was first
 // written, which is exactly the kind of drift that silently 404's a page —
 // see the /account/addresses bug this list fixes).
-const CSR_ONLY_SINGLE_SEGMENT = new Set(['cart', 'wishlist', 'login', 'checkout', 'search', 'account']);
+const CSR_ONLY_SINGLE_SEGMENT = new Set([
+  'cart',
+  'wishlist',
+  'login',
+  'checkout',
+  'search',
+  'account',
+  'shipping-policy',
+  'refund-policy',
+  'cancellation-policy',
+  'privacy-policy',
+  'terms',
+  'contact',
+  'faqs',
+  'size-guide',
+  'care-guide',
+  'our-story',
+  'why-box-diamonds',
+  'blog',
+  'careers',
+  'press',
+  'sustainability',
+]);
 const CSR_ONLY_PREFIXES = ['account', 'order-confirmation'];
 
 function classifyRoute(pathname) {

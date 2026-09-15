@@ -58,10 +58,13 @@
   transform: scale(1.03);
 }
 
+/* Desktop no longer darkens the left side (removed on request) — mobile
+   still gets its own bottom-up scrim below, since the text sits over the
+   image there too and needs the contrast. */
 .scrim {
   position: absolute;
   inset: 0;
-  background: linear-gradient(90deg, rgba(20, 16, 12, 0.6) 0%, rgba(20, 16, 12, 0.22) 52%, rgba(20, 16, 12, 0) 78%);
+  background: none;
 }
 
 .bannerCopy {

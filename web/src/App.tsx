@@ -35,6 +35,15 @@ const AccountAddressesPage = lazy(() =>
 const AccountProfilePage = lazy(() =>
   import('./pages/account/AccountProfilePage').then((m) => ({ default: m.AccountProfilePage })),
 );
+const ShippingPolicyPage = lazy(() =>
+  import('./pages/policies/ShippingPolicyPage').then((m) => ({ default: m.ShippingPolicyPage })),
+);
+const RefundPolicyPage = lazy(() =>
+  import('./pages/policies/RefundPolicyPage').then((m) => ({ default: m.RefundPolicyPage })),
+);
+const CancellationPolicyPage = lazy(() =>
+  import('./pages/policies/CancellationPolicyPage').then((m) => ({ default: m.CancellationPolicyPage })),
+);
 
 // Login is a modal (AuthModal), not a page — a stray /login link (an old
 // bookmark, a shared URL) just opens that same modal over the homepage
@@ -72,6 +81,25 @@ export function App() {
 
           <Route path="/collections/:collectionSlug" element={<CollectionPage />} />
           <Route path="/new-arrivals" element={<NewArrivalsPage />} />
+          <Route path="/shipping-policy" element={<ShippingPolicyPage />} />
+          <Route path="/refund-policy" element={<RefundPolicyPage />} />
+          <Route path="/cancellation-policy" element={<CancellationPolicyPage />} />
+          {/* Not built yet — a real page here still needs an explicit route
+              (even just this placeholder), or the single-segment path falls
+              through to /:categorySlug below and renders a confusing
+              "category not found" instead of "coming soon". */}
+          <Route path="/privacy-policy" element={<PlaceholderPage title="Privacy Policy" />} />
+          <Route path="/terms" element={<PlaceholderPage title="Terms & Conditions" />} />
+          <Route path="/contact" element={<PlaceholderPage title="Contact Us" />} />
+          <Route path="/faqs" element={<PlaceholderPage title="FAQs" />} />
+          <Route path="/size-guide" element={<PlaceholderPage title="Size Guide" />} />
+          <Route path="/care-guide" element={<PlaceholderPage title="Care Guide" />} />
+          <Route path="/our-story" element={<PlaceholderPage title="Our Story" />} />
+          <Route path="/why-box-diamonds" element={<PlaceholderPage title="Why Box Diamonds" />} />
+          <Route path="/blog" element={<PlaceholderPage title="Blog" />} />
+          <Route path="/careers" element={<PlaceholderPage title="Careers" />} />
+          <Route path="/press" element={<PlaceholderPage title="Press" />} />
+          <Route path="/sustainability" element={<PlaceholderPage title="Sustainability" />} />
           <Route path="/:categorySlug" element={<PLPPage />} />
           <Route path="/:categorySlug/:productSlug" element={<PDPPage />} />
           <Route path="*" element={<PlaceholderPage title="Coming Soon" />} />

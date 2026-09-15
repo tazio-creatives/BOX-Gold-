@@ -43,8 +43,6 @@ const COLUMNS: { title: string; links: { label: string; to: string }[] }[] = [
     links: [
       { label: 'Contact Us', to: '/contact' },
       { label: 'FAQs', to: '/faqs' },
-      { label: 'Shipping & Delivery', to: '/shipping-policy' },
-      { label: 'Returns & Exchange', to: '/refund-policy' },
       { label: 'Track Order', to: '/account/orders' },
       { label: 'Size Guide', to: '/size-guide' },
       { label: 'Care Guide', to: '/care-guide' },
