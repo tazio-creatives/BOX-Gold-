@@ -214,11 +214,12 @@ export async function getEnabledSectionsWithItems() {
   }
 
   // COLLECTION_SHOWCASE mirrors CATEGORY_PRODUCTS' "pick the link, let the
-  // products follow" split, just keyed on collection_id and capped at 10
-  // (two rows of 5 on desktop) instead of 5. Only the section's first item
-  // is meant to be rendered as the one banner (CollectionProductShowcase.tsx
-  // enforces that) — any extra items an admin adds are still synced here for
-  // consistency but the frontend ignores them.
+  // products follow" split, just keyed on collection_id and capped at 15
+  // (3 rows of 5 on desktop; mobile shows only the first 8 of it via CSS)
+  // instead of 5. Only the section's first item is meant to be rendered as
+  // the one banner (CollectionProductShowcase.tsx enforces that) — any
+  // extra items an admin adds are still synced here for consistency but the
+  // frontend ignores them.
   const collectionShowcaseSections = sections.filter((s) => s.type === 'COLLECTION_SHOWCASE');
   for (const section of collectionShowcaseSections) {
     const sectionItems = itemsBySection.get(section.id) ?? [];
@@ -227,14 +228,14 @@ export async function getEnabledSectionsWithItems() {
         item.products = [];
         continue;
       }
-      // limit matches CollectionProductShowcase.tsx's own PAGE_SIZE — this is
-      // page 1 of that same client-side "Load More" pagination (both against
-      // the same /products endpoint/sort), so the two must stay in lockstep
-      // or a mismatched limit here would skip or repeat products on the
-      // first "Load More" click.
+      // limit matches CollectionProductShowcase.tsx's own fixed batch size
+      // (useFixedProducts' LIMIT) — the frontend shows this SSR-embedded
+      // batch immediately and only re-fetches client-side as a top-up if it
+      // ever arrives smaller than that, so keeping this in lockstep avoids
+      // an always-on extra round trip on every homepage load.
       const { items: products } = await listProducts(
         { collectionId: item.collection_id, status: 'PUBLISHED' },
-        { sort: 'newest', page: 1, limit: 6 },
+        { sort: 'newest', page: 1, limit: 15 },
       );
       item.products = products;
     }

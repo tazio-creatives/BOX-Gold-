@@ -3,7 +3,7 @@ import type { HomepageItem } from '../../api/types';
 import { fetchProducts } from '../../api/products';
 import { ProductCard } from '../../components/ProductCard';
 import { placeholderGradient } from '../../utils/placeholderGradient';
-import { useAutoLoadProducts } from './useAutoLoadProducts';
+import { useFixedProducts } from './useFixedProducts';
 import styles from './CollectionProductShowcase.module.css';
 
 // Kept in sync with the media query in CollectionProductShowcase.module.css
@@ -12,31 +12,30 @@ import styles from './CollectionProductShowcase.module.css';
 // images at different widths.
 const MOBILE_BREAKPOINT = '(max-width: 767px)';
 
-// One collection banner + up to 50 of that collection's products, sharing a
-// single continuous container (plan: "banner and all products must feel
-// like one continuous collection section"). A COLLECTION_SHOWCASE section
-// is meant to carry exactly one item — if an admin adds more, only the
-// first renders (see the matching admin hint in HomepagePage.tsx). Product
-// loading itself (6 initially, auto-loads to 50, then a manual Load More)
-// is useAutoLoadProducts — shared with CategoryProductGrid.tsx so the two
-// don't drift.
+// One collection banner + a fixed batch of that collection's products,
+// sharing a single continuous container (plan: "banner and all products
+// must feel like one continuous collection section"). A COLLECTION_SHOWCASE
+// section is meant to carry exactly one item — if an admin adds more, only
+// the first renders (see the matching admin hint in HomepagePage.tsx).
+// Product loading is a fixed batch of 15 (useFixedProducts, shared with
+// CategoryProductGrid.tsx) — mobile shows only the first 8 of it via CSS
+// (2 columns x 4 rows), desktop shows all 15 (5 columns x 3 rows). A View
+// All button always follows the grid instead of paginating further.
 export function CollectionProductShowcase({ items }: { items: HomepageItem[] }) {
   const item = items[0];
 
-  const { products, isAutoPhase, hasMore, isLoadingMore, loadMoreError, showSentinel, sentinelRef, loadMore } =
-    useAutoLoadProducts({
-      initialProducts: item?.products ?? [],
-      fetchPage: async (limit) => {
-        const result = await fetchProducts({ collection: item?.collection?.slug, page: 1, limit });
-        return { products: result.products, total: result.total };
-      },
-    });
+  const { products, isLoading, error } = useFixedProducts({
+    initialProducts: item?.products ?? [],
+    fetchPage: async (limit) => {
+      const result = await fetchProducts({ collection: item?.collection?.slug, page: 1, limit });
+      return { products: result.products, total: result.total };
+    },
+  });
 
   if (!item || !item.collection) return null;
 
   const { collection } = item;
   const href = `/collections/${collection.slug}`;
-  const showLoadMoreButton = !isAutoPhase && hasMore;
 
   return (
     <section className={styles.showcase} aria-label={collection.name}>
@@ -64,6 +63,10 @@ export function CollectionProductShowcase({ items }: { items: HomepageItem[] }) 
       </Link>
 
       <div className={styles.productArea}>
+        {/* Whatever's currently in state — an SSR-seeded batch smaller than
+            the full 15 stays visible while a background top-up fetch runs,
+            rather than blanking out already-good data; loading/error only
+            gate the true empty case. */}
         {products.length > 0 ? (
           <>
             <div className={styles.productGrid}>
@@ -72,46 +75,14 @@ export function CollectionProductShowcase({ items }: { items: HomepageItem[] }) 
               ))}
             </div>
 
-            {/* Auto-scroll zone — sentinel triggers the next batch on its
-                own via IntersectionObserver while under 50 products; no
-                button here at all during this phase. */}
-            {showSentinel && (
-              <div ref={sentinelRef} className={styles.autoLoadRow} aria-live="polite">
-                {isLoadingMore && (
-                  <>
-                    <span className={styles.spinner} aria-hidden="true" />
-                    <span>Loading products…</span>
-                  </>
-                )}
-                {loadMoreError && (
-                  <button type="button" className={styles.retryButton} onClick={() => loadMore()}>
-                    Retry
-                  </button>
-                )}
-              </div>
-            )}
-
-            {/* 50+ reached with more still available — automatic loading
-                stops and a manual, compact Load More button takes over. */}
-            {showLoadMoreButton && (
-              <div className={styles.actionRow}>
-                <button
-                  type="button"
-                  className={styles.loadMoreButton}
-                  onClick={() => loadMore()}
-                  disabled={isLoadingMore}
-                  aria-busy={isLoadingMore}
-                >
-                  {isLoadingMore && <span className={styles.spinner} aria-hidden="true" />}
-                  {isLoadingMore ? 'Loading…' : 'Load More'}
-                </button>
-              </div>
-            )}
-            {loadMoreError && !isAutoPhase && (
-              <p className={styles.loadMoreErrorText}>Couldn&apos;t load more products. Please try again.</p>
-            )}
-            {!hasMore && <p className={styles.viewedAll}>You&apos;ve viewed all products in this collection.</p>}
+            <div className={styles.actionRow}>
+              <Link to={href} className={styles.viewAllButton}>
+                View All {collection.name}
+              </Link>
+            </div>
           </>
+        ) : isLoading ? null : error ? (
+          <p className={styles.empty}>Couldn&apos;t load products for this collection.</p>
         ) : (
           <p className={styles.empty}>No products in this collection yet.</p>
         )}

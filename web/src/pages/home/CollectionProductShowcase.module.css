@@ -110,7 +110,7 @@
   margin: 18px 0 0;
 }
 
-.loadMoreButton {
+.viewAllButton {
   min-height: 36px;
   padding: 8px 18px;
   border-radius: 8px;
@@ -127,87 +127,14 @@
   cursor: pointer;
 }
 
-.loadMoreButton:hover:not(:disabled) {
+.viewAllButton:hover {
   background: var(--color-burgundy);
   color: var(--color-white);
 }
 
-.loadMoreButton:disabled {
-  cursor: default;
-  opacity: 0.75;
-}
-
-.loadMoreButton:focus-visible {
+.viewAllButton:focus-visible {
   outline: 2px solid var(--color-burgundy);
   outline-offset: 2px;
-}
-
-/* Auto-scroll trigger zone (IntersectionObserver sentinel) — invisible
-   until a fetch is actually in flight, when it shows a small centred
-   spinner + message instead of any button. */
-.autoLoadRow {
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  gap: 8px;
-  width: 100%;
-  min-height: 1px;
-  margin: 18px 0 0;
-  font-size: 13px;
-  color: var(--color-text-muted);
-}
-
-.retryButton {
-  min-height: 36px;
-  padding: 8px 18px;
-  border-radius: 8px;
-  border: 1.5px solid var(--color-burgundy);
-  background: var(--color-surface);
-  color: var(--color-burgundy);
-  font-family: var(--font-body);
-  font-size: 12px;
-  font-weight: 500;
-  cursor: pointer;
-}
-
-.retryButton:hover {
-  background: var(--color-burgundy);
-  color: var(--color-white);
-}
-
-.viewedAll {
-  margin: 18px 0 0;
-  text-align: center;
-  font-size: 13px;
-  color: var(--color-text-muted);
-}
-
-.spinner {
-  width: 14px;
-  height: 14px;
-  border-radius: 50%;
-  border: 2px solid var(--color-border);
-  border-top-color: currentColor;
-  animation: spin 0.8s linear infinite;
-}
-
-@keyframes spin {
-  to {
-    transform: rotate(360deg);
-  }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .spinner {
-    animation: none;
-  }
-}
-
-.loadMoreErrorText {
-  margin: 10px 0 0;
-  text-align: center;
-  font-size: 13px;
-  color: #b3261e;
 }
 
 .productGrid {
@@ -285,6 +212,12 @@
   .productGrid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
     gap: 10px;
+  }
+
+  /* 2 columns x 4 rows = 8 shown; the rest of the fetched 15 stay in the
+     DOM (unmodified indexing for ProductCard/analytics) but hidden here. */
+  .productGrid > *:nth-child(n + 9) {
+    display: none;
   }
 }
 

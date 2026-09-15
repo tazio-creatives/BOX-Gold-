@@ -26,21 +26,6 @@
   color: #251713;
 }
 
-.panelViewAll {
-  flex: 0 0 auto;
-  color: var(--color-burgundy);
-  font-family: var(--font-body);
-  font-size: 13px;
-  font-weight: 600;
-  text-decoration: none;
-  white-space: nowrap;
-}
-
-.panelViewAll:hover,
-.panelViewAll:focus-visible {
-  text-decoration: underline;
-}
-
 .grid {
   display: grid;
   grid-template-columns: repeat(5, minmax(0, 1fr));
@@ -128,7 +113,7 @@
   cursor: pointer;
 }
 
-.loadMoreRow {
+.viewAllRow {
   width: 100%;
   display: flex;
   justify-content: center;
@@ -136,7 +121,7 @@
   margin-top: 24px;
 }
 
-.loadMoreButton {
+.viewAllButton {
   min-height: 36px;
   padding: 8px 18px;
   border-radius: 8px;
@@ -149,90 +134,18 @@
   display: inline-flex;
   align-items: center;
   gap: 8px;
+  text-decoration: none;
   cursor: pointer;
 }
 
-/* Auto-scroll trigger zone (IntersectionObserver sentinel) — invisible
-   until a fetch is actually in flight, when it shows a small centred
-   spinner + message instead of any button. */
-.autoLoadRow {
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  gap: 8px;
-  width: 100%;
-  min-height: 1px;
-  margin-top: 24px;
-  font-size: 13px;
-  color: var(--color-text-muted);
-}
-
-.compactRetryButton {
-  min-height: 36px;
-  padding: 8px 18px;
-  border-radius: 8px;
-  border: 1.5px solid var(--color-burgundy);
-  background: var(--color-surface);
-  color: var(--color-burgundy);
-  font-family: var(--font-body);
-  font-size: 12px;
-  font-weight: 500;
-  cursor: pointer;
-}
-
-.compactRetryButton:hover {
+.viewAllButton:hover {
   background: var(--color-burgundy);
   color: var(--color-white);
 }
 
-.loadMoreButton:hover:not(:disabled) {
-  background: var(--color-burgundy);
-  color: var(--color-white);
-}
-
-.loadMoreButton:disabled {
-  cursor: default;
-  opacity: 0.75;
-}
-
-.loadMoreButton:focus-visible {
+.viewAllButton:focus-visible {
   outline: 2px solid var(--color-burgundy);
   outline-offset: 2px;
-}
-
-.spinner {
-  width: 14px;
-  height: 14px;
-  border-radius: 50%;
-  border: 2px solid var(--color-border);
-  border-top-color: currentColor;
-  animation: spin 0.8s linear infinite;
-}
-
-@keyframes spin {
-  to {
-    transform: rotate(360deg);
-  }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .spinner {
-    animation: none;
-  }
-}
-
-.viewedAll {
-  margin: 20px 0 0;
-  text-align: center;
-  font-size: 13px;
-  color: var(--color-text-muted);
-}
-
-.loadMoreErrorText {
-  margin: 12px 0 0;
-  text-align: center;
-  font-size: 13px;
-  color: #b3261e;
 }
 
 @media (max-width: 1023px) {
@@ -256,17 +169,19 @@
     white-space: nowrap;
   }
 
-  .panelViewAll {
-    font-size: 12px;
-  }
-
   .grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
     column-gap: 4px;
     row-gap: 10px;
   }
 
-  .loadMoreButton {
+  /* 2 columns x 4 rows = 8 shown; the rest of the fetched 15 stay in the
+     DOM (unmodified indexing for ProductCard/analytics) but hidden here. */
+  .item:nth-child(n + 9) {
+    display: none;
+  }
+
+  .viewAllButton {
     padding: 0 22px;
   }
 }
