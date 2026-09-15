@@ -4,17 +4,33 @@ import { fetchAdminCategories } from '../../api/categories';
 import { fetchAdminCollections } from '../../api/collections';
 import { fetchAdminProducts } from '../../api/products';
 import { uploadHomepageImage } from '../../api/homepage';
-import type { HomepageItem, HomepageItemInput } from '../../api/types';
+import type { HomepageItem, HomepageItemInput, HomepageSectionType } from '../../api/types';
 import { ApiError } from '../../api/client';
 import sharedStyles from '../../styles/shared.module.css';
 
+// This one shared form's "Heading" field means something different per
+// section type — from the actual storefront banner title (NEW_ARRIVALS) to
+// a small eyebrow line above a title that comes from elsewhere
+// (COLLECTION_SHOWCASE) to entirely unused (CATEGORY_PRODUCTS, whose own
+// helper text above this form already says so). The plain "Heading" label
+// alone doesn't say which — easy to mistake for the section-level "Heading"
+// field up in the section row, which is admin-only and never rendered on
+// the storefront for any type. Spelling out "(shown on the storefront...)"
+// here makes that distinction visible right where the confusion happens.
+const HEADING_LABEL: Partial<Record<HomepageSectionType, string>> = {
+  COLLECTION_SHOWCASE: 'Heading (shown on the storefront as a small eyebrow line above the banner title)',
+  NEW_ARRIVALS: 'Heading (shown on the storefront as the banner title)',
+  CATEGORY_PRODUCTS: 'Heading (not used for this section type — see note above)',
+};
+
 interface HomepageItemFormProps {
+  sectionType: HomepageSectionType;
   initial?: HomepageItem;
   onSubmit: (input: HomepageItemInput) => Promise<unknown>;
   onCancel: () => void;
 }
 
-export function HomepageItemForm({ initial, onSubmit, onCancel }: HomepageItemFormProps) {
+export function HomepageItemForm({ sectionType, initial, onSubmit, onCancel }: HomepageItemFormProps) {
   const { data: categoriesData } = useQuery({ queryKey: ['admin-categories'], queryFn: fetchAdminCategories });
   const { data: collectionsData } = useQuery({ queryKey: ['admin-collections'], queryFn: fetchAdminCollections });
   const { data: productsData } = useQuery({
@@ -97,7 +113,7 @@ export function HomepageItemForm({ initial, onSubmit, onCancel }: HomepageItemFo
     <form onSubmit={handleSubmit} className={sharedStyles.cardPadded}>
       <div className={sharedStyles.formGrid}>
         <label className={sharedStyles.field}>
-          Heading
+          {HEADING_LABEL[sectionType] ?? 'Heading'}
           <input value={heading} onChange={(e) => setHeading(e.target.value)} />
         </label>
         <label className={sharedStyles.field}>

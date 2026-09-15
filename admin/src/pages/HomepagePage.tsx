@@ -309,6 +309,7 @@ export function HomepagePage() {
                     ) : (
                       <HomepageItemForm
                         key={item.id}
+                        sectionType={section.type}
                         initial={item}
                         onSubmit={(input) => updateItemMutation.mutateAsync({ id: item.id, input })}
                         onCancel={() => setEditingItem(null)}
@@ -378,6 +379,7 @@ export function HomepagePage() {
                     />
                   ) : (
                     <HomepageItemForm
+                      sectionType={section.type}
                       onSubmit={(input) => createItemMutation.mutateAsync({ sectionId: section.id, input })}
                       onCancel={() => setAddingItemTo(null)}
                     />

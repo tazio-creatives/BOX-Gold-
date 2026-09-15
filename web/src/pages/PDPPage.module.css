@@ -2,7 +2,17 @@
   max-width: 1400px;
   margin: 0 auto -6px;
   padding: 0 var(--space-4) 0;
-  background: #faf8f3;
+  background: var(--color-white);
+  /* Beyond 1400px-wide viewports, .page's own centered box no longer
+     reaches the screen edges, leaving the body's cream background visible
+     on either side — a huge, blur-free box-shadow paints a solid white
+     rectangle extending past .page's edges without touching its own
+     padding/box model (safer than making .page full-bleed, which would
+     fight .hero's own padding since .hero is a direct child with no
+     separate outer wrapper). clip-path keeps the shadow from also
+     extending past .page's own top/bottom edges. */
+  box-shadow: 0 0 0 100vmax var(--color-white);
+  clip-path: inset(0 -100vmax);
 }
 
 .hero {
