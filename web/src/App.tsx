@@ -44,6 +44,10 @@ const RefundPolicyPage = lazy(() =>
 const CancellationPolicyPage = lazy(() =>
   import('./pages/policies/CancellationPolicyPage').then((m) => ({ default: m.CancellationPolicyPage })),
 );
+const PrivacyPolicyPage = lazy(() =>
+  import('./pages/policies/PrivacyPolicyPage').then((m) => ({ default: m.PrivacyPolicyPage })),
+);
+const TermsPage = lazy(() => import('./pages/policies/TermsPage').then((m) => ({ default: m.TermsPage })));
 
 // Login is a modal (AuthModal), not a page — a stray /login link (an old
 // bookmark, a shared URL) just opens that same modal over the homepage
@@ -84,12 +88,12 @@ export function App() {
           <Route path="/shipping-policy" element={<ShippingPolicyPage />} />
           <Route path="/refund-policy" element={<RefundPolicyPage />} />
           <Route path="/cancellation-policy" element={<CancellationPolicyPage />} />
+          <Route path="/privacy-policy" element={<PrivacyPolicyPage />} />
+          <Route path="/terms" element={<TermsPage />} />
           {/* Not built yet — a real page here still needs an explicit route
               (even just this placeholder), or the single-segment path falls
               through to /:categorySlug below and renders a confusing
               "category not found" instead of "coming soon". */}
-          <Route path="/privacy-policy" element={<PlaceholderPage title="Privacy Policy" />} />
-          <Route path="/terms" element={<PlaceholderPage title="Terms & Conditions" />} />
           <Route path="/contact" element={<PlaceholderPage title="Contact Us" />} />
           <Route path="/faqs" element={<PlaceholderPage title="FAQs" />} />
           <Route path="/size-guide" element={<PlaceholderPage title="Size Guide" />} />
