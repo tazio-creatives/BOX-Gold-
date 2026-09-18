@@ -7,7 +7,7 @@ import { query } from '../config/db.js';
 // default for a product with no configured attributes), so this needs no
 // branching between "has variants" and "flat product stock" the way the old
 // size-vs-product CASE did.
-const AVAILABLE_STOCK_JOIN = `
+export const AVAILABLE_STOCK_JOIN = `
   LEFT JOIN LATERAL (
     SELECT COALESCE(SUM(GREATEST(pv.stock_quantity - COALESCE(v_res.reserved_qty, 0), 0)), 0) AS available
     FROM product_variants pv
@@ -22,12 +22,12 @@ const AVAILABLE_STOCK_JOIN = `
 `;
 // ::int cast: SUM() returns bigint, which node-pg parses as a string to
 // avoid precision loss — cast keeps this a proper JSON number instead.
-const AVAILABLE_STOCK_SELECT = `variant_stock.available::int AS available_stock`;
+export const AVAILABLE_STOCK_SELECT = `variant_stock.available::int AS available_stock`;
 
 // "small" is the listing-card size (plan §35); no image upload flow exists
 // yet (Phase 9/15), so this is null until then and the frontend falls back
 // to a placeholder.
-const PRIMARY_IMAGE_JOIN = `
+export const PRIMARY_IMAGE_JOIN = `
   LEFT JOIN LATERAL (
     SELECT url FROM product_images
     WHERE product_id = p.id AND is_primary = true AND variant = 'small'

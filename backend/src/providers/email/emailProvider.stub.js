@@ -1,8 +1,8 @@
 import { isProduction } from '../../config/env.js';
 
 // Dev/test provider — logs instead of sending a real email (plan §12).
-// Swappable for SES/Postmark/etc. later via EMAIL_PROVIDER, same pattern as
-// OTP/payment/shipping/AI-image providers.
+// Swappable for a real provider via EMAIL_PROVIDER (see emailProvider.ses.js),
+// same pattern as OTP/payment/shipping/AI-image providers.
 export const stubEmailProvider = {
   async send({ to, subject, body }) {
     if (isProduction) {

@@ -4,6 +4,7 @@ import type { ProductDetail, ProductInput, ProductListItem, ProductStatus } from
 export interface ListProductsParams {
   status?: ProductStatus;
   category?: string;
+  collectionId?: string;
   metal?: string;
   purity?: string;
   search?: string;

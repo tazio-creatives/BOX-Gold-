@@ -2,6 +2,7 @@ import type { Order } from '../../api/types';
 import { formatPrice } from '../../utils/formatPrice';
 import { DeliveryEstimateDetail } from '../../components/DeliveryEstimate';
 import { WriteReviewButton } from './WriteReviewButton';
+import { OrderProgressStepper } from '../account/OrderProgressStepper';
 import styles from './OrderDetails.module.css';
 
 function formatStatus(status: string) {
@@ -11,9 +12,41 @@ function formatStatus(status: string) {
     .replace(/\b\w/g, (c) => c.toUpperCase());
 }
 
+// The full Order payload already carries the raw status-history log — no
+// separate milestone endpoint needed, just the earliest timestamp per
+// status (mirrors what the list page's batched query does server-side).
+function milestoneAt(history: Order['statusHistory'], status: string): string | null {
+  return history.find((h) => h.status === status)?.createdAt ?? null;
+}
+
+const STEPPER_STATUSES = new Set([
+  'CONFIRMED',
+  'PROCESSING',
+  'READY_TO_SHIP',
+  'SHIPPED',
+  'IN_TRANSIT',
+  'OUT_FOR_DELIVERY',
+  'DELIVERED',
+]);
+
 export function OrderDetails({ order }: { order: Order }) {
   return (
     <div className={styles.wrap}>
+      {order.orderStatus !== null && STEPPER_STATUSES.has(order.orderStatus) && (
+        <section className={styles.section}>
+          <OrderProgressStepper
+            createdAt={order.createdAt}
+            confirmedAt={milestoneAt(order.statusHistory, 'CONFIRMED')}
+            processingAt={milestoneAt(order.statusHistory, 'PROCESSING')}
+            readyToShipAt={milestoneAt(order.statusHistory, 'READY_TO_SHIP')}
+            shippedAt={milestoneAt(order.statusHistory, 'SHIPPED')}
+            inTransitAt={milestoneAt(order.statusHistory, 'IN_TRANSIT')}
+            outForDeliveryAt={milestoneAt(order.statusHistory, 'OUT_FOR_DELIVERY')}
+            deliveredAt={milestoneAt(order.statusHistory, 'DELIVERED')}
+          />
+        </section>
+      )}
+
       <section className={styles.section}>
         <h2 className={styles.sectionHeading}>Items</h2>
         <ul className={styles.itemList}>

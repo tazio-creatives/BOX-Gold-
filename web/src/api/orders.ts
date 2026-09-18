@@ -1,17 +1,22 @@
 import { apiFetch } from './client';
-import type { DeliveryEstimate, Order, OrderStatus } from './types';
+import type { DeliveryEstimate, Order, PaymentStatus, OrderStatus, StatusFilterValue } from './types';
 
 export interface OrderSummary {
   id: string;
   orderNumber: string;
-  status: OrderStatus;
+  paymentStatus: PaymentStatus;
+  orderStatus: OrderStatus | null;
   totalAmount: number;
   createdAt: string;
   itemCount: number;
   previewProductName: string | null;
   previewImageUrl: string | null;
   confirmedAt: string | null;
+  processingAt: string | null;
+  readyToShipAt: string | null;
   shippedAt: string | null;
+  inTransitAt: string | null;
+  outForDeliveryAt: string | null;
   deliveredAt: string | null;
   deliveryEstimate: DeliveryEstimate | null;
 }
@@ -30,7 +35,7 @@ export interface OrderStats {
   totalSpent: number;
 }
 
-export function fetchOrders(page = 1, limit = 10, status?: OrderStatus) {
+export function fetchOrders(page = 1, limit = 10, status?: StatusFilterValue) {
   const qs = new URLSearchParams({ page: String(page), limit: String(limit) });
   if (status) qs.set('status', status);
   return apiFetch<OrderListResponse>(`/orders?${qs.toString()}`);

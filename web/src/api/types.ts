@@ -435,6 +435,7 @@ export interface OrderItem {
   goldColor: string | null;
   purity: string | null;
   diamondConfigName: string | null;
+  customizationNote: string | null;
   isBackordered: boolean;
 }
 
@@ -469,23 +470,45 @@ export interface OrderStatusHistoryEntry {
   createdAt: string;
 }
 
+export type PaymentStatus = 'PENDING' | 'PAID' | 'FAILED' | 'REFUNDED';
+
+// The order's own fulfilment stage — null until payment succeeds.
 export type OrderStatus =
-  | 'PENDING_PAYMENT'
   | 'CONFIRMED'
   | 'PROCESSING'
+  | 'READY_TO_SHIP'
   | 'SHIPPED'
+  | 'IN_TRANSIT'
   | 'OUT_FOR_DELIVERY'
   | 'DELIVERED'
-  | 'PAYMENT_FAILED'
-  | 'EXPIRED'
-  | 'CANCELLED'
-  | 'RETURN_REQUESTED'
-  | 'REFUNDED';
+  | 'DELAYED'
+  | 'DELIVERY_FAILED'
+  | 'RETURN_INITIATED'
+  | 'RETURNED'
+  | 'CANCELLED';
+
+export type ShipmentStatus =
+  | 'NOT_CREATED'
+  | 'SHIPMENT_CREATED'
+  | 'PICKED_UP'
+  | 'IN_TRANSIT'
+  | 'REACHED_DESTINATION'
+  | 'OUT_FOR_DELIVERY'
+  | 'DELIVERED'
+  | 'DELAYED'
+  | 'DELIVERY_FAILED'
+  | 'RTO_INITIATED'
+  | 'RETURNED'
+  | 'CANCELLED';
+
+export type StatusFilterValue = 'PENDING_PAYMENT' | 'PAYMENT_FAILED' | OrderStatus;
 
 export interface Order {
   id: string;
   orderNumber: string;
-  status: OrderStatus;
+  paymentStatus: PaymentStatus;
+  orderStatus: OrderStatus | null;
+  shipmentStatus: ShipmentStatus;
   contactName: string;
   contactMobile: string;
   contactEmail: string;

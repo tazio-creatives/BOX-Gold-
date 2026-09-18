@@ -1,24 +1,22 @@
+/* 8 steps (was 4) no longer fits comfortably in a fixed-width order-list
+   card without either wrapping mid-connector (visually broken — a line
+   between steps on different rows implies an order the layout doesn't
+   show) or shrinking labels unreadably small. Scrolling horizontally on
+   narrow containers is the safer trade-off. */
 .stepper {
   display: flex;
   list-style: none;
   margin: 0;
-  padding: 0;
+  padding: 0 0 2px;
+  overflow-x: auto;
 }
 
 .stepWrap {
   display: flex;
   flex-direction: column;
   align-items: center;
-  flex: 1;
-  min-width: 0;
-}
-
-.stepWrap:first-child {
-  align-items: flex-start;
-}
-
-.stepWrap:last-child {
-  align-items: flex-end;
+  flex: 1 0 76px;
+  min-width: 76px;
 }
 
 .dotRow {

@@ -1,0 +1,110 @@
+import { useState } from 'react';
+import { Modal } from './Modal';
+import type { ReadyToShipInput } from '../api/shipping';
+import sharedStyles from '../styles/shared.module.css';
+import styles from './ConfirmDialog.module.css';
+import localStyles from './ReadyToShipDialog.module.css';
+
+interface ReadyToShipDialogProps {
+  isPending?: boolean;
+  errorMessage?: string | null;
+  onConfirm: (_input: ReadyToShipInput) => void;
+  onCancel: () => void;
+}
+
+// Package weight/dimensions aren't captured anywhere in the product catalog
+// — the courier needs them confirmed per shipment, so this is collected
+// here, right before the Delhivery shipment-creation call it feeds.
+export function ReadyToShipDialog({ isPending, errorMessage, onConfirm, onCancel }: ReadyToShipDialogProps) {
+  const [weightGrams, setWeightGrams] = useState('');
+  const [lengthCm, setLengthCm] = useState('');
+  const [widthCm, setWidthCm] = useState('');
+  const [heightCm, setHeightCm] = useState('');
+
+  const values = [weightGrams, lengthCm, widthCm, heightCm];
+  const isValid = values.every((v) => v.trim() !== '' && Number(v) > 0);
+
+  function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    if (!isValid) return;
+    onConfirm({
+      weightGrams: Number(weightGrams),
+      lengthCm: Number(lengthCm),
+      widthCm: Number(widthCm),
+      heightCm: Number(heightCm),
+    });
+  }
+
+  return (
+    <Modal title="Mark Ready to Ship" onClose={onCancel}>
+      <p className={styles.message}>
+        Confirm the packed parcel's weight and dimensions — this creates the shipment with the courier and cannot
+        be undone.
+      </p>
+      <form onSubmit={handleSubmit}>
+        <div className={`${sharedStyles.formGrid2} ${localStyles.fields}`}>
+          <label className={sharedStyles.field}>
+            Weight (grams)
+            <input
+              type="number"
+              min="1"
+              step="1"
+              value={weightGrams}
+              onChange={(e) => setWeightGrams(e.target.value)}
+              disabled={isPending}
+              autoFocus
+              required
+            />
+          </label>
+          <label className={sharedStyles.field}>
+            Length (cm)
+            <input
+              type="number"
+              min="1"
+              step="0.1"
+              value={lengthCm}
+              onChange={(e) => setLengthCm(e.target.value)}
+              disabled={isPending}
+              required
+            />
+          </label>
+          <label className={sharedStyles.field}>
+            Width (cm)
+            <input
+              type="number"
+              min="1"
+              step="0.1"
+              value={widthCm}
+              onChange={(e) => setWidthCm(e.target.value)}
+              disabled={isPending}
+              required
+            />
+          </label>
+          <label className={sharedStyles.field}>
+            Height (cm)
+            <input
+              type="number"
+              min="1"
+              step="0.1"
+              value={heightCm}
+              onChange={(e) => setHeightCm(e.target.value)}
+              disabled={isPending}
+              required
+            />
+          </label>
+        </div>
+
+        {errorMessage && <p className={styles.errorMessage}>{errorMessage}</p>}
+
+        <div className={styles.actions}>
+          <button type="button" className={sharedStyles.button} onClick={onCancel} disabled={isPending}>
+            Cancel
+          </button>
+          <button type="submit" className={sharedStyles.buttonPrimary} disabled={!isValid || isPending}>
+            {isPending ? 'Creating shipment…' : 'Confirm & Create Shipment'}
+          </button>
+        </div>
+      </form>
+    </Modal>
+  );
+}

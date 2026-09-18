@@ -1,7 +1,6 @@
 import { withTransaction } from '../config/db.js';
 import { AppError, NotFoundError } from '../utils/AppError.js';
 import { env } from '../config/env.js';
-import { generateOrderNumber } from '../utils/orderNumber.js';
 import { findAddressById } from '../repositories/addresses.repository.js';
 import { getCurrentGoldRate } from '../repositories/goldRates.repository.js';
 import { findDiamondConfigById } from '../repositories/diamondConfigs.repository.js';
@@ -60,7 +59,7 @@ export async function createOrder({ userId, contact, addressId, items, couponCod
     let gstTotal = 0;
     let grandTotal = 0;
 
-    for (const { productId, variantId, quantity } of sortedItems) {
+    for (const { productId, variantId, quantity, customizationNote } of sortedItems) {
       const product = await lockProductForCheckoutTx(client, productId);
       if (!product || product.status !== 'PUBLISHED') {
         throw new AppError(400, `${product?.name ?? 'This item'} is no longer available`);
@@ -135,6 +134,9 @@ export async function createOrder({ userId, contact, addressId, items, couponCod
         goldRateId,
         attributesSnapshot,
         isBackordered,
+        goldWeightGrams: pricing.goldWeightGrams ?? null,
+        diamondWeightCarats: pricing.diamondWeightCarats ?? null,
+        customizationNote: customizationNote || null,
       });
       subtotal += lineTotal - lineGst;
       gstTotal += lineGst;
@@ -162,7 +164,8 @@ export async function createOrder({ userId, contact, addressId, items, couponCod
     const deliveryEstimate = calculateDeliveryEstimate();
 
     const orderRow = await insertOrderTx(client, {
-      orderNumber: generateOrderNumber(),
+      // order_number is left unset — the orders.order_number column DEFAULT
+      // (order_number_seq, see the 20260917000000 migration) generates it.
       userId,
       status: 'PENDING_PAYMENT',
       contactName: contact.name,
@@ -200,6 +203,12 @@ export async function createOrder({ userId, contact, addressId, items, couponCod
         lineTotal: line.lineTotal,
         goldRateId: line.goldRateId,
         isBackordered: line.isBackordered,
+        goldWeightGramsSnapshot: line.goldWeightGrams,
+        diamondWeightCaratsSnapshot: line.diamondWeightCarats,
+        diamondCountSnapshot: line.product.diamond_count,
+        diamondColourSnapshot: line.product.diamond_colour,
+        diamondClaritySnapshot: line.product.diamond_clarity,
+        customizationNote: line.customizationNote,
       });
 
       // A backordered line has nothing physical to hold — skip the

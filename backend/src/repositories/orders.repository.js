@@ -8,7 +8,8 @@ export async function lockProductForCheckoutTx(client, productId) {
   const { rows } = await client.query(
     `SELECT id, name, sku, status, metal_type, purity, gold_color, gold_value, diamond_value,
             making_charge, gst_percent, selling_price, stock_quantity,
-            net_weight_grams, gold_weight_grams, diamond_weight_carats, diamond_config_id
+            net_weight_grams, gold_weight_grams, diamond_weight_carats, diamond_config_id,
+            diamond_count, diamond_colour, diamond_clarity
      FROM products WHERE id = $1 FOR UPDATE`,
     [productId],
   );
@@ -99,8 +100,9 @@ export async function insertOrderItemTx(client, fields) {
        (order_id, product_id, product_variant_id, variant_attributes_snapshot,
         product_name, product_sku, quantity,
         gold_value, diamond_value, making_charge, gst_amount, unit_price, line_total, gold_rate_id,
-        is_backordered)
-     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
+        is_backordered, gold_weight_grams_snapshot, diamond_weight_carats_snapshot,
+        diamond_count_snapshot, diamond_colour_snapshot, diamond_clarity_snapshot, customization_note)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21)
      RETURNING *`,
     [
       fields.orderId,
@@ -118,22 +120,72 @@ export async function insertOrderItemTx(client, fields) {
       fields.lineTotal,
       fields.goldRateId ?? null,
       fields.isBackordered ?? false,
+      fields.goldWeightGramsSnapshot ?? null,
+      fields.diamondWeightCaratsSnapshot ?? null,
+      fields.diamondCountSnapshot ?? null,
+      fields.diamondColourSnapshot ?? null,
+      fields.diamondClaritySnapshot ?? null,
+      fields.customizationNote ?? null,
     ],
   );
   return rows[0];
 }
 
-export async function insertOrderStatusHistoryTx(client, orderId, status, note = null) {
+// `actor` is an admin_users.id (or null for system/webhook-driven changes) and
+// `source` is one of ADMIN/PAYMENT_GATEWAY/DELHIVERY/SYSTEM — see the
+// 20260918000000 migration. Every call site was updated to pass these; none
+// silently default to an unattributed history row anymore.
+export async function insertOrderStatusHistoryTx(client, orderId, status, note = null, { actor = null, source = 'SYSTEM' } = {}) {
   await client.query(
-    'INSERT INTO order_status_history (order_id, status, note) VALUES ($1, $2, $3)',
-    [orderId, status, note],
+    'INSERT INTO order_status_history (order_id, status, note, actor_admin_user_id, source) VALUES ($1, $2, $3, $4, $5)',
+    [orderId, status, note, actor, source],
   );
+}
+
+// Duplicate-notification guard (spec: "do not send multiple notifications
+// for the same status") — call before inserting the new history row for a
+// transition, so "has this status ever been recorded for this order
+// before" reflects the state prior to the change being made right now.
+export async function hasOrderStatusHistoryEntry(orderId, status) {
+  const { rows } = await query(
+    'SELECT 1 FROM order_status_history WHERE order_id = $1 AND status = $2 LIMIT 1',
+    [orderId, status],
+  );
+  return rows.length > 0;
 }
 
 export async function updateOrderStatusTx(client, orderId, status) {
   const { rows } = await client.query(
     'UPDATE orders SET status = $2, updated_at = now() WHERE id = $1 RETURNING *',
     [orderId, status],
+  );
+  return rows[0] ?? null;
+}
+
+// Partial update of the three new split-status fields — only the fields
+// present in `fields` are written, so a caller that only knows about
+// payment_status (e.g. the payment webhook) never has to also restate the
+// current order_status/shipment_status just to avoid clobbering them.
+const STATUS_FIELD_COLUMNS = {
+  paymentStatus: 'payment_status',
+  orderStatus: 'order_status',
+  shipmentStatus: 'shipment_status',
+};
+
+export async function updateOrderStatusFieldsTx(client, orderId, fields) {
+  const sets = [];
+  const values = [];
+  for (const [key, column] of Object.entries(STATUS_FIELD_COLUMNS)) {
+    if (Object.hasOwn(fields, key)) {
+      values.push(fields[key]);
+      sets.push(`${column} = $${values.length}`);
+    }
+  }
+  if (sets.length === 0) return null;
+  values.push(orderId);
+  const { rows } = await client.query(
+    `UPDATE orders SET ${sets.join(', ')}, updated_at = now() WHERE id = $${values.length} RETURNING *`,
+    values,
   );
   return rows[0] ?? null;
 }
@@ -162,14 +214,36 @@ export async function findOrderByIdTx(client, id) {
   return rows[0] ?? null;
 }
 
+// The admin/customer order-list filter dropdown offers one flat list of
+// "statuses" (see utils/orderStatus.js's STATUS_FILTER_VALUES) that spans
+// two real columns — PENDING_PAYMENT/PAYMENT_FAILED are payment_status
+// states with order_status still NULL, everything else is a real
+// order_status value. Mutates `params` (pushes onto it) and returns the
+// clause referencing the resulting placeholder, or null if no filter.
+function statusFilterClause(status, params) {
+  if (!status) return null;
+  if (status === 'PENDING_PAYMENT' || status === 'PAYMENT_FAILED') {
+    params.push(status === 'PENDING_PAYMENT' ? 'PENDING' : 'FAILED');
+    return `payment_status = $${params.length} AND order_status IS NULL`;
+  }
+  params.push(status);
+  return `order_status = $${params.length}`;
+}
+
 // Admin order directory (plan §5 /orders, /orders/:id) — every order, not
-// scoped to a single customer.
-export async function findAllOrders({ status, page = 1, limit = 20 } = {}) {
+// scoped to a single customer. `search` matches order number (what the work
+// order's barcode encodes) or contact mobile — covers both "type the order
+// number in" and "scan the barcode" (a scanner just keystrokes the decoded
+// value into the search box) without needing any barcode-specific backend
+// logic, since the barcode IS the order number.
+export async function findAllOrders({ status, search, page = 1, limit = 20 } = {}) {
   const clauses = [];
   const params = [];
-  if (status) {
-    params.push(status);
-    clauses.push(`status = $${params.length}`);
+  const statusClause = statusFilterClause(status, params);
+  if (statusClause) clauses.push(statusClause);
+  if (search) {
+    params.push(`%${search}%`);
+    clauses.push(`(order_number ILIKE $${params.length} OR contact_mobile ILIKE $${params.length})`);
   }
   const where = clauses.length ? `WHERE ${clauses.join(' AND ')}` : '';
   const offset = (page - 1) * limit;
@@ -220,10 +294,8 @@ export async function getOrderStatsForUser(userId) {
 export async function findOrdersByUser(userId, { status, page = 1, limit = 10 } = {}) {
   const clauses = ['user_id = $1'];
   const params = [userId];
-  if (status) {
-    params.push(status);
-    clauses.push(`status = $${params.length}`);
-  }
+  const statusClause = statusFilterClause(status, params);
+  if (statusClause) clauses.push(statusClause);
   const where = `WHERE ${clauses.join(' AND ')}`;
   const offset = (page - 1) * limit;
   const listParams = [...params, limit, offset];
@@ -270,7 +342,9 @@ export async function findOrderListExtras(orderIds) {
     query(
       `SELECT order_id, status, MIN(created_at) AS at
        FROM order_status_history
-       WHERE order_id = ANY($1) AND status IN ('CONFIRMED', 'SHIPPED', 'OUT_FOR_DELIVERY', 'DELIVERED')
+       WHERE order_id = ANY($1) AND status IN (
+         'CONFIRMED', 'PROCESSING', 'READY_TO_SHIP', 'SHIPPED', 'IN_TRANSIT', 'OUT_FOR_DELIVERY', 'DELIVERED'
+       )
        GROUP BY order_id, status`,
       [orderIds],
     ),
@@ -290,9 +364,68 @@ export async function findOrderListExtras(orderIds) {
   return { itemCounts, previews, milestones };
 }
 
+// Sales summary card on the admin Orders page — mirrors dashboard.repository.js's
+// revenue convention (UNSPENT_STATUSES excluded from revenue/AOV so a cart that
+// never got paid doesn't inflate "sales"). Unfiltered by default; an optional
+// status filter lets the card reflect the same status the list is currently
+// filtered to.
+const UNSPENT_ORDER_STATUSES = ['PENDING_PAYMENT', 'PAYMENT_FAILED', 'EXPIRED', 'CANCELLED'];
+
+export async function getOrderSummaryStats({ status } = {}) {
+  const params = [UNSPENT_ORDER_STATUSES];
+  const filterClause = statusFilterClause(status, params);
+  const statusClause = filterClause ? `AND ${filterClause}` : '';
+  const { rows } = await query(
+    `SELECT
+       COUNT(*)::int AS total_orders,
+       COALESCE(SUM(total_amount) FILTER (WHERE status != ALL($1)), 0) AS total_revenue,
+       COUNT(*) FILTER (WHERE status != ALL($1))::int AS revenue_order_count,
+       COUNT(*) FILTER (WHERE status IN ('CONFIRMED', 'PROCESSING'))::int AS to_fulfil_count,
+       COUNT(*) FILTER (WHERE created_at >= current_date)::int AS orders_today
+     FROM orders
+     WHERE true ${statusClause}`,
+    params,
+  );
+  return rows[0];
+}
+
+// Order detail page/panel item rows (admin + customer). Joins today's
+// primary product image (thumbnail + a larger size for the hover preview) —
+// a deliberate live lookup, since there's no requirement the thumbnail stay
+// pinned to whatever existed at order time, and it can be null (no photo
+// uploaded). diamond_count/colour/clarity are ALSO joined live here, but
+// only as a fallback for orders placed before the 20260918000000 migration
+// added *_snapshot columns to order_items — orderDto.js prefers the
+// snapshot when present, exactly like it already does for
+// sizeLabel/goldColor/purity via variant_attributes_snapshot. category_name is
+// always a live join (products.category_id -> categories.name) — no
+// snapshot needed since the work order (the one consumer that needs it)
+// only cares about the product's current category, not a historical one.
+// metal_type/net_weight_grams/gross_weight_grams/diamond_weight_grams/gemstone
+// (admin "Product Details" panel, mirrors the storefront PDP's AttributesList)
+// are always a live join too — these aren't per-variant fields in this schema
+// (the PDP itself reads them straight off the product, no live-variant
+// override), so there's nothing checkout-time to snapshot.
 export async function findOrderItems(orderId) {
   const { rows } = await query(
-    'SELECT * FROM order_items WHERE order_id = $1 ORDER BY created_at',
+    `SELECT oi.*, p.diamond_count, p.diamond_colour, p.diamond_clarity, c.name AS category_name,
+            p.metal_type, p.net_weight_grams, p.gross_weight_grams, p.diamond_weight_grams, p.gemstone,
+            thumb.url AS product_image_url, large.url AS product_image_large_url
+     FROM order_items oi
+     LEFT JOIN products p ON p.id = oi.product_id
+     LEFT JOIN categories c ON c.id = p.category_id
+     LEFT JOIN LATERAL (
+       SELECT url FROM product_images
+       WHERE product_id = oi.product_id AND is_primary = true AND variant = 'small'
+       LIMIT 1
+     ) thumb ON true
+     LEFT JOIN LATERAL (
+       SELECT url FROM product_images
+       WHERE product_id = oi.product_id AND is_primary = true AND variant = 'large'
+       LIMIT 1
+     ) large ON true
+     WHERE oi.order_id = $1
+     ORDER BY oi.created_at`,
     [orderId],
   );
   return rows;
@@ -303,9 +436,26 @@ export async function findOrderItemById(id) {
   return rows[0] ?? null;
 }
 
+// Customer-facing — no actor name (see the ADMIN-only join below); source
+// stays in the row regardless since it's not sensitive on its own, just
+// unused by the customer DTO.
 export async function findOrderStatusHistory(orderId) {
   const { rows } = await query(
     'SELECT * FROM order_status_history WHERE order_id = $1 ORDER BY created_at',
+    [orderId],
+  );
+  return rows;
+}
+
+// Admin-facing — adds the acting admin's name, per the spec's "employee
+// assignments" stay admin-only requirement (customers get findOrderStatusHistory above).
+export async function findOrderStatusHistoryForAdmin(orderId) {
+  const { rows } = await query(
+    `SELECT h.*, a.full_name AS actor_name
+     FROM order_status_history h
+     LEFT JOIN admin_users a ON a.id = h.actor_admin_user_id
+     WHERE h.order_id = $1
+     ORDER BY h.created_at`,
     [orderId],
   );
   return rows;

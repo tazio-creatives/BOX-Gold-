@@ -2,6 +2,7 @@ import { Link, useParams } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { fetchAdminCustomer } from '../../api/customers';
 import { formatPrice } from '../../utils/formatPrice';
+import { formatOrderStatus } from '../../utils/orderStatus';
 import sharedStyles from '../../styles/shared.module.css';
 import styles from './CustomerDetailPage.module.css';
 
@@ -61,7 +62,7 @@ export function CustomerDetailPage() {
                   <td>
                     <Link to={`/orders/${order.id}`}>{order.orderNumber}</Link>
                   </td>
-                  <td>{order.status.replace(/_/g, ' ')}</td>
+                  <td>{formatOrderStatus(order.orderStatus)}</td>
                   <td>{formatPrice(order.totalAmount)}</td>
                   <td>{new Date(order.createdAt).toLocaleDateString('en-IN')}</td>
                 </tr>

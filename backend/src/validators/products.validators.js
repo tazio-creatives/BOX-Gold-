@@ -98,6 +98,12 @@ export const adminListProductsQuerySchema = listProductsQuerySchema.extend({
   // — admin-only for now, the public storefront has its own dedicated
   // /search endpoint instead of filtering the listing endpoint.
   search: z.string().trim().min(1).max(200).optional(),
+  // Admin already has the collection's real id in hand (from
+  // /admin/collections) when listing "products in this collection" — a raw
+  // id is simpler and one round-trip fewer than the public listing's
+  // slug-based `collection` param above, which exists for the storefront's
+  // URL-driven /collections/:slug page instead.
+  collectionId: z.string().uuid().optional(),
 });
 
 // Split from createProductSchema/updateProductSchema below so .partial() can

@@ -7,6 +7,7 @@ import { registerAiImageWorker } from './jobs/aiImageJob.js';
 import { registerAiStudioWorker } from './jobs/aiStudioJob.js';
 import { registerProductSizeImageWorker } from './jobs/productSizeImageJob.js';
 import { registerEmailWorker } from './jobs/emailJob.js';
+import { registerShipmentTrackingSyncWorker, JOB_SHIPMENT_TRACKING_SYNC } from './jobs/shipmentTrackingSyncJob.js';
 
 const app = createApp();
 
@@ -29,9 +30,11 @@ async function main() {
   await registerAiStudioWorker();
   await registerProductSizeImageWorker();
   await registerEmailWorker();
+  await registerShipmentTrackingSyncWorker();
   // schedule() is idempotent by job name — safe to call on every boot.
   await boss.schedule(JOB_GOLD_RATE_SYNC, env.goldRateSyncCron);
   await boss.schedule(JOB_RESERVATION_SWEEP, env.reservationSweepCron);
+  await boss.schedule(JOB_SHIPMENT_TRACKING_SYNC, env.delhiveryTrackingSyncCron);
 
   const server = app.listen(env.port, () => {
     console.log(`backend listening on http://localhost:${env.port} [${env.nodeEnv}]`);

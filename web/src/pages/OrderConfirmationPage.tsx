@@ -87,8 +87,6 @@ function itemMetaLine(item: { purity: string | null; goldColor: string | null; s
   return parts.join(' · ');
 }
 
-const PENDING_STATUSES = new Set(['PENDING_PAYMENT']);
-const UNSUCCESSFUL_STATUSES = new Set(['PAYMENT_FAILED', 'EXPIRED', 'CANCELLED']);
 
 export function OrderConfirmationPage() {
   const { orderId } = useParams<{ orderId: string }>();
@@ -104,7 +102,7 @@ export function OrderConfirmationPage() {
     // finishes on the checkout page — poll briefly so this page updates
     // itself instead of leaving the customer stuck on "Confirming..." until
     // they manually refresh.
-    refetchInterval: (query) => (query.state.data?.order.status === 'PENDING_PAYMENT' ? 2000 : false),
+    refetchInterval: (query) => (query.state.data?.order.paymentStatus === 'PENDING' ? 2000 : false),
   });
 
   useDocumentTitle(data ? `Order ${data.order.orderNumber}` : 'Order Confirmation');
@@ -113,10 +111,10 @@ export function OrderConfirmationPage() {
   // backend paymentService.confirmPayment) — invalidate here, the one place
   // that's true for both the dev stub and the real Cashfree flow.
   useEffect(() => {
-    if (data?.order.status === 'CONFIRMED') {
+    if (data?.order.orderStatus === 'CONFIRMED') {
       queryClient.invalidateQueries({ queryKey: ['cart'] });
     }
-  }, [data?.order.status, queryClient]);
+  }, [data?.order.orderStatus, queryClient]);
 
   useEffect(() => {
     if (!copied) return undefined;
@@ -172,7 +170,7 @@ export function OrderConfirmationPage() {
   // not a guess. Anything short of that gets a distinct, much simpler
   // state below — never the premium success page, and never "Payment
   // Pending"/"Complete Payment"/a retry button on it.
-  if (PENDING_STATUSES.has(order.status)) {
+  if (order.paymentStatus === 'PENDING') {
     return (
       <div className={styles.page}>
         <OrderSuccessHeader />
@@ -194,7 +192,7 @@ export function OrderConfirmationPage() {
     );
   }
 
-  if (UNSUCCESSFUL_STATUSES.has(order.status)) {
+  if (order.paymentStatus === 'FAILED' || order.orderStatus === 'CANCELLED') {
     return (
       <div className={styles.page}>
         <OrderSuccessHeader />

@@ -8,13 +8,74 @@ export async function findShipmentByOrderId(orderId) {
   return rows[0] ?? null;
 }
 
-export async function insertShipment({ orderId, provider, providerShipmentId, trackingNumber, courierName, status }) {
+export async function insertShipment({
+  orderId,
+  provider,
+  providerShipmentId,
+  trackingNumber,
+  courierName,
+  status,
+  packageWeightGrams,
+  packageLengthCm,
+  packageWidthCm,
+  packageHeightCm,
+  labelUrl,
+}) {
   const { rows } = await query(
-    `INSERT INTO shipments (order_id, provider, provider_shipment_id, tracking_number, courier_name, status)
-     VALUES ($1, $2, $3, $4, $5, $6) RETURNING *`,
-    [orderId, provider, providerShipmentId, trackingNumber ?? null, courierName ?? null, status],
+    `INSERT INTO shipments
+       (order_id, provider, provider_shipment_id, tracking_number, courier_name, status,
+        package_weight_grams, package_length_cm, package_width_cm, package_height_cm, label_url)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11) RETURNING *`,
+    [
+      orderId,
+      provider,
+      providerShipmentId,
+      trackingNumber ?? null,
+      courierName ?? null,
+      status,
+      packageWeightGrams ?? null,
+      packageLengthCm ?? null,
+      packageWidthCm ?? null,
+      packageHeightCm ?? null,
+      labelUrl ?? null,
+    ],
   );
   return rows[0];
+}
+
+export async function updateShipmentLabelUrl(id, labelUrl) {
+  const { rows } = await query('UPDATE shipments SET label_url = $2, updated_at = now() WHERE id = $1 RETURNING *', [
+    id,
+    labelUrl,
+  ]);
+  return rows[0] ?? null;
+}
+
+// Poll target list for the tracking-sync job — mirrors the partial index
+// added by the 20260920000000 migration (status not yet terminal).
+export async function findShipmentsPendingTracking() {
+  const { rows } = await query(
+    `SELECT * FROM shipments WHERE status NOT IN ('DELIVERED', 'RETURNED', 'CANCELLED')
+     ORDER BY last_tracked_at ASC NULLS FIRST`,
+  );
+  return rows;
+}
+
+export async function updateShipmentTrackingTx(client, id, status, rawPayload) {
+  const { rows } = await client.query(
+    `UPDATE shipments SET status = $2, raw_webhook_payload = $3::jsonb, last_tracked_at = now(), updated_at = now()
+     WHERE id = $1 RETURNING *`,
+    [id, status, JSON.stringify(rawPayload)],
+  );
+  return rows[0];
+}
+
+// Touches last_tracked_at without changing status — so a shipment whose
+// courier status genuinely hasn't moved doesn't get re-polled ahead of
+// older, more-likely-to-have-changed shipments (ORDER BY updated_at ASC
+// above).
+export async function touchShipmentTrackedAt(id) {
+  await query('UPDATE shipments SET last_tracked_at = now() WHERE id = $1', [id]);
 }
 
 // Locked for the duration of the webhook transaction — same reasoning as

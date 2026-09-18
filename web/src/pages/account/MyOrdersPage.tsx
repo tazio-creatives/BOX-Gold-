@@ -1,8 +1,8 @@
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
-import { fetchOrders, fetchOrderStats } from '../../api/orders';
-import type { OrderStatus } from '../../api/types';
+import { fetchOrders, fetchOrderStats, type OrderSummary } from '../../api/orders';
+import type { StatusFilterValue } from '../../api/types';
 import { OrderProgressStepper } from '../../features/account/OrderProgressStepper';
 import { formatPrice } from '../../utils/formatPrice';
 import { placeholderGradient } from '../../utils/placeholderGradient';
@@ -10,17 +10,27 @@ import { useDocumentTitle } from '../../utils/useDocumentTitle';
 import { DeliveryEstimateCompact } from '../../components/DeliveryEstimate';
 import styles from './MyOrdersPage.module.css';
 
-// Orders in these terminal-failure states never reached delivery, so the
-// happy-path 4-step stepper (Order placed -> Confirmed -> Shipped ->
-// Delivered) would misrepresent what actually happened — the status badge
-// alone covers them instead.
-const NO_STEPPER_STATUSES = new Set<OrderStatus>(['PAYMENT_FAILED', 'EXPIRED', 'CANCELLED']);
+// The happy-path stepper only makes sense while the order is actually
+// progressing toward delivery — exception states (and no order_status yet,
+// i.e. still awaiting payment) misrepresent what happened if shown as a
+// stepper position, so the status badge alone covers those instead.
+const STEPPER_STATUSES = new Set([
+  'CONFIRMED',
+  'PROCESSING',
+  'READY_TO_SHIP',
+  'SHIPPED',
+  'IN_TRANSIT',
+  'OUT_FOR_DELIVERY',
+  'DELIVERED',
+]);
 
-const STATUS_FILTERS: { value: OrderStatus | ''; label: string }[] = [
+const STATUS_FILTERS: { value: StatusFilterValue | ''; label: string }[] = [
   { value: '', label: 'All orders' },
   { value: 'CONFIRMED', label: 'Confirmed' },
   { value: 'PROCESSING', label: 'Processing' },
+  { value: 'READY_TO_SHIP', label: 'Ready to Ship' },
   { value: 'SHIPPED', label: 'Shipped' },
+  { value: 'IN_TRANSIT', label: 'In Transit' },
   { value: 'OUT_FOR_DELIVERY', label: 'Out for Delivery' },
   { value: 'DELIVERED', label: 'Delivered' },
   { value: 'CANCELLED', label: 'Cancelled' },
@@ -33,15 +43,26 @@ function formatStatus(status: string) {
     .replace(/\b\w/g, (c) => c.toUpperCase());
 }
 
+// order_status is null until payment succeeds — falls back to a
+// payment-driven pseudo-status so the badge always has something to show.
+function displayStatus(order: OrderSummary): string {
+  return order.orderStatus ?? (order.paymentStatus === 'FAILED' ? 'PAYMENT_FAILED' : 'PENDING_PAYMENT');
+}
+
 const STATUS_CLASS: Record<string, string> = {
   DELIVERED: 'statusGood',
   CONFIRMED: 'statusGood',
   PROCESSING: 'statusGood',
+  READY_TO_SHIP: 'statusGood',
   SHIPPED: 'statusGood',
+  IN_TRANSIT: 'statusGood',
   OUT_FOR_DELIVERY: 'statusGood',
+  DELAYED: 'statusPending',
+  DELIVERY_FAILED: 'statusBad',
+  RETURN_INITIATED: 'statusPending',
+  RETURNED: 'statusBad',
   PENDING_PAYMENT: 'statusPending',
   PAYMENT_FAILED: 'statusBad',
-  EXPIRED: 'statusBad',
   CANCELLED: 'statusBad',
 };
 
@@ -92,7 +113,7 @@ function ChevronIcon() {
 
 export function MyOrdersPage() {
   useDocumentTitle('My Orders');
-  const [statusFilter, setStatusFilter] = useState<OrderStatus | ''>('');
+  const [statusFilter, setStatusFilter] = useState<StatusFilterValue | ''>('');
 
   const { data, isLoading } = useQuery({
     queryKey: ['orders', statusFilter],
@@ -122,7 +143,7 @@ export function MyOrdersPage() {
         <select
           className={styles.filterSelect}
           value={statusFilter}
-          onChange={(e) => setStatusFilter(e.target.value as OrderStatus | '')}
+          onChange={(e) => setStatusFilter(e.target.value as StatusFilterValue | '')}
           aria-label="Filter orders by status"
         >
           {STATUS_FILTERS.map((opt) => (
@@ -198,17 +219,21 @@ export function MyOrdersPage() {
                     </p>
                     <DeliveryEstimateCompact estimate={order.deliveryEstimate} />
                   </div>
-                  <span className={`${styles.status} ${styles[STATUS_CLASS[order.status] ?? 'statusPending']}`}>
-                    {formatStatus(order.status)}
+                  <span className={`${styles.status} ${styles[STATUS_CLASS[displayStatus(order)] ?? 'statusPending']}`}>
+                    {formatStatus(displayStatus(order))}
                   </span>
                 </div>
 
-                {!NO_STEPPER_STATUSES.has(order.status) && (
+                {order.orderStatus !== null && STEPPER_STATUSES.has(order.orderStatus) && (
                   <div className={styles.stepperWrap}>
                     <OrderProgressStepper
                       createdAt={order.createdAt}
                       confirmedAt={order.confirmedAt}
+                      processingAt={order.processingAt}
+                      readyToShipAt={order.readyToShipAt}
                       shippedAt={order.shippedAt}
+                      inTransitAt={order.inTransitAt}
+                      outForDeliveryAt={order.outForDeliveryAt}
                       deliveredAt={order.deliveredAt}
                     />
                   </div>

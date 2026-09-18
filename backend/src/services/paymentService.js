@@ -13,6 +13,7 @@ import {
   findOrderByIdTx,
   findOrderItems,
   updateOrderStatusTx,
+  updateOrderStatusFieldsTx,
   insertOrderStatusHistoryTx,
 } from '../repositories/orders.repository.js';
 import {
@@ -87,7 +88,10 @@ export async function confirmPayment(rawBody, headers) {
     if (status === 'SUCCEEDED') {
       await updatePaymentStatusTx(client, payment.id, 'SUCCEEDED', event);
       await updateOrderStatusTx(client, payment.order_id, 'CONFIRMED');
-      await insertOrderStatusHistoryTx(client, payment.order_id, 'CONFIRMED', 'Payment confirmed');
+      await updateOrderStatusFieldsTx(client, payment.order_id, { paymentStatus: 'PAID', orderStatus: 'CONFIRMED' });
+      await insertOrderStatusHistoryTx(client, payment.order_id, 'CONFIRMED', 'Payment confirmed', {
+        source: 'PAYMENT_GATEWAY',
+      });
       await confirmReservationsForOrderTx(client, payment.order_id);
 
       // Coupon is only actually consumed here (plan §11) — checkout merely
@@ -109,7 +113,10 @@ export async function confirmPayment(rawBody, headers) {
     } else {
       await updatePaymentStatusTx(client, payment.id, 'FAILED', event);
       await updateOrderStatusTx(client, payment.order_id, 'PAYMENT_FAILED');
-      await insertOrderStatusHistoryTx(client, payment.order_id, 'PAYMENT_FAILED', 'Payment failed');
+      await updateOrderStatusFieldsTx(client, payment.order_id, { paymentStatus: 'FAILED' });
+      await insertOrderStatusHistoryTx(client, payment.order_id, 'PAYMENT_FAILED', 'Payment failed', {
+        source: 'PAYMENT_GATEWAY',
+      });
       // No retry-same-order flow exists yet, so hold no reservation hostage
       // waiting for one — release immediately rather than waiting for the
       // expiry sweep.

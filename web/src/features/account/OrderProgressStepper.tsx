@@ -3,11 +3,24 @@ import styles from './OrderProgressStepper.module.css';
 interface OrderProgressStepperProps {
   createdAt: string;
   confirmedAt: string | null;
+  processingAt: string | null;
+  readyToShipAt: string | null;
   shippedAt: string | null;
+  inTransitAt: string | null;
+  outForDeliveryAt: string | null;
   deliveredAt: string | null;
 }
 
-const STEP_LABELS = ['Order placed', 'Confirmed', 'Shipped', 'Delivered'];
+const STEP_LABELS = [
+  'Order placed',
+  'Confirmed',
+  'Processing',
+  'Ready to ship',
+  'Shipped',
+  'In transit',
+  'Out for delivery',
+  'Delivered',
+];
 
 function shortDate(iso: string) {
   return new Date(iso).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
@@ -15,11 +28,21 @@ function shortDate(iso: string) {
 
 // Happy-path only — createdAt is always present the moment an order exists,
 // so completedCount is always >= 1. Callers should not render this for
-// terminal failure states (CANCELLED/PAYMENT_FAILED/EXPIRED), where a
-// 4-step "on the way to delivery" tracker doesn't represent what happened;
-// the status badge already covers those.
-export function OrderProgressStepper({ createdAt, confirmedAt, shippedAt, deliveredAt }: OrderProgressStepperProps) {
-  const dates = [createdAt, confirmedAt, shippedAt, deliveredAt];
+// terminal/exception states (Payment Pending/Failed, Delayed, Delivery
+// Failed, Return Initiated, Returned, Cancelled) — an 8-step "on the way to
+// delivery" tracker doesn't represent what happened there; the status badge
+// already covers those.
+export function OrderProgressStepper({
+  createdAt,
+  confirmedAt,
+  processingAt,
+  readyToShipAt,
+  shippedAt,
+  inTransitAt,
+  outForDeliveryAt,
+  deliveredAt,
+}: OrderProgressStepperProps) {
+  const dates = [createdAt, confirmedAt, processingAt, readyToShipAt, shippedAt, inTransitAt, outForDeliveryAt, deliveredAt];
   const completedCount = dates.filter(Boolean).length;
 
   return (

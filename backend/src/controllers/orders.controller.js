@@ -21,14 +21,19 @@ function toOrderListDto(order, extras) {
   return {
     id: order.id,
     orderNumber: order.order_number,
-    status: order.status,
+    paymentStatus: order.payment_status,
+    orderStatus: order.order_status,
     totalAmount: Number(order.total_amount),
     createdAt: order.created_at,
     itemCount: extras.itemCounts.get(order.id) ?? 0,
     previewProductName: preview?.productName ?? null,
     previewImageUrl: preview?.imageUrl ?? null,
     confirmedAt: milestones.CONFIRMED ?? null,
-    shippedAt: milestones.SHIPPED ?? milestones.OUT_FOR_DELIVERY ?? null,
+    processingAt: milestones.PROCESSING ?? null,
+    readyToShipAt: milestones.READY_TO_SHIP ?? null,
+    shippedAt: milestones.SHIPPED ?? null,
+    inTransitAt: milestones.IN_TRANSIT ?? null,
+    outForDeliveryAt: milestones.OUT_FOR_DELIVERY ?? null,
     deliveredAt: milestones.DELIVERED ?? null,
     deliveryEstimate: orderDeliveryEstimateDto(order),
   };
@@ -88,7 +93,7 @@ export async function get(req, res, next) {
     // order has actually been delivered, and only for items not already
     // reviewed (the DB also enforces one review per order_item, this just
     // saves the customer from submitting a form that would 400).
-    if (order.status === 'DELIVERED') {
+    if (order.order_status === 'DELIVERED') {
       const reviewedIds = new Set(await findReviewedOrderItemIds(items.map((i) => i.id)));
       dto.items = dto.items.map((item) => ({ ...item, canReview: !reviewedIds.has(item.id) }));
     } else {

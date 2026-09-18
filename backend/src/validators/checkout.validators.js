@@ -18,6 +18,9 @@ export const checkoutSchema = z.object({
         productId: z.string().uuid(),
         variantId: z.string().uuid().optional(),
         quantity: z.coerce.number().int().positive().max(20),
+        // Free-text engraving/customization request for this line, printed
+        // on the internal work order (Phase 2) — never affects pricing.
+        customizationNote: z.string().trim().max(500).optional(),
       }),
     )
     .min(1),

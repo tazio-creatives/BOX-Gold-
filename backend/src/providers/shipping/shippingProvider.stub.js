@@ -1,24 +1,38 @@
 import crypto from 'node:crypto';
 import { env } from '../../config/env.js';
 
-// Dev/test provider — no real courier. Same signPayload/verifySignature
-// pattern as the payment provider stub, used by the admin "simulate
-// tracking update" endpoint to exercise the real webhook verification +
-// idempotency path without a real courier calling in.
+// Dev/test provider — no real courier. Mirrors the shape
+// shippingProvider.delhivery.js implements (see that file for what each
+// method's real-world contract is) so shippingService.js never has to
+// branch on which provider is active.
 export const stubShippingProvider = {
   name: 'stub',
 
+  async checkServiceability() {
+    return { serviceable: true };
+  },
+
   async createShipment() {
     return {
-      providerShipmentId: `stub_ship_${crypto.randomUUID()}`,
-      trackingNumber: `TRK${Date.now()}`,
+      waybill: `STUB${Date.now()}`,
       courierName: 'Stub Express',
-      status: 'PENDING',
+      labelUrl: null,
     };
   },
 
   async cancelShipment() {
     return { status: 'CANCELLED' };
+  },
+
+  async fetchLabel() {
+    return { labelUrl: null };
+  },
+
+  // No real courier to poll — status only ever changes here via the
+  // admin "simulate tracking" dev shortcut (confirmTrackingUpdate), so a
+  // scheduled sync finds nothing new to report.
+  async trackShipment(waybill, currentStatus) {
+    return { status: currentStatus, raw: null };
   },
 
   signPayload(payload) {

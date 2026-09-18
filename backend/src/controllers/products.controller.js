@@ -393,7 +393,7 @@ export async function adminList(req, res, next) {
     const { items, total } = await productsService.adminListProducts(
       {
         categoryIds,
-        collectionId: undefined,
+        collectionId: q.collectionId,
         metalType: q.metal,
         purity: q.purity,
         goldColor: q.goldColor,

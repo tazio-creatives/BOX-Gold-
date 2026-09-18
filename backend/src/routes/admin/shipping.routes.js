@@ -1,10 +1,19 @@
 import { Router } from 'express';
-import { ship, cancelShipment, simulateTracking, addTrackingEvent } from '../../controllers/adminShipping.controller.js';
+import {
+  readyToShip,
+  cancelShipment,
+  syncTracking,
+  fetchLabel,
+  simulateTracking,
+  addTrackingEvent,
+} from '../../controllers/adminShipping.controller.js';
 
-// Mounted at /api/v1/admin/shipping (plan §11b route list).
+// Mounted at /api/v1/admin/shipping.
 export const adminShippingRouter = Router();
 
-adminShippingRouter.post('/orders/:id/ship', ship);
+adminShippingRouter.post('/orders/:id/ready-to-ship', readyToShip);
 adminShippingRouter.post('/orders/:id/cancel-shipment', cancelShipment);
+adminShippingRouter.post('/orders/:id/sync-tracking', syncTracking);
+adminShippingRouter.post('/orders/:id/fetch-label', fetchLabel);
 adminShippingRouter.post('/orders/:id/simulate-tracking', simulateTracking);
 adminShippingRouter.post('/orders/:id/tracking-events', addTrackingEvent);

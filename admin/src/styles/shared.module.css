@@ -225,6 +225,12 @@
   color: var(--color-warning);
 }
 
+.badgeInfo {
+  composes: badge;
+  background: var(--color-info-bg);
+  color: var(--color-info);
+}
+
 .badgeDanger {
   composes: badge;
   background: var(--color-danger-bg);

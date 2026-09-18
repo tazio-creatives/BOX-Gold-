@@ -80,6 +80,17 @@ export const env = {
   shippingProvider: process.env.SHIPPING_PROVIDER ?? 'stub',
   shippingWebhookSecret: process.env.SHIPPING_WEBHOOK_SECRET ?? 'dev-only-shipping-webhook-secret',
 
+  // Delhivery — real courier provider (Phase 3). Only read when
+  // SHIPPING_PROVIDER=delhivery. Poll-based tracking (no inbound webhook
+  // from Delhivery, unlike payment's push model) — see
+  // jobs/shipmentTrackingSyncJob.js. Base URL defaults to Delhivery's
+  // staging/sandbox host; set DELHIVERY_BASE_URL to the production host to
+  // go live, same pattern as CASHFREE_ENV switching base URLs.
+  delhiveryApiToken: process.env.DELHIVERY_API_TOKEN,
+  delhiveryBaseUrl: process.env.DELHIVERY_BASE_URL ?? 'https://staging-express.delhivery.com',
+  delhiveryPickupLocation: process.env.DELHIVERY_PICKUP_LOCATION ?? 'Box Diamonds Warehouse',
+  delhiveryTrackingSyncCron: process.env.DELHIVERY_TRACKING_SYNC_CRON ?? '*/15 * * * *',
+
   // Storage + AI image pipeline (plan §2/§9/§10)
   storageProvider: process.env.STORAGE_PROVIDER ?? 'local',
   uploadDir: process.env.UPLOAD_DIR ?? 'uploads',
@@ -126,6 +137,16 @@ export const env = {
   emailProvider: process.env.EMAIL_PROVIDER ?? 'stub',
   emailJobRetryLimit: Number(process.env.EMAIL_JOB_RETRY_LIMIT ?? 5),
   emailJobRetryDelaySeconds: Number(process.env.EMAIL_JOB_RETRY_DELAY_SECONDS ?? 30),
+
+  // AWS SES — real email provider. Only read when EMAIL_PROVIDER=ses.
+  // Credentials reuse AWS_ACCESS_KEY_ID/AWS_SECRET_ACCESS_KEY (same vars
+  // s3AccessKeyId/s3SecretAccessKey below already read) rather than a
+  // second dedicated pair — one IAM identity covering both S3 and SES is
+  // the common case; if unset, the SDK's default credential chain applies
+  // (an attached IAM role), same as storageProvider.s3.js.
+  sesRegion: process.env.SES_REGION ?? 'ap-south-1',
+  sesFromEmail: process.env.SES_FROM_EMAIL,
+  sesFromName: process.env.SES_FROM_NAME ?? 'BOX Diamonds',
 };
 
 export const isProduction = env.nodeEnv === 'production';

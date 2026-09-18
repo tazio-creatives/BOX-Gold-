@@ -5,6 +5,35 @@ import { OrderDetails } from '../../features/orders/OrderDetails';
 import { useDocumentTitle } from '../../utils/useDocumentTitle';
 import styles from './OrderDetailPage.module.css';
 
+function formatStatus(status: string) {
+  return status
+    .replace(/_/g, ' ')
+    .toLowerCase()
+    .replace(/\b\w/g, (c) => c.toUpperCase());
+}
+
+const PAYMENT_STATUS_CLASS: Record<string, string> = {
+  PENDING: 'statusPending',
+  PAID: 'statusGood',
+  FAILED: 'statusBad',
+  REFUNDED: 'statusPending',
+};
+
+const ORDER_STATUS_CLASS: Record<string, string> = {
+  CONFIRMED: 'statusGood',
+  PROCESSING: 'statusGood',
+  READY_TO_SHIP: 'statusGood',
+  SHIPPED: 'statusGood',
+  IN_TRANSIT: 'statusGood',
+  OUT_FOR_DELIVERY: 'statusGood',
+  DELIVERED: 'statusGood',
+  DELAYED: 'statusPending',
+  DELIVERY_FAILED: 'statusBad',
+  RETURN_INITIATED: 'statusPending',
+  RETURNED: 'statusBad',
+  CANCELLED: 'statusBad',
+};
+
 export function OrderDetailPage() {
   const { orderId } = useParams<{ orderId: string }>();
   const { data, isLoading, isError } = useQuery({
@@ -50,6 +79,18 @@ export function OrderDetailPage() {
         <p className={styles.date}>
           Placed {new Date(order.createdAt).toLocaleDateString('en-IN', { dateStyle: 'long' })}
         </p>
+        <div className={styles.statusRow}>
+          <span className={`${styles.status} ${styles[PAYMENT_STATUS_CLASS[order.paymentStatus] ?? 'statusPending']}`}>
+            Payment: {formatStatus(order.paymentStatus)}
+          </span>
+          <span
+            className={`${styles.status} ${
+              styles[order.orderStatus ? ORDER_STATUS_CLASS[order.orderStatus] ?? 'statusPending' : 'statusPending']
+            }`}
+          >
+            {formatStatus(order.orderStatus ?? 'Awaiting Payment')}
+          </span>
+        </div>
       </div>
       <OrderDetails order={order} />
     </div>

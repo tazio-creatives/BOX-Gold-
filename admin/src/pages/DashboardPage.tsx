@@ -3,8 +3,12 @@ import { useQuery } from '@tanstack/react-query';
 import { fetchDashboardStats } from '../api/dashboard';
 import { fetchAdminOrders } from '../api/orders';
 import { RevenueTrendChart } from '../features/dashboard/RevenueTrendChart';
+import { OrderStatusBreakdown } from '../features/dashboard/OrderStatusBreakdown';
+import { TopProductsList } from '../features/dashboard/TopProductsList';
+import { LowStockAlert } from '../features/dashboard/LowStockAlert';
 import { formatPrice } from '../utils/formatPrice';
 import { shortOrderNumber } from '../utils/orderNumber';
+import { formatOrderStatus } from '../utils/orderStatus';
 import {
   OrdersStatIcon,
   ClockStatIcon,
@@ -12,9 +16,28 @@ import {
   ReturnStatIcon,
   ProductsStatIcon,
   CustomersStatIcon,
+  WalletStatIcon,
+  AlertStatIcon,
+  TrendUpIcon,
+  TrendDownIcon,
 } from './DashboardIcons';
 import sharedStyles from '../styles/shared.module.css';
 import styles from './DashboardPage.module.css';
+
+// Small inline "+12% vs last month" / "-4% vs last month" pill — null means
+// there was nothing to compare against (see adminDashboard.controller.js's
+// percentChange), rendered as nothing rather than a misleading "+100%" or
+// "0%".
+function ChangeBadge({ percent }: { percent: number | null }) {
+  if (percent === null) return null;
+  const isUp = percent >= 0;
+  return (
+    <span className={isUp ? styles.changeUp : styles.changeDown}>
+      {isUp ? <TrendUpIcon /> : <TrendDownIcon />}
+      {Math.abs(percent)}%
+    </span>
+  );
+}
 
 export function DashboardPage() {
   const { data: stats } = useQuery({
@@ -41,11 +64,26 @@ export function DashboardPage() {
           <p className={styles.heroValue}>{stats ? formatPrice(stats.totalRevenue) : '—'}</p>
           <p className={styles.heroFoot}>
             <span className={styles.heroFootValue}>{stats ? formatPrice(stats.revenueThisMonth) : '—'}</span>
-            this month · from {stats?.ordersThisMonth ?? '—'} orders
+            this month
+            {stats && <ChangeBadge percent={stats.revenueChangePercent} />}
           </p>
+          <div className={styles.heroDivider} />
+          <div className={styles.heroSubStats}>
+            <div>
+              <p className={styles.heroSubLabel}>Avg. Order Value</p>
+              <p className={styles.heroSubValue}>{stats ? formatPrice(stats.averageOrderValue) : '—'}</p>
+            </div>
+            <div>
+              <p className={styles.heroSubLabel}>Orders this month</p>
+              <p className={styles.heroSubValue}>
+                {stats?.ordersThisMonth ?? '—'}
+                {stats && <ChangeBadge percent={stats.ordersChangePercent} />}
+              </p>
+            </div>
+          </div>
         </div>
         <div className={styles.trendCard}>
-          <p className={styles.trendHeading}>Revenue — last 14 days</p>
+          <p className={styles.trendHeading}>Revenue — last 30 days</p>
           <div className={styles.trendChart}>
             {stats && <RevenueTrendChart data={stats.revenueTrend} />}
           </div>
@@ -96,7 +134,7 @@ export function DashboardPage() {
           <div>
             <p className={styles.statLabel}>Products</p>
             <p className={styles.statValue}>{stats?.totalProducts ?? '—'}</p>
-            <p className={styles.statSub}>{stats?.activeProducts ?? '—'} active</p>
+            <p className={styles.statSub}>{stats?.activeProducts ?? '—'} published</p>
           </div>
         </Link>
         <Link to="/customers" className={styles.statCard}>
@@ -106,11 +144,35 @@ export function DashboardPage() {
           <div>
             <p className={styles.statLabel}>Customers</p>
             <p className={styles.statValue}>{stats?.totalCustomers ?? '—'}</p>
+            <p className={styles.statSub}>+{stats?.newCustomersThisMonth ?? '—'} this month</p>
           </div>
         </Link>
       </div>
 
-      <div className={sharedStyles.cardPadded}>
+      <div className={styles.insightsGrid}>
+        <div className={sharedStyles.cardPadded}>
+          <h2 className={styles.sectionHeading}>Order Status Breakdown</h2>
+          {stats ? <OrderStatusBreakdown data={stats.orderStatusBreakdown} /> : <p className={sharedStyles.empty}>Loading…</p>}
+        </div>
+
+        <div className={sharedStyles.cardPadded}>
+          <h2 className={styles.sectionHeading}>
+            <WalletStatIcon />
+            Top Products
+          </h2>
+          {stats ? <TopProductsList products={stats.topProducts} /> : <p className={sharedStyles.empty}>Loading…</p>}
+        </div>
+      </div>
+
+      <div className={`${sharedStyles.cardPadded} ${styles.stackedCard}`}>
+        <h2 className={styles.sectionHeading}>
+          <AlertStatIcon />
+          Low Stock
+        </h2>
+        {stats ? <LowStockAlert products={stats.lowStockProducts} /> : <p className={sharedStyles.empty}>Loading…</p>}
+      </div>
+
+      <div className={`${sharedStyles.cardPadded} ${styles.stackedCard}`}>
         <h2 className={styles.sectionHeading}>Recent Orders</h2>
         {recentOrders && recentOrders.orders.length === 0 && (
           <p className={sharedStyles.empty}>No orders yet.</p>
@@ -139,7 +201,7 @@ export function DashboardPage() {
                     {order.itemCount > 1 ? ` +${order.itemCount - 1} more` : ''}
                   </td>
                   <td>{order.contactName}</td>
-                  <td>{order.status.replace(/_/g, ' ')}</td>
+                  <td>{formatOrderStatus(order.orderStatus)}</td>
                   <td>{formatPrice(order.totalAmount)}</td>
                 </tr>
               ))}

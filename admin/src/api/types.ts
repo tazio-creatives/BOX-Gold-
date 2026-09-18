@@ -314,18 +314,42 @@ export interface DiamondConfig {
   updatedAt: string;
 }
 
+export type PaymentStatus = 'PENDING' | 'PAID' | 'FAILED' | 'REFUNDED';
+
+// The order's own fulfilment stage — what both admin and customer read as
+// "the" order status (backend/src/utils/orderStatus.js's ORDER_STATUSES).
+// null until payment succeeds (no fulfilment stage exists yet).
 export type OrderStatus =
-  | 'PENDING_PAYMENT'
   | 'CONFIRMED'
   | 'PROCESSING'
+  | 'READY_TO_SHIP'
   | 'SHIPPED'
+  | 'IN_TRANSIT'
   | 'OUT_FOR_DELIVERY'
   | 'DELIVERED'
-  | 'PAYMENT_FAILED'
-  | 'EXPIRED'
-  | 'CANCELLED'
-  | 'RETURN_REQUESTED'
-  | 'REFUNDED';
+  | 'DELAYED'
+  | 'DELIVERY_FAILED'
+  | 'RETURN_INITIATED'
+  | 'RETURNED'
+  | 'CANCELLED';
+
+export type ShipmentStatus =
+  | 'NOT_CREATED'
+  | 'SHIPMENT_CREATED'
+  | 'PICKED_UP'
+  | 'IN_TRANSIT'
+  | 'REACHED_DESTINATION'
+  | 'OUT_FOR_DELIVERY'
+  | 'DELIVERED'
+  | 'DELAYED'
+  | 'DELIVERY_FAILED'
+  | 'RTO_INITIATED'
+  | 'RETURNED'
+  | 'CANCELLED';
+
+// The Orders list filter dropdown spans payment_status and order_status —
+// PENDING_PAYMENT/PAYMENT_FAILED are payment states with no order_status yet.
+export type StatusFilterValue = 'PENDING_PAYMENT' | 'PAYMENT_FAILED' | OrderStatus;
 
 // Server-computed 8-10 calendar-day window, frozen onto the order at
 // checkout (backend/src/services/deliveryEstimateService.js /
@@ -341,7 +365,9 @@ export interface DeliveryEstimate {
 export interface OrderListItem {
   id: string;
   orderNumber: string;
-  status: OrderStatus;
+  paymentStatus: PaymentStatus;
+  orderStatus: OrderStatus | null;
+  shipmentStatus: ShipmentStatus;
   contactName: string;
   contactMobile: string;
   totalAmount: number;
@@ -356,6 +382,10 @@ export interface OrderItem {
   productId: string;
   productName: string;
   productSku: string;
+  categoryName: string | null;
+  productImageUrl: string | null;
+  productImageLargeUrl: string | null;
+  diamondCount: number | null;
   quantity: number;
   goldValue: number;
   diamondValue: number;
@@ -363,13 +393,32 @@ export interface OrderItem {
   gstAmount: number;
   unitPrice: number;
   lineTotal: number;
+  sizeLabel: string | null;
+  goldColor: string | null;
+  purity: string | null;
+  diamondConfigName: string | null;
+  goldWeightGrams: number | null;
+  diamondWeightCarats: number | null;
+  diamondColour: string | null;
+  diamondClarity: string | null;
+  customizationNote: string | null;
   isBackordered: boolean;
+  metalType: 'GOLD' | 'PLATINUM' | null;
+  netWeightGrams: number | null;
+  grossWeightGrams: number | null;
+  diamondWeightGrams: number | null;
+  gemstone: string | null;
 }
 
 export interface OrderStatusHistoryEntry {
   status: string;
   note: string | null;
   createdAt: string;
+  // Admin-only ("employee assignments" stay hidden from customers, per
+  // backend/src/utils/orderDto.js's forAdmin flag) — always present here
+  // since admin always fetches via findOrderStatusHistoryForAdmin.
+  source: 'ADMIN' | 'PAYMENT_GATEWAY' | 'DELHIVERY' | 'SYSTEM';
+  actorName: string | null;
 }
 
 export interface ShippingAddress {
@@ -390,7 +439,7 @@ export interface ShipmentTrackingEvent {
   status: string;
   location: string | null;
   note: string | null;
-  source: 'MANUAL' | 'SYSTEM' | 'WEBHOOK';
+  source: 'MANUAL' | 'SYSTEM' | 'WEBHOOK' | 'DELHIVERY';
   createdAt: string;
 }
 
@@ -400,13 +449,21 @@ export interface Shipment {
   trackingNumber: string | null;
   courierName: string | null;
   status: string;
+  packageWeightGrams: number | null;
+  packageLengthCm: number | null;
+  packageWidthCm: number | null;
+  packageHeightCm: number | null;
+  labelUrl: string | null;
+  lastTrackedAt: string | null;
   trackingEvents: ShipmentTrackingEvent[];
 }
 
 export interface OrderDetail {
   id: string;
   orderNumber: string;
-  status: OrderStatus;
+  paymentStatus: PaymentStatus;
+  orderStatus: OrderStatus | null;
+  shipmentStatus: ShipmentStatus;
   contactName: string;
   contactMobile: string;
   contactEmail: string;
@@ -423,6 +480,15 @@ export interface OrderDetail {
   items: OrderItem[];
   statusHistory: OrderStatusHistoryEntry[];
   shipment: Shipment | null;
+  canPrintWorkOrder: boolean;
+  workOrderPrintCount: number;
+}
+
+export interface WorkOrderResponse {
+  order: OrderDetail;
+  processingStartedAt: string | null;
+  printCount: number;
+  lastPrintedAt: string | null;
 }
 
 export interface Customer {

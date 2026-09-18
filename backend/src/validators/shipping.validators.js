@@ -1,5 +1,15 @@
 import { z } from 'zod';
 
+// Admin-entered at Ready-to-Ship time (plan §Phase 3) — no product-catalog
+// weight/dimension fields exist, so the courier needs these confirmed per
+// shipment instead.
+export const markReadyToShipSchema = z.object({
+  weightGrams: z.coerce.number().positive().max(50000),
+  lengthCm: z.coerce.number().positive().max(200),
+  widthCm: z.coerce.number().positive().max(200),
+  heightCm: z.coerce.number().positive().max(200),
+});
+
 export const simulateTrackingSchema = z.object({
   status: z.enum(['OUT_FOR_DELIVERY', 'DELIVERED']),
 });
