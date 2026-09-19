@@ -2,7 +2,7 @@ import { useState } from 'react';
 import type { OrderDetail } from '../../api/types';
 import { formatPrice } from '../../utils/formatPrice';
 import { formatOrderStatus } from '../../utils/orderStatus';
-import { BoxIcon, PersonIcon, PhoneIcon, MailIcon, CalendarIcon, CopyIcon, PrinterIcon } from './OrderHeroIcons';
+import { BoxIcon, PersonIcon, PhoneIcon, MailIcon, CalendarIcon, CopyIcon, PrinterIcon, DocumentIcon } from './OrderHeroIcons';
 import styles from './OrderHeroCard.module.css';
 
 // Compact-panel-only "Order Summary" card — the standalone full-page order
@@ -74,12 +74,20 @@ export function OrderHeroCard({ order }: { order: OrderDetail }) {
       <div className={styles.bottomRow}>
         <div className={styles.bottomLeft}>
           <span className={`${styles.pill} ${styles.pillInfo}`}>Shipment: {formatOrderStatus(order.shipmentStatus)}</span>
-          {order.canPrintWorkOrder && (
-            <a href={`/orders/${order.id}/work-order/print`} target="_blank" rel="noreferrer" className={styles.printButton}>
-              <PrinterIcon />
-              {order.workOrderPrintCount > 0 ? 'Reprint Work Order' : 'Print Work Order'}
-            </a>
-          )}
+          <div className={styles.buttonRow}>
+            {order.canPrintWorkOrder && (
+              <a href={`/orders/${order.id}/work-order/print`} target="_blank" rel="noreferrer" className={styles.printButton}>
+                <PrinterIcon />
+                {order.workOrderPrintCount > 0 ? 'Reprint Work Order' : 'Print Work Order'}
+              </a>
+            )}
+            {order.canPrintInvoice && (
+              <a href={`/orders/${order.id}/invoice/print`} target="_blank" rel="noreferrer" className={styles.printButton}>
+                <DocumentIcon size={14} />
+                {order.invoicePrintCount > 0 ? 'Reprint Invoice' : 'Download Invoice'}
+              </a>
+            )}
+          </div>
         </div>
         <div className={styles.bottomRight}>
           <p className={styles.totalLabel}>Total Amount</p>

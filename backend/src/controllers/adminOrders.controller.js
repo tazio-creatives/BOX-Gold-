@@ -13,6 +13,7 @@ import {
 } from '../repositories/orders.repository.js';
 import { findShipmentByOrderId, findTrackingEventsByShipmentId } from '../repositories/shipments.repository.js';
 import { findWorkOrderPrints } from '../repositories/workOrderPrints.repository.js';
+import { findInvoicePrints } from '../repositories/invoices.repository.js';
 import { toOrderDto, toShipmentDto, orderDeliveryEstimateDto } from '../utils/orderDto.js';
 import { assertManualTransitionAllowed, ORDER_STATUS_TO_LEGACY_STATUS } from '../utils/orderStatus.js';
 import { NotFoundError, AppError } from '../utils/AppError.js';
@@ -103,12 +104,13 @@ export async function summary(req, res, next) {
 async function loadOrderDto(orderId) {
   const order = await findOrderById(orderId);
   if (!order) throw new NotFoundError('Order not found');
-  const [items, statusHistory, shipment, hasProcessed, workOrderPrints] = await Promise.all([
+  const [items, statusHistory, shipment, hasProcessed, workOrderPrints, invoicePrints] = await Promise.all([
     findOrderItems(order.id),
     findOrderStatusHistoryForAdmin(order.id),
     findShipmentByOrderId(order.id),
     hasOrderStatusHistoryEntry(order.id, 'PROCESSING'),
     findWorkOrderPrints(order.id),
+    findInvoicePrints(order.id),
   ]);
   const trackingEvents = shipment ? await findTrackingEventsByShipmentId(shipment.id) : [];
   return toOrderDto(
@@ -119,6 +121,9 @@ async function loadOrderDto(orderId) {
       shipment: toShipmentDto(shipment, trackingEvents),
       canPrintWorkOrder: hasProcessed,
       workOrderPrintCount: workOrderPrints.length,
+      canPrintInvoice: order.payment_status === 'PAID',
+      invoiceNumber: order.invoice_number,
+      invoicePrintCount: invoicePrints.length,
     },
     { forAdmin: true },
   );

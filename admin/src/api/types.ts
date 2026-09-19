@@ -482,6 +482,9 @@ export interface OrderDetail {
   shipment: Shipment | null;
   canPrintWorkOrder: boolean;
   workOrderPrintCount: number;
+  canPrintInvoice: boolean;
+  invoiceNumber: string | null;
+  invoicePrintCount: number;
 }
 
 export interface WorkOrderResponse {
@@ -489,6 +492,13 @@ export interface WorkOrderResponse {
   processingStartedAt: string | null;
   printCount: number;
   lastPrintedAt: string | null;
+}
+
+export interface InvoiceResponse {
+  order: OrderDetail;
+  invoiceNumber: string;
+  invoiceGeneratedAt: string;
+  printCount: number;
 }
 
 export interface Customer {

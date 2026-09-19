@@ -22,6 +22,13 @@ export function OrderSummaryCard({ order }: { order: OrderDetail }) {
     </a>
   ) : null;
 
+  const printInvoiceButton = order.canPrintInvoice ? (
+    <a href={`/orders/${order.id}/invoice/print`} target="_blank" rel="noreferrer" className={styles.printButton}>
+      <DocumentIcon size={16} />
+      {order.invoicePrintCount > 0 ? 'Reprint Invoice' : 'Download Invoice'}
+    </a>
+  ) : null;
+
   return (
     <div className={styles.summary}>
       <div className={styles.left}>
@@ -58,7 +65,10 @@ export function OrderSummaryCard({ order }: { order: OrderDetail }) {
         </div>
         <p className={styles.totalLabel}>Total Amount</p>
         <p className={styles.total}>{formatPrice(order.totalAmount)}</p>
-        {printWorkOrderButton}
+        <div className={styles.buttonRow}>
+          {printWorkOrderButton}
+          {printInvoiceButton}
+        </div>
       </div>
     </div>
   );

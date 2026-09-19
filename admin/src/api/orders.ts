@@ -1,5 +1,5 @@
 import { apiFetch } from './client';
-import type { OrderDetail, OrderListItem, OrderStatus, StatusFilterValue, WorkOrderResponse } from './types';
+import type { OrderDetail, OrderListItem, OrderStatus, StatusFilterValue, WorkOrderResponse, InvoiceResponse } from './types';
 
 export interface OrderListResponse {
   orders: OrderListItem[];
@@ -63,6 +63,20 @@ export function fetchWorkOrder(id: string) {
 export function recordWorkOrderPrint(id: string) {
   return apiFetch<{ printNumber: number; isReprint: boolean; printedAt: string }>(
     `/admin/orders/${id}/work-order/print`,
+    { method: 'POST' },
+  );
+}
+
+// Tax invoice — gated server-side on payment_status === 'PAID' (order.canPrintInvoice
+// on the detail response mirrors this for button enablement). The invoice number is
+// assigned on first fetch, not at payment time (see invoices.repository.js).
+export function fetchInvoice(id: string) {
+  return apiFetch<InvoiceResponse>(`/admin/orders/${id}/invoice`);
+}
+
+export function recordInvoicePrint(id: string) {
+  return apiFetch<{ printNumber: number; isReprint: boolean; printedAt: string }>(
+    `/admin/orders/${id}/invoice/print`,
     { method: 'POST' },
   );
 }

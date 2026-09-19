@@ -11,6 +11,7 @@ import { CollectionsPage } from './pages/CollectionsPage';
 import { OrdersListPage } from './pages/orders/OrdersListPage';
 import { OrderDetailPage } from './pages/orders/OrderDetailPage';
 import { WorkOrderPrintPage } from './pages/orders/WorkOrderPrintPage';
+import { InvoicePrintPage } from './pages/orders/InvoicePrintPage';
 import { CustomersListPage } from './pages/customers/CustomersListPage';
 import { CustomerDetailPage } from './pages/customers/CustomerDetailPage';
 import { HomepagePage } from './pages/HomepagePage';
@@ -26,6 +27,7 @@ export function App() {
     <Routes>
       <Route path="/login" element={<LoginPage />} />
       <Route path="/orders/:id/work-order/print" element={<WorkOrderPrintPage />} />
+      <Route path="/orders/:id/invoice/print" element={<InvoicePrintPage />} />
       <Route element={<AdminLayout />}>
         <Route path="/" element={<DashboardPage />} />
         <Route path="/products" element={<ProductsListPage />} />

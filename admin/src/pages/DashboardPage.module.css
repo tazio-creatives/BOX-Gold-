@@ -13,11 +13,22 @@
 
 .heroCard {
   composes: cardPadded from '../styles/shared.module.css';
+  position: relative;
+  overflow: hidden;
+}
+
+/* Raised specificity (.heroGrid .heroCard, not just .heroCard) — composed
+   classes from a different CSS module (shared.module.css's .card, which
+   also sets `background`) have the same specificity as a bare .heroCard
+   rule, so which one wins depends on stylesheet injection order rather
+   than source order. That order isn't stable across Vite dev-server HMR
+   churn, and .card's plain white background was intermittently winning
+   here, silently wiping out the gradient and leaving white-on-white text.
+   Scoping through the parent guarantees this always wins regardless. */
+.heroGrid .heroCard {
   background: linear-gradient(135deg, #00515a 0%, #00363c 100%);
   color: #fff;
   border: none;
-  position: relative;
-  overflow: hidden;
 }
 
 .heroCard::after {

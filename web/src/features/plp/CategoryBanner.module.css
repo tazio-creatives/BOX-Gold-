@@ -77,13 +77,29 @@
   opacity: 0.9;
 }
 
+/* Visually hidden, not deleted — this <h1> is still the page's one real
+   heading (SEO/a11y; see CategoryBanner.tsx's own comment on this), it's
+   just redundant as VISIBLE copy once a banner has its own promotional
+   headline, and the category name is already shown in the breadcrumb above.
+   Also fixes a real bug this was masking: index.css's global `h1 { color:
+   var(--color-text) }` rule targets this element directly, which beats
+   inheriting the light/dark text color from .banner.textLight/.textDark
+   (a direct rule on an element always wins over an inherited value,
+   regardless of specificity) — so this title was rendering in the site's
+   default dark-teal text color even on a dark banner image, nearly
+   invisible. Hiding it sidesteps that entirely rather than patching the
+   color as well.
+   */
 .title {
-  margin: 0;
-  font-family: var(--font-heading);
-  font-size: clamp(30px, 3.4vw, 44px);
-  font-weight: 500;
-  letter-spacing: -0.02em;
-  line-height: 1.15;
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
 }
 
 .description {
