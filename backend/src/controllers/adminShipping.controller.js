@@ -1,11 +1,15 @@
-import { markReadyToShipSchema, simulateTrackingSchema, addTrackingEventSchema } from '../validators/shipping.validators.js';
+import { createShipmentSchema, simulateTrackingSchema, addTrackingEventSchema } from '../validators/shipping.validators.js';
 import * as shippingService from '../services/shippingService.js';
 import { toShipmentDto, toTrackingEventDto } from '../utils/orderDto.js';
 
-export async function readyToShip(req, res, next) {
+// Books the shipment with the courier (AWB creation) — only reachable once
+// the order is already sitting at READY_TO_SHIP (set separately via
+// adminOrders.controller.js::markReadyToShip, a pure status change with no
+// courier call).
+export async function createShipment(req, res, next) {
   try {
-    const body = markReadyToShipSchema.parse(req.body);
-    const shipment = await shippingService.markOrderReadyToShip(req.params.id, body, req.admin.id);
+    const body = createShipmentSchema.parse(req.body);
+    const shipment = await shippingService.createShipmentForOrder(req.params.id, body, req.admin.id);
     res.status(201).json({ shipment: toShipmentDto(shipment) });
   } catch (err) {
     next(err);
@@ -27,18 +31,6 @@ export async function cancelShipment(req, res, next) {
 export async function syncTracking(req, res, next) {
   try {
     const shipment = await shippingService.syncOneShipmentTrackingForOrder(req.params.id);
-    res.json({ shipment: toShipmentDto(shipment) });
-  } catch (err) {
-    next(err);
-  }
-}
-
-// Retries fetching the courier's label/packing-slip PDF — covers the case
-// where the automatic fetch right after shipment creation failed or the
-// label wasn't ready yet.
-export async function fetchLabel(req, res, next) {
-  try {
-    const shipment = await shippingService.fetchShipmentLabel(req.params.id);
     res.json({ shipment: toShipmentDto(shipment) });
   } catch (err) {
     next(err);

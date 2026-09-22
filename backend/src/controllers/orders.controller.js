@@ -7,7 +7,7 @@ import {
   findOrderStatusHistory,
   getOrderStatsForUser,
 } from '../repositories/orders.repository.js';
-import { findShipmentByOrderId } from '../repositories/shipments.repository.js';
+import { findShipmentByOrderId, findTrackingEventsByShipmentId } from '../repositories/shipments.repository.js';
 import { findReviewedOrderItemIds } from '../repositories/reviews.repository.js';
 import { toOrderDto, toShipmentDto, orderDeliveryEstimateDto } from '../utils/orderDto.js';
 import { NotFoundError } from '../utils/AppError.js';
@@ -87,7 +87,12 @@ export async function get(req, res, next) {
       findOrderStatusHistory(order.id),
       findShipmentByOrderId(order.id),
     ]);
-    const dto = toOrderDto(order, items, statusHistory, { shipment: toShipmentDto(shipment) });
+    // Customer-facing tracking timeline — same trackingEvents the admin
+    // view shows (courier status/location/note), just without the
+    // forAdmin:true flag that would add internal actor names to
+    // statusHistory (see toOrderDto's comment on that flag).
+    const trackingEvents = shipment ? await findTrackingEventsByShipmentId(shipment.id) : [];
+    const dto = toOrderDto(order, items, statusHistory, { shipment: toShipmentDto(shipment, trackingEvents) });
 
     // "Write a Review" eligibility (plan §11a) — only meaningful once the
     // order has actually been delivered, and only for items not already

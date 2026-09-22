@@ -100,6 +100,14 @@ export function OrdersListPage() {
     setSearchParams(next);
   }
 
+  function setStatus(value: StatusFilterValue | '') {
+    const next = new URLSearchParams(searchParams);
+    if (value) next.set('status', value);
+    else next.delete('status');
+    setSearchParams(next);
+    setPage(1);
+  }
+
   return (
     <div className={`${styles.pageContainer} full-width-page`}>
       <div className={styles.pageHeader}>
@@ -165,6 +173,30 @@ export function OrdersListPage() {
         </div>
       </div>
 
+      <div className={styles.tabs}>
+        <button
+          type="button"
+          className={!status ? styles.tabActive : styles.tab}
+          onClick={() => setStatus('')}
+        >
+          All Orders
+        </button>
+        <button
+          type="button"
+          className={status === 'PENDING_PAYMENT' ? styles.tabActive : styles.tab}
+          onClick={() => setStatus('PENDING_PAYMENT')}
+        >
+          Pending
+        </button>
+        <button
+          type="button"
+          className={status === 'CONFIRMED' ? styles.tabActive : styles.tab}
+          onClick={() => setStatus('CONFIRMED')}
+        >
+          Confirmed
+        </button>
+      </div>
+
       <div className={styles.filters}>
         <input
           type="search"
@@ -175,13 +207,7 @@ export function OrdersListPage() {
         />
         <select
           value={status ?? ''}
-          onChange={(e) => {
-            const next = new URLSearchParams(searchParams);
-            if (e.target.value) next.set('status', e.target.value);
-            else next.delete('status');
-            setSearchParams(next);
-            setPage(1);
-          }}
+          onChange={(e) => setStatus(e.target.value as StatusFilterValue | '')}
         >
           <option value="">All statuses</option>
           {STATUSES.map((s) => (

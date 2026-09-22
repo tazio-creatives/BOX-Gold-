@@ -1,21 +1,23 @@
 import { useState } from 'react';
 import { Modal } from './Modal';
-import type { ReadyToShipInput } from '../api/shipping';
+import type { CreateShipmentInput } from '../api/shipping';
 import sharedStyles from '../styles/shared.module.css';
 import styles from './ConfirmDialog.module.css';
-import localStyles from './ReadyToShipDialog.module.css';
+import localStyles from './CreateShipmentDialog.module.css';
 
-interface ReadyToShipDialogProps {
+interface CreateShipmentDialogProps {
   isPending?: boolean;
   errorMessage?: string | null;
-  onConfirm: (_input: ReadyToShipInput) => void;
+  onConfirm: (_input: CreateShipmentInput) => void;
   onCancel: () => void;
 }
 
 // Package weight/dimensions aren't captured anywhere in the product catalog
 // — the courier needs them confirmed per shipment, so this is collected
-// here, right before the Delhivery shipment-creation call it feeds.
-export function ReadyToShipDialog({ isPending, errorMessage, onConfirm, onCancel }: ReadyToShipDialogProps) {
+// here, right before the Delhivery shipment-creation call it feeds. Only
+// reachable once the order is already Ready to Ship (a separate, earlier
+// status-only action) — this dialog is what actually books the AWB.
+export function CreateShipmentDialog({ isPending, errorMessage, onConfirm, onCancel }: CreateShipmentDialogProps) {
   const [weightGrams, setWeightGrams] = useState('');
   const [lengthCm, setLengthCm] = useState('');
   const [widthCm, setWidthCm] = useState('');
@@ -36,10 +38,10 @@ export function ReadyToShipDialog({ isPending, errorMessage, onConfirm, onCancel
   }
 
   return (
-    <Modal title="Mark Ready to Ship" onClose={onCancel}>
+    <Modal title="Create Shipment" onClose={onCancel}>
       <p className={styles.message}>
-        Confirm the packed parcel's weight and dimensions — this creates the shipment with the courier and cannot
-        be undone.
+        Confirm the packed parcel's weight and dimensions — this creates the shipment (AWB) with the courier and
+        cannot be undone.
       </p>
       <form onSubmit={handleSubmit}>
         <div className={`${sharedStyles.formGrid2} ${localStyles.fields}`}>

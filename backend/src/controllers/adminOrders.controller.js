@@ -14,6 +14,7 @@ import {
 import { findShipmentByOrderId, findTrackingEventsByShipmentId } from '../repositories/shipments.repository.js';
 import { findWorkOrderPrints } from '../repositories/workOrderPrints.repository.js';
 import { findInvoicePrints } from '../repositories/invoices.repository.js';
+import { findReturnRequestByOrderId, updateReturnRequestStatus } from '../repositories/returnRequests.repository.js';
 import { toOrderDto, toShipmentDto, orderDeliveryEstimateDto } from '../utils/orderDto.js';
 import { assertManualTransitionAllowed, ORDER_STATUS_TO_LEGACY_STATUS } from '../utils/orderStatus.js';
 import { NotFoundError, AppError } from '../utils/AppError.js';
@@ -27,6 +28,7 @@ import { enqueueEmail } from '../services/emailService.js';
 // the new history row, not here.
 const NOTIFY_TEMPLATE_FOR_STATUS = {
   PROCESSING: 'ORDER_PROCESSING',
+  READY_TO_SHIP: 'ORDER_READY_TO_SHIP',
   CANCELLED: 'ORDER_CANCELLED',
   DELIVERY_FAILED: 'ORDER_DELIVERY_FAILED',
   RETURN_INITIATED: 'ORDER_RETURN_INITIATED',
@@ -104,14 +106,16 @@ export async function summary(req, res, next) {
 async function loadOrderDto(orderId) {
   const order = await findOrderById(orderId);
   if (!order) throw new NotFoundError('Order not found');
-  const [items, statusHistory, shipment, hasProcessed, workOrderPrints, invoicePrints] = await Promise.all([
-    findOrderItems(order.id),
-    findOrderStatusHistoryForAdmin(order.id),
-    findShipmentByOrderId(order.id),
-    hasOrderStatusHistoryEntry(order.id, 'PROCESSING'),
-    findWorkOrderPrints(order.id),
-    findInvoicePrints(order.id),
-  ]);
+  const [items, statusHistory, shipment, hasProcessed, workOrderPrints, invoicePrints, returnRequest] =
+    await Promise.all([
+      findOrderItems(order.id),
+      findOrderStatusHistoryForAdmin(order.id),
+      findShipmentByOrderId(order.id),
+      hasOrderStatusHistoryEntry(order.id, 'PROCESSING'),
+      findWorkOrderPrints(order.id),
+      findInvoicePrints(order.id),
+      findReturnRequestByOrderId(order.id),
+    ]);
   const trackingEvents = shipment ? await findTrackingEventsByShipmentId(shipment.id) : [];
   return toOrderDto(
     order,
@@ -124,6 +128,18 @@ async function loadOrderDto(orderId) {
       canPrintInvoice: order.payment_status === 'PAID',
       invoiceNumber: order.invoice_number,
       invoicePrintCount: invoicePrints.length,
+      returnRequest: returnRequest
+        ? {
+            id: returnRequest.id,
+            reason: returnRequest.reason,
+            note: returnRequest.note,
+            videoUrl: returnRequest.video_url,
+            status: returnRequest.status,
+            createdAt: returnRequest.created_at,
+            resolvedAt: returnRequest.resolved_at,
+            resolvedByAdminName: returnRequest.resolved_by_admin_name ?? null,
+          }
+        : null,
     },
     { forAdmin: true },
   );
@@ -170,6 +186,44 @@ export async function startProcessing(req, res, next) {
   }
 }
 
+// Dedicated Processing -> Ready to Ship action — deliberately a pure status
+// change with no courier call: it marks the parcel as physically packed and
+// ready, before any AWB/shipment is created. Actually booking the shipment
+// with the courier is a separate, later step (adminShipping.controller.js's
+// createShipment), triggered by its own explicit "Create Shipment" action
+// once the order is sitting at READY_TO_SHIP with no shipment yet — this
+// split lets admin mark a batch of orders ready as they're packed without
+// committing to a courier booking for each one immediately.
+export async function markReadyToShip(req, res, next) {
+  try {
+    const existing = await findOrderById(req.params.id);
+    if (!existing) throw new NotFoundError('Order not found');
+    if (existing.order_status !== 'PROCESSING') {
+      throw new AppError(
+        400,
+        `Order must be Processing to mark Ready to Ship (currently ${existing.order_status ?? 'awaiting payment'})`,
+      );
+    }
+
+    const alreadyNotified = await hasOrderStatusHistoryEntry(existing.id, 'READY_TO_SHIP');
+
+    await withTransaction(async (client) => {
+      // No legacy `status` write — READY_TO_SHIP has no legacy equivalent
+      // (see ORDER_STATUS_TO_LEGACY_STATUS).
+      await updateOrderStatusFieldsTx(client, existing.id, { orderStatus: 'READY_TO_SHIP' });
+      await insertOrderStatusHistoryTx(client, existing.id, 'READY_TO_SHIP', null, {
+        actor: req.admin.id,
+        source: 'ADMIN',
+      });
+    });
+    await notifyStatusChangeIfNew(existing, 'READY_TO_SHIP', alreadyNotified);
+
+    res.json({ order: await loadOrderDto(existing.id) });
+  } catch (err) {
+    next(err);
+  }
+}
+
 // Manual admin override for the exception states (Cancelled, Delayed,
 // Delivery Failed, Return Initiated, Returned) and Processing (redundant
 // with startProcessing, kept for symmetry) — spec §7's transition table:
@@ -199,6 +253,17 @@ export async function updateStatus(req, res, next) {
       });
     });
     await notifyStatusChangeIfNew(existing, status, alreadyNotified);
+
+    // The order actually completing its return is what closes out the
+    // return request's own review trail — no separate admin action needed
+    // for the common path (only reject uses the dedicated return-request
+    // endpoint).
+    if (status === 'RETURNED') {
+      const returnRequest = await findReturnRequestByOrderId(existing.id);
+      if (returnRequest && returnRequest.status !== 'COMPLETED') {
+        await updateReturnRequestStatus(returnRequest.id, 'COMPLETED', req.admin.id);
+      }
+    }
 
     res.json({ order: await loadOrderDto(existing.id) });
   } catch (err) {

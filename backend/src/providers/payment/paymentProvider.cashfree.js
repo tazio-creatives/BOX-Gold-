@@ -81,7 +81,12 @@ export const cashfreePaymentProvider = {
     const timestamp = headers['x-webhook-timestamp'];
     if (!signature || !timestamp) return false;
 
-    const age = Math.abs(Date.now() / 1000 - Number(timestamp));
+    // Cashfree sends x-webhook-timestamp in MILLISECONDS (a 13-digit epoch
+    // value) — Date.now() is also milliseconds, so the diff must be
+    // converted to seconds before comparing against WEBHOOK_MAX_AGE_SECONDS.
+    // Comparing raw milliseconds against Date.now()/1000 (seconds) made
+    // every real webhook look ~56 years old and silently reject every one.
+    const age = Math.abs(Date.now() - Number(timestamp)) / 1000;
     if (!Number.isFinite(age) || age > WEBHOOK_MAX_AGE_SECONDS) return false;
 
     const expected = crypto

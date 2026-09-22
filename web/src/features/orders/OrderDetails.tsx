@@ -3,6 +3,7 @@ import { formatPrice } from '../../utils/formatPrice';
 import { DeliveryEstimateDetail } from '../../components/DeliveryEstimate';
 import { WriteReviewButton } from './WriteReviewButton';
 import { OrderProgressStepper } from '../account/OrderProgressStepper';
+import { ReturnRequestSection } from './ReturnRequestSection';
 import styles from './OrderDetails.module.css';
 
 function formatStatus(status: string) {
@@ -124,13 +125,45 @@ export function OrderDetails({ order }: { order: Order }) {
 
       {order.shipment && (
         <section className={styles.section}>
-          <h2 className={styles.sectionHeading}>Shipment</h2>
+          <h2 className={styles.sectionHeading}>Shipment Tracking</h2>
           <p className={styles.shipment}>
             {order.shipment.courierName ?? order.shipment.provider} — {formatStatus(order.shipment.status)}
           </p>
           {order.shipment.trackingNumber && (
             <p className={styles.shipment}>Tracking: {order.shipment.trackingNumber}</p>
           )}
+          {order.shipment.trackingEvents.length > 0 && (
+            <ul className={styles.timeline}>
+              {order.shipment.trackingEvents.map((event) => (
+                <li key={event.id} className={styles.timelineItem}>
+                  <div className={styles.timelineRow}>
+                    <span className={styles.timelineStatus}>{formatStatus(event.status)}</span>
+                    <span className={styles.timelineDate}>
+                      {new Date(event.createdAt).toLocaleString('en-IN', {
+                        dateStyle: 'medium',
+                        timeStyle: 'short',
+                      })}
+                    </span>
+                  </div>
+                  {(event.location || event.note) && (
+                    <p className={styles.timelineNote}>{[event.location, event.note].filter(Boolean).join(' — ')}</p>
+                  )}
+                </li>
+              ))}
+            </ul>
+          )}
+        </section>
+      )}
+
+      {/* Gated on "was ever delivered", not "is currently DELIVERED" — once a
+          return is requested, order_status moves on to RETURN_INITIATED and
+          this section must stay visible to keep showing the request's status
+          rather than disappearing the moment it's no longer needed to submit
+          a new one. */}
+      {milestoneAt(order.statusHistory, 'DELIVERED') && (
+        <section className={styles.section}>
+          <h2 className={styles.sectionHeading}>Return This Order</h2>
+          <ReturnRequestSection orderId={order.id} deliveredAt={milestoneAt(order.statusHistory, 'DELIVERED')} />
         </section>
       )}
 

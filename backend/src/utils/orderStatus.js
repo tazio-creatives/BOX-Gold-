@@ -25,6 +25,16 @@ export const STATUS_FILTER_VALUES = ['PENDING_PAYMENT', 'PAYMENT_FAILED', ...ORD
 
 export const TERMINAL_ORDER_STATUSES = ['DELIVERED', 'CANCELLED', 'RETURNED'];
 
+// Return-request reason codes (customer-facing form) — independent of
+// order_status/return_requests.status, just what the customer says went wrong.
+export const RETURN_REASONS = ['DAMAGED', 'DEFECTIVE', 'WRONG_ITEM', 'NOT_AS_DESCRIBED', 'CHANGED_MIND', 'OTHER'];
+
+// A return request may only be opened within this many days of delivery —
+// mirrors the "7-day money-back policy" in web/src/pages/policies/RefundPolicyPage.tsx.
+export const RETURN_WINDOW_DAYS = 7;
+
+export const RETURN_REQUEST_STATUSES = ['REQUESTED', 'APPROVED', 'REJECTED', 'COMPLETED'];
+
 // Courier-controlled statuses aren't reachable through the generic admin
 // override — READY_TO_SHIP requires the Ready-to-Ship validation+Delhivery
 // flow (Phase 3), and SHIPPED/IN_TRANSIT/OUT_FOR_DELIVERY/DELIVERED are

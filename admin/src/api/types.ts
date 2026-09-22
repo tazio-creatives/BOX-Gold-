@@ -453,7 +453,6 @@ export interface Shipment {
   packageLengthCm: number | null;
   packageWidthCm: number | null;
   packageHeightCm: number | null;
-  labelUrl: string | null;
   lastTrackedAt: string | null;
   trackingEvents: ShipmentTrackingEvent[];
 }
@@ -485,6 +484,21 @@ export interface OrderDetail {
   canPrintInvoice: boolean;
   invoiceNumber: string | null;
   invoicePrintCount: number;
+  returnRequest: ReturnRequest | null;
+}
+
+export type ReturnReason = 'DAMAGED' | 'DEFECTIVE' | 'WRONG_ITEM' | 'NOT_AS_DESCRIBED' | 'CHANGED_MIND' | 'OTHER';
+export type ReturnRequestStatus = 'REQUESTED' | 'APPROVED' | 'REJECTED' | 'COMPLETED';
+
+export interface ReturnRequest {
+  id: string;
+  reason: ReturnReason;
+  note: string | null;
+  videoUrl: string | null;
+  status: ReturnRequestStatus;
+  createdAt: string;
+  resolvedAt: string | null;
+  resolvedByAdminName: string | null;
 }
 
 export interface WorkOrderResponse {

@@ -40,6 +40,10 @@ const CONTENT_TYPES = {
   '.avif': 'image/avif',
   '.gif': 'image/gif',
   '.svg': 'image/svg+xml',
+  '.mp4': 'video/mp4',
+  '.mov': 'video/quicktime',
+  '.webm': 'video/webm',
+  '.avi': 'video/x-msvideo',
 };
 
 function contentTypeFor(key) {

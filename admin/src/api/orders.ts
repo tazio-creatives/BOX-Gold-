@@ -1,5 +1,13 @@
 import { apiFetch } from './client';
-import type { OrderDetail, OrderListItem, OrderStatus, StatusFilterValue, WorkOrderResponse, InvoiceResponse } from './types';
+import type {
+  OrderDetail,
+  OrderListItem,
+  OrderStatus,
+  StatusFilterValue,
+  WorkOrderResponse,
+  InvoiceResponse,
+  ReturnRequest,
+} from './types';
 
 export interface OrderListResponse {
   orders: OrderListItem[];
@@ -43,6 +51,15 @@ export function startProcessing(id: string) {
   });
 }
 
+// Processing -> Ready to Ship — a pure status change, no courier call. The
+// actual shipment/AWB booking is a separate later step (api/shipping.ts's
+// createShipment), triggered once the order sits here with no shipment yet.
+export function markReadyToShip(id: string) {
+  return apiFetch<{ order: OrderDetail }>(`/admin/orders/${id}/mark-ready-to-ship`, {
+    method: 'POST',
+  });
+}
+
 // Manual override for the exception states only — see
 // utils/orderStatus.ts#ADMIN_MANUAL_TARGETS for exactly which OrderStatus
 // values the server will accept here.
@@ -79,4 +96,14 @@ export function recordInvoicePrint(id: string) {
     `/admin/orders/${id}/invoice/print`,
     { method: 'POST' },
   );
+}
+
+// Return requests — the review trail is independent of order_status
+// (order.returnRequest on the detail response already carries this; these
+// are only needed for the approve/reject action itself).
+export function updateReturnRequestStatus(id: string, status: 'APPROVED' | 'REJECTED') {
+  return apiFetch<{ returnRequest: ReturnRequest }>(`/admin/orders/${id}/return-request`, {
+    method: 'PATCH',
+    body: JSON.stringify({ status }),
+  });
 }

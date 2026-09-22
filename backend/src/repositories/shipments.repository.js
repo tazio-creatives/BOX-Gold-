@@ -43,14 +43,6 @@ export async function insertShipment({
   return rows[0];
 }
 
-export async function updateShipmentLabelUrl(id, labelUrl) {
-  const { rows } = await query('UPDATE shipments SET label_url = $2, updated_at = now() WHERE id = $1 RETURNING *', [
-    id,
-    labelUrl,
-  ]);
-  return rows[0] ?? null;
-}
-
 // Poll target list for the tracking-sync job — mirrors the partial index
 // added by the 20260920000000 migration (status not yet terminal).
 export async function findShipmentsPendingTracking() {

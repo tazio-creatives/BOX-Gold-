@@ -29,3 +29,19 @@ export const uploadEnhanceImage = multer({
     cb(null, true);
   },
 });
+
+// Optional unboxing video attached to a return request — a customer's raw
+// phone recording, so allow the common container formats rather than
+// dictating one, and a much higher size limit than the image uploads above.
+const RETURN_VIDEO_MIME_TYPES = new Set(['video/mp4', 'video/quicktime', 'video/webm', 'video/x-msvideo']);
+
+export const uploadReturnVideo = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: env.maxReturnVideoSizeMb * 1024 * 1024 },
+  fileFilter: (req, file, cb) => {
+    if (!RETURN_VIDEO_MIME_TYPES.has(file.mimetype)) {
+      return cb(new Error('Only MP4, MOV, WebM, or AVI video uploads are allowed'));
+    }
+    cb(null, true);
+  },
+});

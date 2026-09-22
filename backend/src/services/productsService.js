@@ -80,14 +80,35 @@ function deriveGrossWeightGrams(goldWeightGrams, diamondWeightGrams) {
   return Math.round(((goldWeightGrams ?? 0) + (diamondWeightGrams ?? 0)) * 1000) / 1000;
 }
 
-// Builds a synthetic, non-persisted "variant" representing the product's own
-// base configuration (its own Purity — not any real product_variants row),
-// purely so computeVariantPricing takes its live-recompute path (every
-// branch there keys off `variant != null`) instead of trusting the
-// (possibly stale, e.g. after a gold-rate sync) cached gold_value/
-// diamond_value columns. Carries no weight/diamond overrides of its own, so
-// weight resolution still falls through the normal rule-then-base-weight
-// chain, and no price_override, so a manual override never leaks in here.
+// Mirrors web/src/hooks/useVariantSelection.ts's own default-size effect
+// exactly (ascending parseInt of the label, NaN-safe tie as 0) — the
+// product's cached base price must resolve the SAME size the PDP silently
+// pre-selects on load, or a purity+size Weight Defaults rule that differs
+// from the purity-only rule causes a permanent PLP-vs-PDP price mismatch no
+// amount of re-running the recompute can ever fix (it would keep computing
+// the *wrong* variant's price correctly). No shared module between the web
+// bundle and this backend to import this from — keep both in sync by hand
+// if either one's tie-breaking or parsing rule ever changes.
+function pickSmallestSizeValue(sizeValues) {
+  if (!sizeValues || sizeValues.length === 0) return null;
+  return [...sizeValues].sort((a, b) => {
+    const na = parseInt(a.label, 10);
+    const nb = parseInt(b.label, 10);
+    if (Number.isNaN(na) || Number.isNaN(nb)) return 0;
+    return na - nb;
+  })[0];
+}
+
+// Builds a synthetic, non-persisted "variant" representing the exact same
+// default configuration the PDP prices before a shopper touches anything
+// (its own Purity, plus whichever size useVariantSelection.ts would
+// auto-select — not any real product_variants row), purely so
+// computeVariantPricing takes its live-recompute path (every branch there
+// keys off `variant != null`) instead of trusting the (possibly stale, e.g.
+// after a gold-rate sync) cached gold_value/diamond_value columns. Carries
+// no weight/diamond overrides of its own, so weight resolution still falls
+// through the normal rule-then-base-weight chain, and no price_override, so
+// a manual override never leaks in here.
 async function buildBaseConfigVariant(product) {
   const attributes = {};
   if (product.purity) {
@@ -95,6 +116,11 @@ async function buildBaseConfigVariant(product) {
     const purityValue = catalogue.find((a) => a.code === 'purity')?.values.find((v) => v.value === product.purity);
     if (purityValue) {
       attributes.purity = { valueId: purityValue.id, value: purityValue.value, label: purityValue.label, refId: null };
+    }
+    const sizeValues = catalogue.find((a) => a.code === 'size')?.values;
+    const defaultSize = pickSmallestSizeValue(sizeValues);
+    if (defaultSize) {
+      attributes.size = { valueId: defaultSize.id, value: defaultSize.value, label: defaultSize.label, refId: null };
     }
   }
   return {

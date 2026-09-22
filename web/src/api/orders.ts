@@ -1,5 +1,5 @@
 import { apiFetch } from './client';
-import type { DeliveryEstimate, Order, PaymentStatus, OrderStatus, StatusFilterValue } from './types';
+import type { DeliveryEstimate, Order, PaymentStatus, OrderStatus, StatusFilterValue, ReturnReason, ReturnRequest } from './types';
 
 export interface OrderSummary {
   id: string;
@@ -47,4 +47,21 @@ export function fetchOrderStats() {
 
 export function fetchOrderById(id: string) {
   return apiFetch<{ order: Order }>(`/orders/${id}`);
+}
+
+export function fetchReturnRequest(orderId: string) {
+  return apiFetch<{ returnRequest: ReturnRequest | null }>(`/orders/${orderId}/return-request`);
+}
+
+// video is optional — multipart/form-data so client.ts skips the JSON
+// Content-Type header and lets fetch set its own multipart boundary.
+export function createReturnRequest(orderId: string, input: { reason: ReturnReason; note?: string; video?: File }) {
+  const body = new FormData();
+  body.set('reason', input.reason);
+  if (input.note) body.set('note', input.note);
+  if (input.video) body.set('video', input.video);
+  return apiFetch<{ returnRequest: ReturnRequest }>(`/orders/${orderId}/return-request`, {
+    method: 'POST',
+    body,
+  });
 }

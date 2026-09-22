@@ -113,18 +113,29 @@ export const delhiveryShippingProvider = {
     return { labelUrl: data.packages?.[0]?.pdf_download_link ?? null };
   },
 
-  // POST /api/p/edit — { waybill, cancellation: "true" }.
+  // POST /api/p/edit — { waybill, cancellation: "true" }. Confirmed live
+  // against a real sandbox shipment: unlike every other endpoint here, this
+  // one returns XML, not JSON — e.g.
+  // <root><status>True</status><waybill>...</waybill><remark>Shipment has
+  // been cancelled.</remark></root> — unrelated to the `format=json` param
+  // createShipment sends, which this endpoint doesn't accept at all.
   async cancelShipment(waybill) {
     const response = await fetch(`${env.delhiveryBaseUrl}/api/p/edit`, {
       method: 'POST',
       headers: authHeaders({ 'Content-Type': 'application/json' }),
       body: JSON.stringify({ waybill, cancellation: 'true' }),
     });
-    const data = await parseJsonResponse(response, 'shipment cancellation');
-    if (data.status === false) {
-      throw new Error(`Delhivery rejected cancellation of waybill ${waybill}: ${data.remark ?? 'unknown error'}`);
+    const text = await response.text();
+    if (!response.ok) {
+      throw new Error(`Delhivery shipment cancellation failed (${response.status}): ${text.slice(0, 300)}`);
     }
-    return { status: 'CANCELLED', raw: data };
+
+    const status = /<status>\s*true\s*<\/status>/i.test(text);
+    const remark = text.match(/<remark>([\s\S]*?)<\/remark>/i)?.[1] ?? null;
+    if (!status) {
+      throw new Error(`Delhivery rejected cancellation of waybill ${waybill}: ${remark ?? text.slice(0, 300)}`);
+    }
+    return { status: 'CANCELLED', remark, raw: text };
   },
 
   // GET /api/v1/packages/json/?waybill=<waybill> — polled by the

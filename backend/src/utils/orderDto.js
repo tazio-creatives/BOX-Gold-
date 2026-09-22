@@ -40,7 +40,6 @@ export function toShipmentDto(shipment, trackingEvents = []) {
     packageLengthCm: nullableNumber(shipment.package_length_cm),
     packageWidthCm: nullableNumber(shipment.package_width_cm),
     packageHeightCm: nullableNumber(shipment.package_height_cm),
-    labelUrl: shipment.label_url ?? null,
     lastTrackedAt: shipment.last_tracked_at ?? null,
     trackingEvents: trackingEvents.map(toTrackingEventDto),
   };

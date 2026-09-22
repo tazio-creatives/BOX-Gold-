@@ -1,5 +1,10 @@
 import { z } from 'zod';
-import { ADMIN_MANUAL_TARGETS, STATUS_FILTER_VALUES } from '../utils/orderStatus.js';
+import {
+  ADMIN_MANUAL_TARGETS,
+  STATUS_FILTER_VALUES,
+  RETURN_REASONS,
+  RETURN_REQUEST_STATUSES,
+} from '../utils/orderStatus.js';
 
 export const listOrdersQuerySchema = z.object({
   status: z.enum(STATUS_FILTER_VALUES).optional(),
@@ -18,4 +23,17 @@ export const orderSummaryQuerySchema = z.object({
 export const updateOrderStatusSchema = z.object({
   status: z.enum(ADMIN_MANUAL_TARGETS),
   note: z.string().trim().max(500).optional(),
+});
+
+// multipart/form-data body (video is a separate file field, handled by
+// multer) — everything here comes through as strings.
+export const createReturnRequestSchema = z.object({
+  reason: z.enum(RETURN_REASONS),
+  note: z.string().trim().max(1000).optional(),
+});
+
+export const updateReturnRequestStatusSchema = z.object({
+  // COMPLETED isn't admin-settable directly — it's only ever set alongside
+  // an order_status change to RETURNED (see adminOrders.controller.js).
+  status: z.enum(RETURN_REQUEST_STATUSES.filter((s) => s !== 'COMPLETED')),
 });

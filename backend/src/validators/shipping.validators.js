@@ -1,9 +1,9 @@
 import { z } from 'zod';
 
-// Admin-entered at Ready-to-Ship time (plan §Phase 3) — no product-catalog
-// weight/dimension fields exist, so the courier needs these confirmed per
-// shipment instead.
-export const markReadyToShipSchema = z.object({
+// Admin-entered at Create Shipment time — no product-catalog weight/
+// dimension fields exist, so the courier needs these confirmed per shipment
+// instead.
+export const createShipmentSchema = z.object({
   weightGrams: z.coerce.number().positive().max(50000),
   lengthCm: z.coerce.number().positive().max(200),
   widthCm: z.coerce.number().positive().max(200),

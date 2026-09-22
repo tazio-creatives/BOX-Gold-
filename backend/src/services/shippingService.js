@@ -4,7 +4,6 @@ import { shippingProvider, shippingProviders } from '../providers/shipping/index
 import {
   findShipmentByOrderId,
   insertShipment,
-  updateShipmentLabelUrl,
   findShipmentByProviderShipmentIdTx,
   updateShipmentStatusTx,
   updateShipmentStatusSimpleTx,
@@ -24,15 +23,19 @@ import {
 } from '../repositories/orders.repository.js';
 import { enqueueEmail } from './emailService.js';
 
-// Ready to Ship is only reachable from Processing (spec §7's transition
-// table) — courier-controlled statuses beyond this point (Shipped, In
-// Transit, Out for Delivery, Delivered) are driven by the tracking-sync job
-// below, never set directly by an admin action.
-export async function markOrderReadyToShip(orderId, packageDetails, actorAdminId) {
+// Actually books the shipment with the courier — only reachable once an
+// admin has already marked the order READY_TO_SHIP (adminOrders.controller.js
+// ::markReadyToShip, a separate pure status change with no courier call).
+// order_status stays READY_TO_SHIP here; only shipment_status advances.
+// Courier-controlled statuses beyond this point (Shipped, In Transit, Out
+// for Delivery, Delivered) are driven by the tracking-sync job below, never
+// set directly by an admin action. No label fetch — admin prints the
+// shipping label from the Delhivery portal directly, not this platform.
+export async function createShipmentForOrder(orderId, packageDetails, actorAdminId) {
   const order = await findOrderById(orderId);
   if (!order) throw new NotFoundError('Order not found');
-  if (order.order_status !== 'PROCESSING') {
-    throw new AppError(400, `Order must be Processing to mark Ready to Ship (currently ${order.order_status ?? 'awaiting payment'})`);
+  if (order.order_status !== 'READY_TO_SHIP') {
+    throw new AppError(400, `Order must be Ready to Ship to create a shipment (currently ${order.order_status ?? 'awaiting payment'})`);
   }
 
   const existing = await findShipmentByOrderId(orderId);
@@ -57,16 +60,10 @@ export async function markOrderReadyToShip(orderId, packageDetails, actorAdminId
     packageLengthCm: packageDetails.lengthCm,
     packageWidthCm: packageDetails.widthCm,
     packageHeightCm: packageDetails.heightCm,
-    labelUrl: result.labelUrl ?? null,
   });
 
-  const alreadyNotified = await hasOrderStatusHistoryEntry(orderId, 'READY_TO_SHIP');
-
   await withTransaction(async (client) => {
-    // No legacy `status` write — READY_TO_SHIP has no legacy equivalent
-    // (see ORDER_STATUS_TO_LEGACY_STATUS), same as the other new-only
-    // statuses introduced in Phase 1.
-    await updateOrderStatusFieldsTx(client, orderId, { orderStatus: 'READY_TO_SHIP', shipmentStatus: 'SHIPMENT_CREATED' });
+    await updateOrderStatusFieldsTx(client, orderId, { shipmentStatus: 'SHIPMENT_CREATED' });
     await insertOrderStatusHistoryTx(
       client,
       orderId,
@@ -81,30 +78,6 @@ export async function markOrderReadyToShip(orderId, packageDetails, actorAdminId
       source: 'SYSTEM',
     });
   });
-
-  if (!alreadyNotified) {
-    await enqueueEmail(order.contact_email, 'ORDER_READY_TO_SHIP', {
-      contactName: order.contact_name,
-      orderNumber: order.order_number,
-      courierName: shipment.courier_name,
-      trackingNumber: shipment.tracking_number,
-    });
-  }
-
-  // Best-effort — a label that isn't ready yet shouldn't block Ready to
-  // Ship from succeeding; the admin UI's "Download Label" simply stays
-  // absent until a later tracking sync (or a manual retry) fetches it.
-  if (!shipment.label_url && typeof shippingProvider.fetchLabel === 'function') {
-    try {
-      const { labelUrl } = await shippingProvider.fetchLabel(shipment.tracking_number);
-      if (labelUrl) {
-        shipment.label_url = labelUrl;
-        await updateShipmentLabelUrl(shipment.id, labelUrl);
-      }
-    } catch (err) {
-      console.error(`[delhivery] label fetch failed for order ${order.order_number}:`, err.message);
-    }
-  }
 
   return shipment;
 }
@@ -358,25 +331,3 @@ export async function syncOneShipmentTrackingForOrder(orderId) {
   return findShipmentByOrderId(orderId);
 }
 
-// Admin "Fetch Label" / "Refresh Label" button — markOrderReadyToShip
-// already tries this once automatically right after shipment creation, but
-// a transient failure there (label genuinely not ready yet on Delhivery's
-// side, a timeout) previously had no retry path from the UI. Always
-// re-fetches rather than short-circuiting when a URL already exists, so it
-// doubles as "get the latest label" if Delhivery ever regenerates one.
-export async function fetchShipmentLabel(orderId) {
-  const shipment = await findShipmentByOrderId(orderId);
-  if (!shipment) throw new NotFoundError('No shipment exists for this order');
-
-  const provider = shippingProviders[shipment.provider];
-  if (!provider || typeof provider.fetchLabel !== 'function' || !shipment.tracking_number) {
-    throw new AppError(400, `${shipment.provider} does not support label download`);
-  }
-
-  const { labelUrl } = await provider.fetchLabel(shipment.tracking_number);
-  if (!labelUrl) {
-    throw new AppError(400, 'Courier has not generated a label for this shipment yet — try again shortly');
-  }
-
-  return updateShipmentLabelUrl(shipment.id, labelUrl);
-}

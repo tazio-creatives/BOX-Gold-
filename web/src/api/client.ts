@@ -16,11 +16,16 @@ export class ApiError extends Error {
 export async function apiFetch<T>(path: string, options: RequestInit = {}): Promise<T> {
   const isStateChanging = !!options.method && options.method !== 'GET';
 
+  // A FormData body (return-request video upload) must NOT get a manual
+  // Content-Type — fetch sets its own multipart boundary automatically, and
+  // overriding it here would send a malformed request the server can't parse.
+  const isFormData = typeof FormData !== 'undefined' && options.body instanceof FormData;
+
   const response = await fetch(`${API_BASE_URL}${path}`, {
     ...options,
     credentials: 'include',
     headers: {
-      ...(options.body ? { 'Content-Type': 'application/json' } : {}),
+      ...(options.body && !isFormData ? { 'Content-Type': 'application/json' } : {}),
       // CSRF defense-in-depth header the backend requires on state-changing
       // requests (plan §8) — see backend/src/middleware/csrf.js.
       ...(isStateChanging ? { 'X-Requested-With': 'box-diamonds' } : {}),

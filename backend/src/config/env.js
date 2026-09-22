@@ -96,6 +96,9 @@ export const env = {
   uploadDir: process.env.UPLOAD_DIR ?? 'uploads',
   uploadsPublicBaseUrl: process.env.UPLOADS_PUBLIC_BASE_URL ?? 'http://localhost:4000/uploads',
   maxUploadSizeMb: Number(process.env.MAX_UPLOAD_SIZE_MB ?? 10),
+  // Unboxing/return videos are much larger than a product image — separate,
+  // higher default limit rather than raising maxUploadSizeMb for everything.
+  maxReturnVideoSizeMb: Number(process.env.MAX_RETURN_VIDEO_SIZE_MB ?? 100),
   aiImageProvider: process.env.AI_IMAGE_PROVIDER ?? 'stub',
 
   // S3 storage provider — only read when STORAGE_PROVIDER=s3. Credentials
@@ -147,6 +150,18 @@ export const env = {
   sesRegion: process.env.SES_REGION ?? 'ap-south-1',
   sesFromEmail: process.env.SES_FROM_EMAIL,
   sesFromName: process.env.SES_FROM_NAME ?? 'BOX Diamonds',
+
+  // Generic SMTP — real email provider, only read when EMAIL_PROVIDER=smtp.
+  // No sandbox/per-recipient-verification restriction the way a brand-new
+  // SES account has, at the cost of whatever the mailbox's own daily
+  // sending limit is (e.g. Gmail's ~500/day with an App Password).
+  smtpHost: process.env.SMTP_HOST,
+  smtpPort: Number(process.env.SMTP_PORT ?? 587),
+  smtpSecure: process.env.SMTP_SECURE === 'true',
+  smtpUser: process.env.SMTP_USER,
+  smtpPass: process.env.SMTP_PASS,
+  smtpFromEmail: process.env.SMTP_FROM_EMAIL ?? process.env.SMTP_USER,
+  smtpFromName: process.env.SMTP_FROM_NAME ?? 'BOX Diamonds',
 };
 
 export const isProduction = env.nodeEnv === 'production';

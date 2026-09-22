@@ -1,28 +1,28 @@
 import { useState } from 'react';
 import { useQuery, useQueryClient, useMutation } from '@tanstack/react-query';
-import { fetchAdminOrder, updateOrderStatus, startProcessing } from '../../api/orders';
 import {
+  fetchAdminOrder,
+  updateOrderStatus,
+  startProcessing,
   markReadyToShip,
-  cancelShipment,
-  syncTracking,
-  fetchLabel,
-  simulateTracking,
-  addTrackingEvent,
-} from '../../api/shipping';
+  updateReturnRequestStatus,
+} from '../../api/orders';
+import { createShipment, cancelShipment, syncTracking, simulateTracking, addTrackingEvent } from '../../api/shipping';
 import type { OrderStatus, OrderItem } from '../../api/types';
-import type { ReadyToShipInput } from '../../api/shipping';
+import type { CreateShipmentInput } from '../../api/shipping';
 import { formatPrice } from '../../utils/formatPrice';
 import { ApiError } from '../../api/client';
 import { formatOrderStatus } from '../../utils/orderStatus';
 import { formatDeliveryRange, deliveryFallbackDaysText } from '../../utils/deliveryEstimate';
 import { ConfirmDialog } from '../../components/ConfirmDialog';
-import { ReadyToShipDialog } from '../../components/ReadyToShipDialog';
+import { CreateShipmentDialog } from '../../components/CreateShipmentDialog';
 import { OrderHeroCard } from './OrderHeroCard';
 import { DeliveryStatusCard } from './DeliveryStatusCard';
 import { ChangeStatusCard } from './ChangeStatusCard';
 import { OrderSummaryCard } from './OrderSummaryCard';
 import { ChangeStatusRow } from './ChangeStatusRow';
 import { OrderTimelineCard } from './OrderTimelineCard';
+import { ReturnRequestCard } from './ReturnRequestCard';
 import { CopyIcon, BoxIcon, LocationIcon, HistoryIcon, TruckIcon } from './OrderHeroIcons';
 import sharedStyles from '../../styles/shared.module.css';
 import styles from './OrderDetailPage.module.css';
@@ -64,12 +64,6 @@ function buildProductDetailRows(item: OrderItem): [string, string][] {
   return rows;
 }
 
-// Ready to Ship (and the Delhivery shipment it creates) is only reachable
-// from Processing — spec §7's transition table, same reasoning as
-// ADMIN_MANUAL_TARGETS excluding courier-controlled statuses from the
-// generic override dropdown.
-const READY_TO_SHIP_ELIGIBLE_STATUSES = new Set(['PROCESSING']);
-
 // Shared body used both by the standalone /orders/:id page (OrderDetailPage,
 // a thin wrapper adding the "back to orders" link) and the Orders list's
 // slide-in side panel (OrderDetailPanel, which adds a close button instead)
@@ -84,7 +78,7 @@ export function OrderDetailContent({ id, compact = false }: { id: string; compac
   const [eventLocation, setEventLocation] = useState('');
   const [eventNote, setEventNote] = useState('');
   const [confirmingCancelShipment, setConfirmingCancelShipment] = useState(false);
-  const [showReadyToShipDialog, setShowReadyToShipDialog] = useState(false);
+  const [showCreateShipmentDialog, setShowCreateShipmentDialog] = useState(false);
   const [previewImage, setPreviewImage] = useState<string | null>(null);
   const [addressCopied, setAddressCopied] = useState(false);
   const [awbCopied, setAwbCopied] = useState(false);
@@ -112,11 +106,17 @@ export function OrderDetailContent({ id, compact = false }: { id: string; compac
     onError: (err) => window.alert(err instanceof ApiError ? err.message : 'Could not start processing.'),
   });
 
-  const readyToShipMutation = useMutation({
-    mutationFn: (input: ReadyToShipInput) => markReadyToShip(id, input),
+  const markReadyToShipMutation = useMutation({
+    mutationFn: () => markReadyToShip(id),
+    onSuccess: invalidate,
+    onError: (err) => window.alert(err instanceof ApiError ? err.message : 'Could not mark ready to ship.'),
+  });
+
+  const createShipmentMutation = useMutation({
+    mutationFn: (input: CreateShipmentInput) => createShipment(id, input),
     onSuccess: () => {
       invalidate();
-      setShowReadyToShipDialog(false);
+      setShowCreateShipmentDialog(false);
     },
   });
 
@@ -124,12 +124,6 @@ export function OrderDetailContent({ id, compact = false }: { id: string; compac
     mutationFn: () => syncTracking(id),
     onSuccess: invalidate,
     onError: (err) => window.alert(err instanceof ApiError ? err.message : 'Could not refresh tracking.'),
-  });
-
-  const fetchLabelMutation = useMutation({
-    mutationFn: () => fetchLabel(id),
-    onSuccess: invalidate,
-    onError: (err) => window.alert(err instanceof ApiError ? err.message : 'Could not fetch label.'),
   });
 
   const cancelMutation = useMutation({
@@ -148,6 +142,12 @@ export function OrderDetailContent({ id, compact = false }: { id: string; compac
     mutationFn: (status: 'OUT_FOR_DELIVERY' | 'DELIVERED') => simulateTracking(id, status),
     onSuccess: invalidate,
     onError: (err) => window.alert(err instanceof ApiError ? err.message : 'Could not update tracking.'),
+  });
+
+  const returnRequestMutation = useMutation({
+    mutationFn: (status: 'APPROVED' | 'REJECTED') => updateReturnRequestStatus(id, status),
+    onSuccess: invalidate,
+    onError: (err) => window.alert(err instanceof ApiError ? err.message : 'Could not update return request.'),
   });
 
   const eventMutation = useMutation({
@@ -366,6 +366,15 @@ export function OrderDetailContent({ id, compact = false }: { id: string; compac
             )}
           </section>
 
+          {order.returnRequest && (
+            <ReturnRequestCard
+              returnRequest={order.returnRequest}
+              onApprove={() => returnRequestMutation.mutate('APPROVED')}
+              onReject={() => returnRequestMutation.mutate('REJECTED')}
+              isPending={returnRequestMutation.isPending}
+            />
+          )}
+
           {!compact && order.shipment && (
             <section className={sharedStyles.cardPadded}>
               <h2 className={styles.sectionHeadingIcon}>
@@ -454,21 +463,35 @@ export function OrderDetailContent({ id, compact = false }: { id: string; compac
               <TruckIcon size={16} /> Shipping
             </h2>
 
-            {!order.shipment && (
+            {!order.shipment && order.orderStatus === 'PROCESSING' && (
+              <>
+                <p className={styles.subtext}>Order is being processed.</p>
+                <button
+                  type="button"
+                  className={sharedStyles.buttonPrimary}
+                  disabled={markReadyToShipMutation.isPending}
+                  onClick={() => markReadyToShipMutation.mutate()}
+                >
+                  {markReadyToShipMutation.isPending ? 'Updating…' : 'Mark Ready to Ship'}
+                </button>
+              </>
+            )}
+
+            {!order.shipment && order.orderStatus === 'READY_TO_SHIP' && (
               <>
                 <p className={styles.subtext}>No shipment created yet.</p>
                 <button
                   type="button"
                   className={sharedStyles.buttonPrimary}
-                  disabled={!READY_TO_SHIP_ELIGIBLE_STATUSES.has(order.orderStatus ?? '')}
-                  onClick={() => setShowReadyToShipDialog(true)}
+                  onClick={() => setShowCreateShipmentDialog(true)}
                 >
-                  Mark Ready to Ship
+                  Create Shipment
                 </button>
-                {!READY_TO_SHIP_ELIGIBLE_STATUSES.has(order.orderStatus ?? '') && (
-                  <p className={styles.hint}>Order must be Processing to mark Ready to Ship.</p>
-                )}
               </>
+            )}
+
+            {!order.shipment && order.orderStatus !== 'PROCESSING' && order.orderStatus !== 'READY_TO_SHIP' && (
+              <p className={styles.hint}>Order must be Processing to mark Ready to Ship.</p>
             )}
 
             {order.shipment && (
@@ -497,37 +520,6 @@ export function OrderDetailContent({ id, compact = false }: { id: string; compac
                     Package: {order.shipment.packageWeightGrams}g · {order.shipment.packageLengthCm}×
                     {order.shipment.packageWidthCm}×{order.shipment.packageHeightCm} cm
                   </p>
-                )}
-                {order.shipment.labelUrl ? (
-                  <p className={styles.shipmentLine}>
-                    <a href={order.shipment.labelUrl} target="_blank" rel="noreferrer">
-                      Download Label
-                    </a>
-                    {order.shipment.provider !== 'stub' && (
-                      <>
-                        {' · '}
-                        <button
-                          type="button"
-                          className={sharedStyles.buttonLink}
-                          disabled={fetchLabelMutation.isPending}
-                          onClick={() => fetchLabelMutation.mutate()}
-                        >
-                          {fetchLabelMutation.isPending ? 'Refreshing…' : 'Refresh Label'}
-                        </button>
-                      </>
-                    )}
-                  </p>
-                ) : (
-                  order.shipment.provider !== 'stub' && (
-                    <button
-                      type="button"
-                      className={sharedStyles.button}
-                      disabled={fetchLabelMutation.isPending}
-                      onClick={() => fetchLabelMutation.mutate()}
-                    >
-                      {fetchLabelMutation.isPending ? 'Fetching…' : 'Fetch Label'}
-                    </button>
-                  )
                 )}
                 {order.shipment.lastTrackedAt && (
                   <p className={styles.hint}>
@@ -607,12 +599,12 @@ export function OrderDetailContent({ id, compact = false }: { id: string; compac
         />
       )}
 
-      {showReadyToShipDialog && (
-        <ReadyToShipDialog
-          isPending={readyToShipMutation.isPending}
-          errorMessage={readyToShipMutation.error instanceof ApiError ? readyToShipMutation.error.message : null}
-          onConfirm={(input) => readyToShipMutation.mutate(input)}
-          onCancel={() => setShowReadyToShipDialog(false)}
+      {showCreateShipmentDialog && (
+        <CreateShipmentDialog
+          isPending={createShipmentMutation.isPending}
+          errorMessage={createShipmentMutation.error instanceof ApiError ? createShipmentMutation.error.message : null}
+          onConfirm={(input) => createShipmentMutation.mutate(input)}
+          onCancel={() => setShowCreateShipmentDialog(false)}
         />
       )}
 

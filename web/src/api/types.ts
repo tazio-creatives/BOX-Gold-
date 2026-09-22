@@ -529,12 +529,34 @@ export interface Order {
   shipment?: Shipment | null;
 }
 
+export type ReturnReason = 'DAMAGED' | 'DEFECTIVE' | 'WRONG_ITEM' | 'NOT_AS_DESCRIBED' | 'CHANGED_MIND' | 'OTHER';
+export type ReturnRequestStatus = 'REQUESTED' | 'APPROVED' | 'REJECTED' | 'COMPLETED';
+
+export interface ReturnRequest {
+  id: string;
+  reason: ReturnReason;
+  note: string | null;
+  videoUrl: string | null;
+  status: ReturnRequestStatus;
+  createdAt: string;
+  resolvedAt: string | null;
+}
+
+export interface ShipmentTrackingEvent {
+  id: string;
+  status: string;
+  location: string | null;
+  note: string | null;
+  createdAt: string;
+}
+
 export interface Shipment {
   id: string;
   provider: string;
   trackingNumber: string | null;
   courierName: string | null;
   status: string;
+  trackingEvents: ShipmentTrackingEvent[];
 }
 
 // Passed via React Router navigation state from PDP's Buy Now button

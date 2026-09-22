@@ -360,12 +360,23 @@ export async function deleteProduct(id) {
 // no per-variant cache to go stale. pricingJobs.js re-derives the product's
 // own base-configuration price via productsService.applyBaseProductPricing
 // after this.
+// Deliberately does NOT require gold_weight_grams IS NOT NULL — a product
+// can be priced entirely through Weight Defaults rules (product_weight_rules)
+// with no flat base weight of its own at all (the whole point of that
+// feature). Requiring the flat column silently dropped every such product
+// from every scheduled recalculation forever, so its cached selling_price
+// only ever moved when an admin happened to re-save the product directly —
+// never on a gold rate change or a Weight Defaults/Purity Pricing Rule edit
+// via the standalone endpoints. applyBaseProductPricing already resolves
+// weight through the full rule-then-flat-column chain and tolerates no
+// weight resolving at all (gold value just stays 0), so including these
+// products here is safe.
 export async function findGoldProductsForRecalculation() {
   const { rows } = await query(
     `SELECT id, slug, category_id, gold_weight_grams, purity, diamond_value, making_charge,
             making_charge_percent, gst_percent, selling_price
      FROM products
-     WHERE metal_type = 'GOLD' AND purity IS NOT NULL AND gold_weight_grams IS NOT NULL
+     WHERE metal_type = 'GOLD' AND purity IS NOT NULL
        AND is_price_locked = false`,
   );
   return rows;
