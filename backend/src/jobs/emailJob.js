@@ -25,8 +25,8 @@ async function emailSendHandler(jobs) {
   if (!emailJob) return;
 
   try {
-    const { subject, body } = renderEmailTemplate(emailJob.template, emailJob.payload);
-    await emailProvider.send({ to: emailJob.to_email, subject, body });
+    const { subject, body, html } = await renderEmailTemplate(emailJob.template, emailJob.payload);
+    await emailProvider.send({ to: emailJob.to_email, subject, body, html });
     await markEmailJobStatus(emailJobId, 'SENT');
     await insertEmailLog({
       emailJobId,

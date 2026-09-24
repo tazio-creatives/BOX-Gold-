@@ -101,6 +101,7 @@ export interface ProductDetail {
   // recalculation; priceBreakup.makingCharge above is just its computed
   // result at the current gold rate/purity/size.
   makingChargePercent: number | null;
+  gstPercent: number;
   mrp: number;
   sellingPrice: number;
   sellingPriceOriginal: number;
@@ -303,6 +304,47 @@ export interface GoldRateRow {
   rate_per_gram: string;
   source: string;
   fetched_at: string;
+}
+
+export type GoldRateSource = 'AUTOMATIC' | 'MANUAL';
+export type GoldRateAdjustmentType = 'NONE' | 'FIXED' | 'PERCENTAGE';
+
+export interface GoldRateSettingsRow {
+  id: string;
+  source: GoldRateSource;
+  adjustment_type: GoldRateAdjustmentType;
+  adjustment_value: string;
+  max_deviation_percent: string;
+  updated_at: string;
+  updated_by_admin_id: string | null;
+}
+
+export interface GoldRateSyncRunRow {
+  id: string;
+  trigger: 'CRON' | 'MANUAL';
+  primary_provider: string;
+  primary_status: 'SUCCESS' | 'FAILED' | 'SKIPPED';
+  primary_rate: string | null;
+  primary_error: string | null;
+  fallback_provider: string | null;
+  fallback_status: 'SUCCESS' | 'FAILED' | 'SKIPPED' | null;
+  fallback_rate: string | null;
+  fallback_error: string | null;
+  resolved_provider: string | null;
+  base_rate_24k: string | null;
+  adjustment_type: GoldRateAdjustmentType;
+  adjustment_value: string;
+  effective_rate_24k: string | null;
+  status: 'SUCCESS' | 'FAILED' | 'REJECTED';
+  applied: boolean;
+  rejected_reason: string | null;
+  created_at: string;
+}
+
+export interface GoldRateOverview {
+  settings: GoldRateSettingsRow;
+  currentRates: GoldRateRow[];
+  latestSyncRun: GoldRateSyncRunRow | null;
 }
 
 export interface DiamondConfig {

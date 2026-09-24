@@ -192,6 +192,12 @@ function toDetailDto(row, deliveryEstimate = calculateDeliveryEstimate()) {
     // the flat priceBreakup.makingChargeOriginal above — platinum, or never
     // migrated to percent-based pricing).
     makingChargePercent: row.making_charge_percent == null ? null : Number(row.making_charge_percent),
+    // The admin edit form reads this to show the actually-saved GST% —
+    // previously absent here entirely, so the form always displayed blank
+    // regardless of what was stored, and silently reset it to a hardcoded
+    // 3% default on every save unless the admin happened to retype the
+    // real value first.
+    gstPercent: Number(row.gst_percent),
     mrp: Number(row.mrp),
     sellingPrice: offer.sellingPrice,
     // The admin-set base price before this offer's discount — the admin

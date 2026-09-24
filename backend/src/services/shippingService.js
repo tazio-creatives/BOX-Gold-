@@ -169,6 +169,7 @@ export async function confirmTrackingUpdate(rawBody, signature) {
     const order = await findOrderById(result.shipment.order_id);
     const template = status === 'DELIVERED' ? 'ORDER_DELIVERED' : 'ORDER_OUT_FOR_DELIVERY';
     await enqueueEmail(order.contact_email, template, {
+      orderId: order.id,
       contactName: order.contact_name,
       orderNumber: order.order_number,
     });
@@ -296,6 +297,7 @@ async function syncOneShipment(shipment) {
   if (template && !alreadyNotified) {
     const order = await findOrderById(shipment.order_id);
     await enqueueEmail(order.contact_email, template, {
+      orderId: order.id,
       contactName: order.contact_name,
       orderNumber: order.order_number,
     });

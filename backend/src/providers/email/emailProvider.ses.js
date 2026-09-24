@@ -26,7 +26,11 @@ function getClient() {
 export const sesEmailProvider = {
   name: 'ses',
 
-  async send({ to, subject, body }) {
+  // `html` is optional — when a template provides one (the order-status
+  // emails), it's sent alongside the plain-text `body` as a proper
+  // multipart message; templates with no html (unchanged) send exactly as
+  // before, Text-only.
+  async send({ to, subject, body, html }) {
     if (!env.sesFromEmail) {
       throw new Error('SES_FROM_EMAIL is not set — required when EMAIL_PROVIDER=ses');
     }
@@ -37,7 +41,10 @@ export const sesEmailProvider = {
         Destination: { ToAddresses: [to] },
         Message: {
           Subject: { Data: subject, Charset: 'UTF-8' },
-          Body: { Text: { Data: body, Charset: 'UTF-8' } },
+          Body: {
+            Text: { Data: body, Charset: 'UTF-8' },
+            ...(html ? { Html: { Data: html, Charset: 'UTF-8' } } : {}),
+          },
         },
       }),
     );

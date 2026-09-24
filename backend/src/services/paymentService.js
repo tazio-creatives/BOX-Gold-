@@ -131,6 +131,7 @@ export async function confirmPayment(rawBody, headers) {
     if (status === 'SUCCEEDED') {
       await invalidateOrderProductPages(result.orderId);
       await enqueueEmail(order.contact_email, 'ORDER_CONFIRMED', {
+        orderId: order.id,
         contactName: order.contact_name,
         orderNumber: order.order_number,
         totalAmount: order.total_amount,

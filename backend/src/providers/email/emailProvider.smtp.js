@@ -25,7 +25,10 @@ function getTransporter() {
 export const smtpEmailProvider = {
   name: 'smtp',
 
-  async send({ to, subject, body }) {
+  // `html` is optional — when a template provides one (the order-status
+  // emails), nodemailer sends a proper multipart message; templates with
+  // no html (unchanged) send exactly as before, plain text only.
+  async send({ to, subject, body, html }) {
     if (!env.smtpFromEmail) {
       throw new Error('SMTP_FROM_EMAIL (or SMTP_USER) is not set — required when EMAIL_PROVIDER=smtp');
     }
@@ -35,6 +38,7 @@ export const smtpEmailProvider = {
       to,
       subject,
       text: body,
+      ...(html ? { html } : {}),
     });
   },
 };

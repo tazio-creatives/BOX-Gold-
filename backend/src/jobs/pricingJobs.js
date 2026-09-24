@@ -1,8 +1,6 @@
 import { boss } from './queue.js';
 import { withTransaction } from '../config/db.js';
-import { metalRateProvider } from '../providers/metalRate/index.js';
-import { deriveRatesFromBase24k } from '../services/pricingService.js';
-import { insertGoldRates } from '../repositories/goldRates.repository.js';
+import { runGoldRateSync } from '../services/goldRateService.js';
 import { findDiamondConfigById } from '../repositories/diamondConfigs.repository.js';
 import { insertPriceHistory } from '../repositories/productPriceHistory.repository.js';
 import { findGoldProductsForRecalculation, findDiamondProductsForRecalculation, findProductById } from '../repositories/products.repository.js';
@@ -13,13 +11,18 @@ export const JOB_GOLD_RATE_SYNC = 'gold-rate-sync';
 export const JOB_RECALCULATE_GOLD = 'recalculate-gold-prices';
 export const JOB_RECALCULATE_DIAMOND = 'recalculate-diamond-prices';
 
-// Rate sync flow (plan §9a): fetch 24K, derive 14/18/22/24K, insert 4 rows,
-// enqueue the recalculation pass — never recalculates inline.
-async function goldRateSyncHandler() {
-  const { ratePerGram, source } = await metalRateProvider.fetchRate('GOLD');
-  const derived = deriveRatesFromBase24k(ratePerGram);
-  await insertGoldRates(derived, source);
-  await boss.send(JOB_RECALCULATE_GOLD, {});
+// Rate sync flow (spec: OroPocket primary / GoldAPI fallback / last-known
+// rate, admin adjustment layer, Automatic/Manual mode, deviation guard —
+// all handled by goldRateService.runGoldRateSync). Only enqueues the
+// recalculation pass when a genuinely new rate was actually applied —
+// a failed/rejected/manual-mode sync leaves cached prices exactly as they
+// were, never stale-but-wrong and never a wasted recalculation pass.
+async function goldRateSyncHandler(jobs) {
+  const trigger = jobs?.[0]?.data?.trigger ?? 'CRON';
+  const { applied } = await runGoldRateSync({ trigger });
+  if (applied) {
+    await boss.send(JOB_RECALCULATE_GOLD, {});
+  }
 }
 
 // Every product_variants row is priced live via computeVariantPricing at
@@ -49,6 +52,7 @@ async function recalculateGoldPricesHandler() {
     );
   }
   await invalidateProductsPagesBatch(products);
+  console.log(`[GOLD_RATE_SYNC] Products recalculated: ${products.length}`);
 }
 
 // pg-boss v10's work() callback receives an array of jobs, not a single job

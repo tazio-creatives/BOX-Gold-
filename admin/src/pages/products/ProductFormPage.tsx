@@ -254,7 +254,7 @@ export function ProductFormPage() {
         // further on the next read.
         diamondValue: p.priceBreakup.diamondValueOriginal,
         makingCharge: p.priceBreakup.makingChargeOriginal,
-        gstPercent: undefined,
+        gstPercent: p.gstPercent,
         mrp: p.mrp,
         sellingPrice: p.sellingPriceOriginal,
         makingChargeDiscountPercent: p.priceBreakup.makingChargeDiscountPercent || undefined,

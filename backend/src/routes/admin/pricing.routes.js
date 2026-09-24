@@ -1,5 +1,13 @@
 import { Router } from 'express';
-import { getGoldRates, syncGoldRates, preview } from '../../controllers/pricing.controller.js';
+import {
+  getGoldRates,
+  syncGoldRates,
+  preview,
+  getGoldRateSettings,
+  putGoldRateSettings,
+  postManualGoldRate,
+} from '../../controllers/pricing.controller.js';
+import { goldRateSyncRateLimiter } from '../../middleware/rateLimit.js';
 import {
   list as listDiamondConfigs,
   create as createDiamondConfig,
@@ -11,7 +19,10 @@ import {
 export const adminPricingRouter = Router();
 
 adminPricingRouter.get('/gold-rates', getGoldRates);
-adminPricingRouter.post('/gold-rates/sync', syncGoldRates);
+adminPricingRouter.post('/gold-rates/sync', goldRateSyncRateLimiter, syncGoldRates);
+adminPricingRouter.get('/gold-rate-settings', getGoldRateSettings);
+adminPricingRouter.put('/gold-rate-settings', putGoldRateSettings);
+adminPricingRouter.post('/gold-rate-settings/manual-rate', postManualGoldRate);
 adminPricingRouter.get('/diamond-configs', listDiamondConfigs);
 adminPricingRouter.post('/diamond-configs', createDiamondConfig);
 adminPricingRouter.put('/diamond-configs/:id', updateDiamondConfig);

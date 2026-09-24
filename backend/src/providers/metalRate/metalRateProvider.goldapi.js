@@ -11,10 +11,23 @@ export const goldapiMetalRateProvider = {
       throw new Error(`goldapi metal rate provider does not support metal "${metal}"`);
     }
 
-    const response = await fetch(`${GOLDAPI_BASE_URL}/${symbol}/INR`, {
-      method: 'GET',
-      headers: { 'x-access-token': env.goldapiAccessToken, Accept: 'application/json' },
-    });
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), env.metalRateFetchTimeoutMs);
+    let response;
+    try {
+      response = await fetch(`${GOLDAPI_BASE_URL}/${symbol}/INR`, {
+        method: 'GET',
+        headers: { 'x-access-token': env.goldapiAccessToken, Accept: 'application/json' },
+        signal: controller.signal,
+      });
+    } catch (err) {
+      if (err.name === 'AbortError') {
+        throw new Error(`GoldAPI rate fetch timed out after ${env.metalRateFetchTimeoutMs}ms`);
+      }
+      throw new Error(`GoldAPI rate fetch failed: ${err.message}`);
+    } finally {
+      clearTimeout(timeout);
+    }
 
     if (!response.ok) {
       const body = await response.text();
@@ -22,6 +35,10 @@ export const goldapiMetalRateProvider = {
     }
 
     const data = await response.json();
-    return { ratePerGram: data.price_gram_24k, source: 'goldapi' };
+    const rate = data?.price_gram_24k;
+    if (typeof rate !== 'number' || !Number.isFinite(rate) || rate <= 0) {
+      throw new Error(`GoldAPI response missing a valid price_gram_24k: ${JSON.stringify(rate)}`);
+    }
+    return { ratePerGram: rate, source: 'goldapi' };
   },
 };

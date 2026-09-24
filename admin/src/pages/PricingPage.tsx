@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useQuery, useQueryClient, useMutation } from '@tanstack/react-query';
-import { fetchGoldRates, syncGoldRates } from '../api/pricing';
+import { fetchGoldRates } from '../api/pricing';
 import {
   fetchDiamondConfigs,
   createDiamondConfig,
@@ -8,6 +8,7 @@ import {
   deleteDiamondConfig,
 } from '../api/diamondConfigs';
 import { DiamondConfigForm } from '../features/pricing/DiamondConfigForm';
+import { GoldRateSettingsPanel } from '../features/pricing/GoldRateSettingsPanel';
 import type { DiamondConfig } from '../api/types';
 import { ApiError } from '../api/client';
 import { ConfirmDialog } from '../components/ConfirmDialog';
@@ -41,19 +42,6 @@ export function PricingPage() {
   const { data: diamondData, isLoading: isDiamondLoading } = useQuery({
     queryKey: ['admin-diamond-configs'],
     queryFn: () => fetchDiamondConfigs(),
-  });
-
-  const syncMutation = useMutation({
-    mutationFn: syncGoldRates,
-    onSuccess: () => {
-      setError(null);
-      // The sync runs in a background job — the rows won't reflect the new
-      // rate the instant this call returns, only that it's been queued.
-      // Give the worker a moment, then refetch so fetched_at proves whether
-      // it landed yet (retry "Sync Now" if it hasn't).
-      setTimeout(() => queryClient.invalidateQueries({ queryKey: ['admin-gold-rates'] }), 2500);
-    },
-    onError: (err) => setError(err instanceof ApiError ? err.message : 'Could not start gold rate sync.'),
   });
 
   const invalidateDiamondConfigs = () => queryClient.invalidateQueries({ queryKey: ['admin-diamond-configs'] });
@@ -105,19 +93,13 @@ export function PricingPage() {
           <div>
             <h2 className={styles.sectionHeading}>Gold Rates</h2>
             <p className={styles.sectionSubtext}>
-              Live rate per gram by purity — products auto-recalculate whenever this updates (unless
-              price-locked).
+              Sourced automatically from OroPocket every 15 minutes (GoldAPI as temporary fallback) — products
+              auto-recalculate whenever the effective rate changes (unless price-locked).
             </p>
           </div>
-          <button
-            type="button"
-            className={sharedStyles.buttonPrimary}
-            disabled={syncMutation.isPending}
-            onClick={() => syncMutation.mutate()}
-          >
-            {syncMutation.isPending ? 'Syncing…' : 'Sync Now'}
-          </button>
         </div>
+
+        <GoldRateSettingsPanel />
 
         {isGoldLoading && <p className={sharedStyles.empty}>Loading…</p>}
         {!isGoldLoading && goldRates.length === 0 && (

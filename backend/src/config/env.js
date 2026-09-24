@@ -47,10 +47,31 @@ export const env = {
   msg91TemplateId: process.env.MSG91_TEMPLATE_ID,
   msg91SenderId: process.env.MSG91_SENDER_ID,
 
-  // Live Pricing Engine (plan §9a)
+  // Live Pricing Engine (plan §9a). metalRateProvider is a dev/test escape
+  // hatch only: set to "stub" to bypass real network calls entirely (local
+  // dev default). Any other value is ignored by goldRateService, which
+  // always tries OroPocket first, then GoldAPI, then the last known rate —
+  // see goldRateService.js for the real provider-priority chain.
   metalRateProvider: process.env.METAL_RATE_PROVIDER ?? 'stub',
-  goldRateSyncCron: process.env.GOLD_RATE_SYNC_CRON ?? '0 */6 * * *', // every 6 hours
+  goldRateSyncCron: process.env.GOLD_RATE_SYNC_CRON ?? '*/15 * * * *', // every 15 minutes
   goldapiAccessToken: process.env.GOLDAPI_ACCESS_TOKEN,
+
+  // OroPocket — primary gold-rate source (no API key). GoldAPI above is kept
+  // as a temporary fallback until OroPocket is proven stable in production.
+  oropocketBaseUrl: process.env.OROPOCKET_BASE_URL ?? 'https://api.oropocket.com',
+  metalRateFetchTimeoutMs: Number(process.env.METAL_RATE_FETCH_TIMEOUT_MS ?? 8000),
+  metalRateFetchRetries: Number(process.env.METAL_RATE_FETCH_RETRIES ?? 2), // extra attempts after the first
+  metalRateRetryBaseDelayMs: Number(process.env.METAL_RATE_RETRY_BASE_DELAY_MS ?? 400),
+  // If a freshly fetched 24K rate differs from the last applied rate by more
+  // than this percentage, it's rejected/logged for review instead of applied
+  // automatically — overridable per-installation via gold_rate_settings, this
+  // is only the seed default for that table's max_deviation_percent column.
+  goldRateMaxDeviationPercent: Number(process.env.GOLD_RATE_MAX_DEVIATION_PERCENT ?? 10),
+  // Best-effort OroPocket-vs-GoldAPI comparison logging while migrating off
+  // GoldAPI (spec §13) — fetches GoldAPI in parallel purely for the
+  // gold_rate_sync_runs audit row even when OroPocket already succeeded.
+  // Never blocks or fails the sync; can be turned off once migration is done.
+  goldRateComparisonLoggingEnabled: process.env.GOLD_RATE_COMPARISON_LOGGING !== 'false',
 
   // Checkout / inventory reservation (plan §11)
   reservationTtlMinutes: Number(process.env.RESERVATION_TTL_MINUTES ?? 15),

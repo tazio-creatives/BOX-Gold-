@@ -38,6 +38,7 @@ async function notifyStatusChangeIfNew(order, status, alreadyNotified) {
   const template = NOTIFY_TEMPLATE_FOR_STATUS[status];
   if (!template || alreadyNotified) return;
   await enqueueEmail(order.contact_email, template, {
+    orderId: order.id,
     contactName: order.contact_name,
     orderNumber: order.order_number,
   });

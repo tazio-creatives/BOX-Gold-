@@ -29,6 +29,17 @@ export const otpSendRateLimiter = rateLimit({
   message: { error: { message: 'Too many OTP requests from this network, try again later' } },
 });
 
+// "Refresh Rate" in the admin Pricing page calls OroPocket's public endpoint
+// (their own limit: 10 req/60s per IP) — this keeps repeated admin clicks
+// from ever approaching that, independent of general admin traffic.
+export const goldRateSyncRateLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  max: 5,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: { message: 'Too many gold rate refresh requests, try again shortly' } },
+});
+
 // AI Image Studio's upload/analyse, confirm-and-generate and per-asset retry
 // endpoints each trigger a real, billed OpenAI call — stricter than general
 // admin traffic so a stuck frontend retry loop can't run up API spend.
