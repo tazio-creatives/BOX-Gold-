@@ -35,10 +35,20 @@ export const goldapiMetalRateProvider = {
     }
 
     const data = await response.json();
-    const rate = data?.price_gram_24k;
-    if (typeof rate !== 'number' || !Number.isFinite(rate) || rate <= 0) {
-      throw new Error(`GoldAPI response missing a valid price_gram_24k: ${JSON.stringify(rate)}`);
+    const rawRate = data?.price_gram_24k;
+    if (typeof rawRate !== 'number' || !Number.isFinite(rawRate) || rawRate <= 0) {
+      throw new Error(`GoldAPI response missing a valid price_gram_24k: ${JSON.stringify(rawRate)}`);
     }
+    // GoldAPI's price_gram_24k is the raw international (LBMA) spot price
+    // just converted to INR — it does NOT include India's gold import duty,
+    // unlike OroPocket's quote, which is an actual Indian domestic price.
+    // Confirmed by direct comparison on 2026-09-24: GoldAPI ₹13,151.84/g vs
+    // OroPocket ₹15,666.60/g (a ~19% gap) — adding this duty brought GoldAPI
+    // to within ~2.7% of OroPocket, i.e. it explains nearly the entire gap.
+    // Applied here (not in goldRateService) so every consumer of this
+    // provider — the real fallback path and the side-by-side comparison log
+    // alike — gets a duty-adjusted, genuinely comparable Indian rate.
+    const rate = Math.round(rawRate * (1 + env.goldapiImportDutyPercent / 100) * 100) / 100;
     return { ratePerGram: rate, source: 'goldapi' };
   },
 };

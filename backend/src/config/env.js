@@ -55,6 +55,10 @@ export const env = {
   metalRateProvider: process.env.METAL_RATE_PROVIDER ?? 'stub',
   goldRateSyncCron: process.env.GOLD_RATE_SYNC_CRON ?? '*/15 * * * *', // every 15 minutes
   goldapiAccessToken: process.env.GOLDAPI_ACCESS_TOKEN,
+  // GoldAPI quotes the raw international spot price with no Indian import
+  // duty applied — see metalRateProvider.goldapi.js for the live comparison
+  // that confirmed this against OroPocket's actual domestic quote.
+  goldapiImportDutyPercent: Number(process.env.GOLDAPI_IMPORT_DUTY_PERCENT ?? 16),
 
   // OroPocket — primary gold-rate source (no API key). GoldAPI above is kept
   // as a temporary fallback until OroPocket is proven stable in production.

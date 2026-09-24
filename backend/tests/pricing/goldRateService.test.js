@@ -1,6 +1,7 @@
 import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
 import { oropocketMetalRateProvider } from '../../src/providers/metalRate/metalRateProvider.oropocket.js';
+import { goldapiMetalRateProvider } from '../../src/providers/metalRate/metalRateProvider.goldapi.js';
 import {
   runGoldRateSync,
   computeEffectiveRate,
@@ -93,6 +94,29 @@ describe('oropocketMetalRateProvider.fetchRate', () => {
       signal.addEventListener('abort', () => reject(Object.assign(new Error('aborted'), { name: 'AbortError' })));
     }));
     await assert.rejects(() => oropocketMetalRateProvider.fetchRate('GOLD'), /timed out/);
+  });
+});
+
+describe('goldapiMetalRateProvider.fetchRate (import duty adjustment)', () => {
+  test('adds the configured import duty on top of GoldAPI\'s raw international rate', async (t) => {
+    t.mock.method(globalThis, 'fetch', async () =>
+      fakeFetchResponse({ json: { price_gram_24k: 13151.8416 } }),
+    );
+    const result = await goldapiMetalRateProvider.fetchRate('GOLD');
+    // 13151.8416 * 1.16 = 15256.137056 -> rounded to 2dp, same convention
+    // as deriveRatesFromBase24k elsewhere.
+    assert.equal(result.ratePerGram, 15256.14);
+    assert.equal(result.source, 'goldapi');
+  });
+
+  test('real-world check: duty-adjusted GoldAPI lands within a few percent of OroPocket, not ~19% off', async (t) => {
+    t.mock.method(globalThis, 'fetch', async () =>
+      fakeFetchResponse({ json: { price_gram_24k: 13151.8416 } }),
+    );
+    const goldapi = await goldapiMetalRateProvider.fetchRate('GOLD');
+    const oropocketRate = 15666.6; // live OroPocket 24K buy captured alongside the GoldAPI figure above
+    const diffPercent = (Math.abs(oropocketRate - goldapi.ratePerGram) / oropocketRate) * 100;
+    assert.ok(diffPercent < 5, `expected duty-adjusted gap under 5%, got ${diffPercent.toFixed(2)}%`);
   });
 });
 
