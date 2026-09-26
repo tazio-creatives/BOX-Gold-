@@ -32,19 +32,20 @@ function fakeFetchResponse({ ok = true, status = 200, json, text }) {
 }
 
 describe('oropocketMetalRateProvider.fetchRate', () => {
-  test('1. successful response: reads gold.buy as the GST-exclusive base rate', async (t) => {
+  test('1. successful response: reads gold.buy minus gold.gst as the GST-exclusive base rate', async (t) => {
     t.mock.method(globalThis, 'fetch', async () => fakeFetchResponse({ json: REAL_OROPOCKET_PAYLOAD }));
     const result = await oropocketMetalRateProvider.fetchRate('GOLD');
-    assert.equal(result.ratePerGram, 15727.14);
+    // 15727.14 - 471.81 = 15255.33 — buy is GST-INCLUSIVE (confirmed live:
+    // buy - gst lands within ~0.02% of `sell`, the GST-free buyback price).
+    assert.equal(result.ratePerGram, 15255.33);
     assert.equal(result.source, 'oropocket');
   });
 
-  test('19. GST is not double-counted: buy is used as-is, gst field is never added or subtracted', async (t) => {
+  test('19. GST is backed out exactly once: gst is subtracted from buy, never added, never left in', async (t) => {
     t.mock.method(globalThis, 'fetch', async () => fakeFetchResponse({ json: REAL_OROPOCKET_PAYLOAD }));
     const result = await oropocketMetalRateProvider.fetchRate('GOLD');
-    // gst (471.81) is exactly 3% of buy — confirms buy is GST-exclusive and
-    // must be stored as-is, never buy+gst or buy-gst.
-    assert.equal(result.ratePerGram, REAL_OROPOCKET_PAYLOAD.data.gold.buy);
+    assert.equal(result.ratePerGram, REAL_OROPOCKET_PAYLOAD.data.gold.buy - REAL_OROPOCKET_PAYLOAD.data.gold.gst);
+    assert.notEqual(result.ratePerGram, REAL_OROPOCKET_PAYLOAD.data.gold.buy);
     assert.notEqual(result.ratePerGram, REAL_OROPOCKET_PAYLOAD.data.gold.buy + REAL_OROPOCKET_PAYLOAD.data.gold.gst);
   });
 
@@ -55,14 +56,21 @@ describe('oropocketMetalRateProvider.fetchRate', () => {
 
   test('2b. invalid response: zero/negative/null rate is rejected', async (t) => {
     t.mock.method(globalThis, 'fetch', async () =>
-      fakeFetchResponse({ json: { data: { gold: { buy: 0, currency: 'INR', unit: 'gram' } } } }),
+      fakeFetchResponse({ json: { data: { gold: { buy: 0, gst: 0, currency: 'INR', unit: 'gram' } } } }),
     );
     await assert.rejects(() => oropocketMetalRateProvider.fetchRate('GOLD'), /not a valid positive rate/);
   });
 
+  test('2b2. invalid response: missing/negative gst is rejected', async (t) => {
+    t.mock.method(globalThis, 'fetch', async () =>
+      fakeFetchResponse({ json: { data: { gold: { buy: 15000, gst: -5, currency: 'INR', unit: 'gram' } } } }),
+    );
+    await assert.rejects(() => oropocketMetalRateProvider.fetchRate('GOLD'), /gst is not a valid non-negative amount/);
+  });
+
   test('2c. invalid response: unexpected currency/unit is rejected', async (t) => {
     t.mock.method(globalThis, 'fetch', async () =>
-      fakeFetchResponse({ json: { data: { gold: { buy: 15000, currency: 'USD', unit: 'gram' } } } }),
+      fakeFetchResponse({ json: { data: { gold: { buy: 15000, gst: 450, currency: 'USD', unit: 'gram' } } } }),
     );
     await assert.rejects(() => oropocketMetalRateProvider.fetchRate('GOLD'), /currency unexpected/);
   });
@@ -109,14 +117,20 @@ describe('goldapiMetalRateProvider.fetchRate (import duty adjustment)', () => {
     assert.equal(result.source, 'goldapi');
   });
 
-  test('real-world check: duty-adjusted GoldAPI lands within a few percent of OroPocket, not ~19% off', async (t) => {
+  test('real-world check: duty-adjusted GoldAPI matches properly GST-exclusive OroPocket within ~1%', async (t) => {
     t.mock.method(globalThis, 'fetch', async () =>
       fakeFetchResponse({ json: { price_gram_24k: 13151.8416 } }),
     );
     const goldapi = await goldapiMetalRateProvider.fetchRate('GOLD');
-    const oropocketRate = 15666.6; // live OroPocket 24K buy captured alongside the GoldAPI figure above
-    const diffPercent = (Math.abs(oropocketRate - goldapi.ratePerGram) / oropocketRate) * 100;
-    assert.ok(diffPercent < 5, `expected duty-adjusted gap under 5%, got ${diffPercent.toFixed(2)}%`);
+    // Live OroPocket capture paired with the GoldAPI figure above:
+    // buy=15666.6, gst=470 -> GST-exclusive = 15196.60. Comparing against
+    // this corrected (buy-gst) figure, not the raw GST-inclusive buy, is the
+    // fair apples-to-apples check — the earlier version of this test
+    // compared against raw `buy` and got a misleadingly larger ~3% gap that
+    // was actually just the unremoved GST.
+    const oropocketExGst = 15666.6 - 470;
+    const diffPercent = (Math.abs(oropocketExGst - goldapi.ratePerGram) / oropocketExGst) * 100;
+    assert.ok(diffPercent < 2, `expected duty-adjusted gap under 2%, got ${diffPercent.toFixed(2)}%`);
   });
 });
 

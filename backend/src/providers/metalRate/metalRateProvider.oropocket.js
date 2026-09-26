@@ -4,11 +4,21 @@
 //
 // Response shape (verified live 2026-09-24):
 //   { statusCode, data: { gold: { buy, sell, gst, currency, unit, change24h }, silver: {...}, timestamp } }
-// `buy` is GST-EXCLUSIVE: `gst` is consistently ~3% of `buy` (India's gold
-// GST rate), an informational add-on figure, not an amount already folded
-// into `buy`/`sell`. We read `buy` as-is as the base 24K rate and never add
-// `gst` — Goldbox already applies GST separately in the pricing engine, so
-// adding it here would double-count it.
+//
+// CORRECTED 2026-09-26 (was wrong before this): `buy` is GST-INCLUSIVE, not
+// exclusive. Proof: `buy - gst` lands within ~0.02% of `sell` on every fetch
+// (buy = retail purchase price with GST, sell = GST-free buyback price, gst
+// = the tax portion embedded in buy) — confirmed consistently across
+// repeated live fetches, and cross-checked against GoldAPI's raw rate + 16%
+// import duty (see metalRateProvider.goldapi.js), which lands within 0.04%
+// of `buy - gst` but ~3% away from `buy` alone. The original comment here
+// claimed `buy` was already exclusive based on `gst` being ~3% of `buy` —
+// that ratio holds true under EITHER interpretation and doesn't actually
+// distinguish them, so it was not real evidence. Using `buy` as-is silently
+// baked GST into the stored base rate, which was then taxed AGAIN by
+// Goldbox's own gst_percent in the pricing engine — a real double-GST bug
+// that overpriced every gold product by ~3% in production before this fix.
+// The correct GST-exclusive base rate is `buy - gst`.
 import { env } from '../../config/env.js';
 
 const EXPECTED_UNIT = 'gram';
@@ -59,9 +69,12 @@ export const oropocketMetalRateProvider = {
       throw new Error('OroPocket response missing data.gold');
     }
 
-    const { buy, currency, unit } = gold;
+    const { buy, gst, currency, unit } = gold;
     if (!isFiniteNumber(buy) || buy <= 0) {
       throw new Error(`OroPocket gold.buy is not a valid positive rate: ${JSON.stringify(buy)}`);
+    }
+    if (!isFiniteNumber(gst) || gst < 0) {
+      throw new Error(`OroPocket gold.gst is not a valid non-negative amount: ${JSON.stringify(gst)}`);
     }
     if (currency && currency !== EXPECTED_CURRENCY) {
       throw new Error(`OroPocket gold.currency unexpected: expected ${EXPECTED_CURRENCY}, got "${currency}"`);
@@ -74,6 +87,10 @@ export const oropocketMetalRateProvider = {
       throw new Error(`OroPocket response timestamp is invalid: ${JSON.stringify(timestamp)}`);
     }
 
-    return { ratePerGram: buy, source: 'oropocket' };
+    const ratePerGram = Math.round((buy - gst) * 100) / 100;
+    if (ratePerGram <= 0) {
+      throw new Error(`OroPocket gold.buy - gold.gst produced a non-positive rate: ${ratePerGram}`);
+    }
+    return { ratePerGram, source: 'oropocket' };
   },
 };
