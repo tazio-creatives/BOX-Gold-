@@ -195,6 +195,13 @@ export function OrdersListPage() {
         >
           Confirmed
         </button>
+        <button
+          type="button"
+          className={status === 'RETURN_INITIATED' ? styles.tabActive : styles.tab}
+          onClick={() => setStatus('RETURN_INITIATED')}
+        >
+          Returns
+        </button>
       </div>
 
       <div className={styles.filters}>

@@ -101,6 +101,68 @@ export const delhiveryShippingProvider = {
     return { waybill: pkg.waybill, courierName: 'Delhivery', labelUrl: null, raw: data };
   },
 
+  // POST /api/cmu/create.json — same endpoint as createShipment, but
+  // payment_mode: "Pickup" flips the shipment's direction: the top-level
+  // consignee fields (name/add/pin/city/state/phone) become WHERE THE
+  // COURIER PICKS UP FROM (the customer's own delivery address, since
+  // that's where the item physically is), and the return_* fields become
+  // WHERE IT GETS DELIVERED TO (our warehouse) — confirmed against
+  // Delhivery's documented reverse-shipment payload shape.
+  async createReversePickup({ order, returnRequest }) {
+    if (!env.delhiveryReturnAddress || !env.delhiveryReturnPincode || !env.delhiveryReturnCity || !env.delhiveryReturnState || !env.delhiveryReturnPhone) {
+      throw new Error(
+        'Reverse pickup is not configured — set DELHIVERY_RETURN_ADDRESS/PINCODE/CITY/STATE/PHONE in the environment',
+      );
+    }
+
+    const address = order.shipping_address;
+    const shipment = {
+      name: address.name,
+      add: [address.addressLine, address.building, address.landmark].filter(Boolean).join(', '),
+      pin: address.pincode,
+      city: address.city,
+      state: address.state,
+      country: 'India',
+      phone: address.mobileNumber,
+      order: `${order.order_number}-RETURN`,
+      payment_mode: 'Pickup',
+      products_desc: `Return pickup for order ${order.order_number} (${returnRequest.reason})`,
+      cod_amount: '0',
+      total_amount: String(order.total_amount),
+      quantity: '1',
+      waybill: '',
+      return_name: env.delhiveryReturnName,
+      return_add: env.delhiveryReturnAddress,
+      return_pin: env.delhiveryReturnPincode,
+      return_city: env.delhiveryReturnCity,
+      return_state: env.delhiveryReturnState,
+      return_phone: env.delhiveryReturnPhone,
+      return_country: 'India',
+    };
+
+    const body = new URLSearchParams({
+      format: 'json',
+      data: JSON.stringify({
+        shipments: [shipment],
+        pickup_location: { name: env.delhiveryPickupLocation },
+      }),
+    });
+
+    const response = await fetch(`${env.delhiveryBaseUrl}/api/cmu/create.json`, {
+      method: 'POST',
+      headers: authHeaders({ 'Content-Type': 'application/x-www-form-urlencoded' }),
+      body,
+    });
+    const data = await parseJsonResponse(response, 'reverse pickup creation');
+    const pkg = data.packages?.[0];
+    if (!pkg || pkg.status !== 'Success' || !pkg.waybill) {
+      const reason = pkg?.remarks?.join?.('; ') ?? data.rmk ?? 'unknown error';
+      throw new Error(`Delhivery rejected reverse pickup creation for order ${order.order_number}: ${reason}`);
+    }
+
+    return { waybill: pkg.waybill, courierName: 'Delhivery', raw: data };
+  },
+
   // GET /api/p/packing_slip/?wbns=<waybill>&pdf=true — done as a follow-up
   // call rather than inline with createShipment so a transient failure here
   // never blocks the shipment (and order transition) from succeeding; the

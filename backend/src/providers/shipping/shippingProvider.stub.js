@@ -24,6 +24,13 @@ export const stubShippingProvider = {
     return { status: 'CANCELLED' };
   },
 
+  async createReversePickup() {
+    return {
+      waybill: `STUBRVP${Date.now()}`,
+      courierName: 'Stub Express',
+    };
+  },
+
   async fetchLabel() {
     return { labelUrl: null };
   },

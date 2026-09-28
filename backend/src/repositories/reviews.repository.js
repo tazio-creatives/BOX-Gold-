@@ -15,13 +15,58 @@ export async function findReviewedOrderItemIds(orderItemIds) {
   return rows.map((r) => r.order_item_id);
 }
 
-export async function insertReview({ productId, userId, orderItemId, rating, title, body, isVerifiedPurchase }) {
-  const { rows } = await query(
+// Full review rows (not just the id) for a batch of order items — lets the
+// order-detail page show the customer's own review (and its moderation
+// status) instead of just a boolean, so it doesn't disappear once submitted.
+export async function findReviewsByOrderItemIds(orderItemIds) {
+  if (orderItemIds.length === 0) return [];
+  const { rows } = await query('SELECT * FROM reviews WHERE order_item_id = ANY($1)', [orderItemIds]);
+  return rows;
+}
+
+export async function insertReviewTx(client, { productId, userId, orderItemId, rating, title, body, isVerifiedPurchase }) {
+  const { rows } = await client.query(
     `INSERT INTO reviews (product_id, user_id, order_item_id, rating, title, body, is_verified_purchase, status)
      VALUES ($1, $2, $3, $4, $5, $6, $7, 'PENDING') RETURNING *`,
     [productId, userId, orderItemId, rating, title ?? null, body ?? null, isVerifiedPurchase ?? false],
   );
   return rows[0];
+}
+
+export async function insertReviewImagesTx(client, reviewId, imageUrls) {
+  if (imageUrls.length === 0) return;
+  const values = imageUrls.map((_, i) => `($1, $${i + 2}, $${i + 2 + imageUrls.length})`).join(', ');
+  const orders = imageUrls.map((_, i) => i);
+  await client.query(
+    `INSERT INTO review_images (review_id, image_url, sort_order) VALUES ${values}`,
+    [reviewId, ...imageUrls, ...orders],
+  );
+}
+
+export async function deleteReviewImagesTx(client, reviewId) {
+  const { rows } = await client.query('DELETE FROM review_images WHERE review_id = $1 RETURNING image_url', [
+    reviewId,
+  ]);
+  return rows.map((r) => r.image_url);
+}
+
+export async function findImagesByReviewIds(reviewIds) {
+  if (reviewIds.length === 0) return new Map();
+  const { rows } = await query(
+    'SELECT review_id, image_url FROM review_images WHERE review_id = ANY($1) ORDER BY sort_order ASC',
+    [reviewIds],
+  );
+  const map = new Map();
+  for (const row of rows) {
+    if (!map.has(row.review_id)) map.set(row.review_id, []);
+    map.get(row.review_id).push(row.image_url);
+  }
+  return map;
+}
+
+async function attachImages(items) {
+  const imagesByReviewId = await findImagesByReviewIds(items.map((r) => r.id));
+  return items.map((r) => ({ ...r, images: imagesByReviewId.get(r.id) ?? [] }));
 }
 
 export async function findApprovedReviewsByProduct(productId, { page = 1, limit = 10 } = {}) {
@@ -38,7 +83,7 @@ export async function findApprovedReviewsByProduct(productId, { page = 1, limit 
   } = await query(`SELECT COUNT(*)::int AS count FROM reviews WHERE product_id = $1 AND status = 'APPROVED'`, [
     productId,
   ]);
-  return { items: rows, total: count };
+  return { items: await attachImages(rows), total: count };
 }
 
 export async function findReviewsForModeration({ status, page = 1, limit = 20 } = {}) {
@@ -65,11 +110,22 @@ export async function findReviewsForModeration({ status, page = 1, limit = 20 } 
   const {
     rows: [{ count }],
   } = await query(`SELECT COUNT(*)::int AS count FROM reviews r ${where}`, params);
-  return { items: rows, total: count };
+  return { items: await attachImages(rows), total: count };
 }
 
 export async function findReviewById(id) {
   const { rows } = await query('SELECT * FROM reviews WHERE id = $1', [id]);
+  return rows[0] ?? null;
+}
+
+// Customer editing their own review's content — always resets to PENDING
+// (changed content needs re-moderation), distinct from updateReviewStatusTx
+// (admin approve/reject, content untouched).
+export async function updateReviewContentTx(client, id, { rating, title, body }) {
+  const { rows } = await client.query(
+    `UPDATE reviews SET rating = $2, title = $3, body = $4, status = 'PENDING' WHERE id = $1 RETURNING *`,
+    [id, rating, title ?? null, body ?? null],
+  );
   return rows[0] ?? null;
 }
 

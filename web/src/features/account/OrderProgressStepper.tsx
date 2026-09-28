@@ -9,6 +9,17 @@ interface OrderProgressStepperProps {
   inTransitAt: string | null;
   outForDeliveryAt: string | null;
   deliveredAt: string | null;
+  // 'teal' is the Order Details page's own tracker styling — deep
+  // teal/muted grey per that page's design, distinct from the My Orders
+  // list page's burgundy stepper, which must stay exactly as it was.
+  variant?: 'default' | 'teal';
+  // The Order Details page tracker starts at "Confirmed" (per its design),
+  // not "Order placed" — the list page keeps showing all 8 steps.
+  hideOrderPlaced?: boolean;
+  // Order Details uses Title Case ("Ready to Ship", "In Transit", "Out for
+  // Delivery") — the list page keeps its existing STEP_LABELS casing below
+  // untouched.
+  labels?: string[];
 }
 
 const STEP_LABELS = [
@@ -41,26 +52,38 @@ export function OrderProgressStepper({
   inTransitAt,
   outForDeliveryAt,
   deliveredAt,
+  variant = 'default',
+  hideOrderPlaced = false,
+  labels: labelsProp,
 }: OrderProgressStepperProps) {
-  const dates = [createdAt, confirmedAt, processingAt, readyToShipAt, shippedAt, inTransitAt, outForDeliveryAt, deliveredAt];
-  const completedCount = dates.filter(Boolean).length;
+  const allDates = [createdAt, confirmedAt, processingAt, readyToShipAt, shippedAt, inTransitAt, outForDeliveryAt, deliveredAt];
+  const baseLabels = labelsProp ?? STEP_LABELS;
+  const labels = hideOrderPlaced ? baseLabels.slice(1) : baseLabels;
+  const dates = hideOrderPlaced ? allDates.slice(1) : allDates;
+  const tealClass = variant === 'teal' ? styles.teal : '';
 
   return (
-    <ol className={styles.stepper} aria-label="Order progress">
-      {STEP_LABELS.map((label, i) => {
+    <ol className={`${styles.stepper} ${tealClass}`} aria-label="Order progress">
+      {labels.map((label, i) => {
         const date = dates[i];
+        // Each step's own date decides its state — not a count of how many
+        // dates are set overall. A courier can report a later stage (e.g.
+        // Out for Delivery) without ever separately reporting an
+        // intermediate one (e.g. In Transit), leaving a gap in the middle
+        // of the dates array rather than a clean run from the start.
+        const isComplete = Boolean(date);
         return (
           <li key={label} className={styles.stepWrap}>
             <div className={styles.dotRow}>
-              <span className={`${styles.dot} ${i < completedCount ? styles.dotComplete : ''}`} aria-hidden="true" />
-              {i < STEP_LABELS.length - 1 && (
+              <span className={`${styles.dot} ${isComplete ? styles.dotComplete : ''}`} aria-hidden="true" />
+              {i < labels.length - 1 && (
                 <span
-                  className={`${styles.connector} ${i < completedCount - 1 ? styles.connectorComplete : ''}`}
+                  className={`${styles.connector} ${isComplete ? styles.connectorComplete : ''}`}
                   aria-hidden="true"
                 />
               )}
             </div>
-            <span className={`${styles.label} ${i < completedCount ? styles.labelComplete : ''}`}>{label}</span>
+            <span className={`${styles.label} ${isComplete ? styles.labelComplete : ''}`}>{label}</span>
             {date && <span className={styles.date}>{shortDate(date)}</span>}
           </li>
         );

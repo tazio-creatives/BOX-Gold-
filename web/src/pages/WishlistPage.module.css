@@ -9,93 +9,15 @@
   margin: 0 0 var(--space-6);
 }
 
+/* Matches the PLP grid (features/plp/ProductListing.module.css) exactly —
+   same column counts/gaps at every breakpoint, so wishlist cards line up
+   with the rest of the site's product-list design instead of their own
+   bespoke layout. */
 .grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
-  gap: var(--space-5);
-}
-
-.card {
-  border-radius: var(--radius-md);
-  overflow: hidden;
-  background: var(--color-surface);
-  box-shadow: var(--shadow-sm);
-}
-
-.image {
-  width: 100%;
-  aspect-ratio: 4 / 5;
-}
-
-.imageTag {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-  display: block;
-}
-
-.body {
-  padding: var(--space-3) var(--space-4) var(--space-4);
-}
-
-.name {
-  display: block;
-  font-family: var(--font-heading);
-  font-weight: 600;
-  font-size: var(--text-lg);
-  color: var(--color-text);
-  text-decoration: none;
-  margin-bottom: var(--space-1);
-}
-
-.price {
-  font-weight: 600;
-  margin: 0 0 var(--space-1);
-}
-
-.mrp {
-  margin-left: var(--space-2);
-  font-weight: 400;
-  font-size: var(--text-sm);
-  color: var(--color-text-muted);
-  text-decoration: line-through;
-}
-
-.offerLabel {
-  display: block;
-  margin: 0 0 var(--space-2);
-  font-size: var(--text-xs);
-  font-weight: 600;
-  color: #9e1835;
-}
-
-.moveButton {
-  width: 100%;
-  padding: var(--space-2);
-  background: var(--color-burgundy);
-  color: var(--color-white);
-  border: none;
-  border-radius: var(--radius-sm);
-  font-size: var(--text-sm);
-  cursor: pointer;
-  margin-bottom: var(--space-2);
-}
-
-.moveButton:disabled {
-  background: var(--color-border);
-  color: var(--color-text-muted);
-  cursor: not-allowed;
-}
-
-.removeButton {
-  width: 100%;
-  background: none;
-  border: none;
-  padding: 0;
-  color: var(--color-text-muted);
-  font-size: var(--text-sm);
-  text-decoration: underline;
-  cursor: pointer;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 20px;
+  align-items: stretch;
 }
 
 .continueLink {
@@ -103,10 +25,23 @@
   text-decoration: underline;
 }
 
-@media (max-width: 640px) {
+@media (max-width: 1200px) {
   .grid {
-    grid-template-columns: repeat(2, 1fr);
-    gap: var(--space-3);
+    gap: 16px;
+  }
+}
+
+@media (max-width: 992px) {
+  .grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 16px;
+  }
+}
+
+@media (max-width: 767px) {
+  .grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 10px 4px;
   }
 }
 

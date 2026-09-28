@@ -30,3 +30,17 @@ export function requireRole(...allowedRoleNames) {
     next(new ForbiddenError('Insufficient role'));
   };
 }
+
+// Module-level access check (ADMIN_PERMISSION_MODULES) — mounted per-router
+// the same way requireRole('SUPER_ADMIN') gates admin-users, so a role like
+// "Order Manager" (permissions: ["orders"]) only ever reaches the Orders
+// routes and gets a clean 403 everywhere else. SUPER_ADMIN's '*' still
+// passes everything.
+export function requirePermission(moduleName) {
+  return (req, res, next) => {
+    if (!req.admin) return next(new UnauthorizedError('Admin authentication required'));
+    const { permissions } = req.admin.role;
+    if (permissions?.includes('*') || permissions?.includes(moduleName)) return next();
+    next(new ForbiddenError('Insufficient permissions'));
+  };
+}

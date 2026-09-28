@@ -3,42 +3,10 @@ import { NavLink, Navigate, Outlet } from 'react-router-dom';
 import { useQueryClient } from '@tanstack/react-query';
 import { logout } from '../api/auth';
 import { useAdmin } from '../features/auth/useAdmin';
+import { hasPermission, isSuperAdmin } from '../utils/permissions';
 import { SidebarContext } from './SidebarContext';
-import {
-  DashboardIcon,
-  ProductsIcon,
-  CategoriesIcon,
-  CollectionsIcon,
-  HomepageIcon,
-  OrdersIcon,
-  CustomersIcon,
-  ReviewsIcon,
-  CouponsIcon,
-  PricingIcon,
-  AdminUsersIcon,
-  AuditLogsIcon,
-  AttributesIcon,
-} from './NavIcons';
+import { NAV_ITEMS } from './navItems';
 import styles from './AdminLayout.module.css';
-
-const NAV_ITEMS = [
-  { to: '/', label: 'Dashboard', end: true, icon: DashboardIcon },
-  // Orders' table wants the full window width (see OrdersListPage's
-  // ".full-width-page" opt-out) — collapsing the sidebar on the way in gives
-  // it that room immediately instead of waiting on a manual toggle.
-  { to: '/orders', label: 'Orders', icon: OrdersIcon, collapseOnClick: true },
-  { to: '/products', label: 'Products', icon: ProductsIcon },
-  { to: '/categories', label: 'Categories', icon: CategoriesIcon },
-  { to: '/collections', label: 'Collections', icon: CollectionsIcon },
-  { to: '/homepage', label: 'Homepage', icon: HomepageIcon },
-  { to: '/customers', label: 'Customers', icon: CustomersIcon },
-  { to: '/reviews', label: 'Reviews', icon: ReviewsIcon },
-  { to: '/coupons', label: 'Coupons', icon: CouponsIcon },
-  { to: '/pricing', label: 'Pricing', icon: PricingIcon },
-  { to: '/attributes', label: 'Attributes', icon: AttributesIcon },
-  { to: '/admin-users', label: 'Admin Users', icon: AdminUsersIcon },
-  { to: '/audit-logs', label: 'Audit Logs', icon: AuditLogsIcon },
-];
 
 const COLLAPSE_STORAGE_KEY = 'admin-sidebar-collapsed';
 
@@ -84,6 +52,9 @@ export function AdminLayout() {
   }
 
   const initial = admin?.fullName?.trim().charAt(0).toUpperCase() ?? '?';
+  const visibleNavItems = NAV_ITEMS.filter((item) =>
+    item.superAdminOnly ? isSuperAdmin(admin) : hasPermission(admin, item.permission!),
+  );
 
   return (
     <div className={`${styles.shell} ${isCollapsed ? styles.shellCollapsed : ''}`}>
@@ -105,7 +76,7 @@ export function AdminLayout() {
           </button>
         </div>
         <nav className={styles.nav}>
-          {NAV_ITEMS.map((item) => (
+          {visibleNavItems.map((item) => (
             <NavLink
               key={item.to}
               to={item.to}

@@ -14,6 +14,17 @@ export const simulateTrackingSchema = z.object({
   status: z.enum(['OUT_FOR_DELIVERY', 'DELIVERED']),
 });
 
+export const simulateReversePickupSchema = z.object({
+  status: z.enum([
+    'REVERSE_PICKUP_SCHEDULED',
+    'REVERSE_PICKED_UP',
+    'REVERSE_IN_TRANSIT',
+    'REVERSE_RECEIVED',
+    'REVERSE_PICKUP_FAILED',
+    'REVERSE_PICKUP_CANCELLED',
+  ]),
+});
+
 export const addTrackingEventSchema = z.object({
   status: z.string().trim().min(1).max(80),
   location: z.string().trim().max(120).optional(),

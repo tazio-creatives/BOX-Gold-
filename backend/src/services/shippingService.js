@@ -3,6 +3,7 @@ import { AppError, NotFoundError, ForbiddenError } from '../utils/AppError.js';
 import { shippingProvider, shippingProviders } from '../providers/shipping/index.js';
 import {
   findShipmentByOrderId,
+  findReversePickupByReturnRequestId,
   insertShipment,
   findShipmentByProviderShipmentIdTx,
   updateShipmentStatusTx,
@@ -21,6 +22,7 @@ import {
   insertOrderStatusHistoryTx,
   hasOrderStatusHistoryEntry,
 } from '../repositories/orders.repository.js';
+import { findReturnRequestById, completeReturnRequestTx } from '../repositories/returnRequests.repository.js';
 import { enqueueEmail } from './emailService.js';
 
 // Actually books the shipment with the courier — only reachable once an
@@ -114,6 +116,64 @@ export async function cancelShipmentForOrder(orderId, actorAdminId) {
   });
 
   return findShipmentByOrderId(orderId);
+}
+
+// Books a real courier collection from the customer's address — gated on
+// the return request actually being APPROVED (an admin decision), not just
+// REQUESTED: scheduling a pickup before anyone has reviewed the return
+// would send a courier to the customer's door for something that might get
+// rejected. Mirrors createShipmentForOrder's shape (serviceability check,
+// provider call, insert + tracking event) with a REVERSE-direction row.
+export async function createReversePickupForReturnRequest(returnRequestId, actorAdminId) {
+  const returnRequest = await findReturnRequestById(returnRequestId);
+  if (!returnRequest) throw new NotFoundError('Return request not found');
+  if (returnRequest.status !== 'APPROVED') {
+    throw new AppError(400, `Reverse pickup can only be scheduled for an approved return request (currently ${returnRequest.status})`);
+  }
+
+  const existing = await findReversePickupByReturnRequestId(returnRequestId);
+  if (existing) throw new AppError(400, 'A reverse pickup already exists for this return request');
+
+  const order = await findOrderById(returnRequest.order_id);
+  if (!order) throw new NotFoundError('Order not found');
+
+  const serviceability = await shippingProvider.checkServiceability(order.shipping_address.pincode);
+  if (!serviceability.serviceable) {
+    throw new AppError(400, `Pickup pincode ${order.shipping_address.pincode} is not serviceable by the courier`);
+  }
+
+  const result = await shippingProvider.createReversePickup({ order, returnRequest });
+
+  const shipment = await insertShipment({
+    orderId: order.id,
+    provider: shippingProvider.name,
+    providerShipmentId: result.waybill,
+    trackingNumber: result.waybill,
+    courierName: result.courierName,
+    status: 'REVERSE_PICKUP_SCHEDULED',
+    direction: 'REVERSE',
+    returnRequestId,
+  });
+
+  await withTransaction(async (client) => {
+    await insertShipmentTrackingEventTx(client, {
+      shipmentId: shipment.id,
+      status: 'REVERSE_PICKUP_SCHEDULED',
+      note: `Reverse pickup scheduled via ${shipment.courier_name} — AWB ${shipment.tracking_number}`,
+      source: 'MANUAL',
+    });
+    // Note-only — order_status itself is untouched (reverse pickup doesn't
+    // drive the customer-facing order status, only the return request).
+    await insertOrderStatusHistoryTx(
+      client,
+      order.id,
+      order.order_status,
+      `Reverse pickup scheduled via ${shipment.courier_name} — AWB ${shipment.tracking_number}`,
+      { actor: actorAdminId, source: 'ADMIN' },
+    );
+  });
+
+  return shipment;
 }
 
 const TRACKING_TO_ORDER_STATUS = {
@@ -255,7 +315,85 @@ const NOTIFY_TEMPLATE_FOR_SHIPMENT_STATUS = {
   DELIVERY_FAILED: 'ORDER_DELIVERY_FAILED',
 };
 
+// Same raw Delhivery tracking-status vocabulary as a forward shipment (the
+// /api/v1/packages/json/ tracking call is generic — it doesn't distinguish
+// forward/reverse), reinterpreted for the opposite direction: "Delivered"
+// here means delivered back to OUR warehouse, not to the customer, which is
+// why this uses its own REVERSE_-prefixed terminal names rather than
+// reusing DELIVERED/CANCELLED (those would read backwards in shared UI).
+const DELHIVERY_REVERSE_STATUS_MAP = {
+  Manifested: 'REVERSE_PICKUP_SCHEDULED',
+  'Not Picked': 'REVERSE_PICKUP_SCHEDULED',
+  'Picked Up': 'REVERSE_PICKED_UP',
+  Dispatched: 'REVERSE_IN_TRANSIT',
+  'In Transit': 'REVERSE_IN_TRANSIT',
+  Pending: 'REVERSE_IN_TRANSIT',
+  'Reached Destination': 'REVERSE_IN_TRANSIT',
+  Delivered: 'REVERSE_RECEIVED',
+  Delayed: 'REVERSE_IN_TRANSIT',
+  Undelivered: 'REVERSE_PICKUP_FAILED',
+  Cancelled: 'REVERSE_PICKUP_CANCELLED',
+};
+
+const REVERSE_PICKUP_STATUSES = new Set(Object.values(DELHIVERY_REVERSE_STATUS_MAP));
+
+// Shared by the real tracking sync and the dev-only simulate action below —
+// applies a new reverse-pickup status and, if it's the terminal
+// "item is physically back with us" state, completes the return request.
+async function applyReversePickupStatus(shipment, status, { source, note, raw = null }) {
+  await withTransaction(async (client) => {
+    await updateShipmentTrackingTx(client, shipment.id, status, raw);
+    await insertShipmentTrackingEventTx(client, { shipmentId: shipment.id, status, note, source });
+    // The item is physically back with us — this is what actually
+    // completes the return, replacing the old fully-manual "admin sets
+    // order_status to RETURNED" path with a courier-confirmed signal.
+    if (status === 'REVERSE_RECEIVED') {
+      await completeReturnRequestTx(client, shipment.return_request_id);
+    }
+  });
+}
+
+// Dev-only — lets an admin walk a stub-provider reverse pickup through its
+// lifecycle without a real courier, mirroring simulateTrackingUpdate's role
+// for forward shipments. Meaningless against a real Delhivery waybill (the
+// next real tracking sync would just overwrite whatever status this sets).
+export async function simulateReversePickupUpdate(returnRequestId, status) {
+  if (!REVERSE_PICKUP_STATUSES.has(status)) {
+    throw new AppError(400, `Unrecognized reverse pickup status: ${status}`);
+  }
+  const shipment = await findReversePickupByReturnRequestId(returnRequestId);
+  if (!shipment) throw new NotFoundError('No reverse pickup exists for this return request');
+
+  await applyReversePickupStatus(shipment, status, { source: 'MANUAL', note: `Simulated: ${status}` });
+  return findReversePickupByReturnRequestId(returnRequestId);
+}
+
+async function syncOneReversePickup(shipment) {
+  const provider = shippingProviders[shipment.provider];
+  if (!provider || typeof provider.trackShipment !== 'function' || !shipment.tracking_number) {
+    return null;
+  }
+
+  const result = await provider.trackShipment(shipment.tracking_number, shipment.status);
+  const mapped = result.status ? DELHIVERY_REVERSE_STATUS_MAP[result.status] : null;
+
+  if (!mapped || mapped === shipment.status) {
+    await touchShipmentTrackedAt(shipment.id);
+    return null;
+  }
+
+  await applyReversePickupStatus(shipment, mapped, {
+    source: 'DELHIVERY',
+    note: result.instructions ?? result.status,
+    raw: result.raw,
+  });
+
+  return { shipmentId: shipment.id, orderId: shipment.order_id, from: shipment.status, to: mapped };
+}
+
 async function syncOneShipment(shipment) {
+  if (shipment.direction === 'REVERSE') return syncOneReversePickup(shipment);
+
   const provider = shippingProviders[shipment.provider];
   if (!provider || typeof provider.trackShipment !== 'function' || !shipment.tracking_number) {
     return null;
@@ -331,5 +469,13 @@ export async function syncOneShipmentTrackingForOrder(orderId) {
   if (!shipment) throw new NotFoundError('No shipment exists for this order');
   await syncOneShipment(shipment);
   return findShipmentByOrderId(orderId);
+}
+
+// Same on-demand refresh, for a return request's reverse pickup.
+export async function syncReversePickupForReturnRequest(returnRequestId) {
+  const shipment = await findReversePickupByReturnRequestId(returnRequestId);
+  if (!shipment) throw new NotFoundError('No reverse pickup exists for this return request');
+  await syncOneReversePickup(shipment);
+  return findReversePickupByReturnRequestId(returnRequestId);
 }
 

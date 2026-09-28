@@ -65,3 +65,9 @@ export function createReturnRequest(orderId: string, input: { reason: ReturnReas
     body,
   });
 }
+
+export function cancelReturnRequest(orderId: string) {
+  return apiFetch<{ returnRequest: ReturnRequest }>(`/orders/${orderId}/return-request/cancel`, {
+    method: 'POST',
+  });
+}

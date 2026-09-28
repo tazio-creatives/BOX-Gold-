@@ -14,10 +14,12 @@ import {
   update as updateDiamondConfig,
   remove as removeDiamondConfig,
 } from '../../controllers/diamondConfigs.controller.js';
+import { requirePermission } from '../../middleware/adminAuth.js';
 
 // Mounted at /api/v1/admin/pricing.
 export const adminPricingRouter = Router();
 
+adminPricingRouter.use(requirePermission('pricing'));
 adminPricingRouter.get('/gold-rates', getGoldRates);
 adminPricingRouter.post('/gold-rates/sync', goldRateSyncRateLimiter, syncGoldRates);
 adminPricingRouter.get('/gold-rate-settings', getGoldRateSettings);

@@ -8,7 +8,7 @@ import {
   getOrderStatsForUser,
 } from '../repositories/orders.repository.js';
 import { findShipmentByOrderId, findTrackingEventsByShipmentId } from '../repositories/shipments.repository.js';
-import { findReviewedOrderItemIds } from '../repositories/reviews.repository.js';
+import { findReviewsByOrderItemIds, findImagesByReviewIds } from '../repositories/reviews.repository.js';
 import { toOrderDto, toShipmentDto, orderDeliveryEstimateDto } from '../utils/orderDto.js';
 import { NotFoundError } from '../utils/AppError.js';
 
@@ -97,13 +97,31 @@ export async function get(req, res, next) {
     // "Write a Review" eligibility (plan §11a) — only meaningful once the
     // order has actually been delivered, and only for items not already
     // reviewed (the DB also enforces one review per order_item, this just
-    // saves the customer from submitting a form that would 400).
-    if (order.order_status === 'DELIVERED') {
-      const reviewedIds = new Set(await findReviewedOrderItemIds(items.map((i) => i.id)));
-      dto.items = dto.items.map((item) => ({ ...item, canReview: !reviewedIds.has(item.id) }));
-    } else {
-      dto.items = dto.items.map((item) => ({ ...item, canReview: false }));
-    }
+    // saves the customer from submitting a form that would 400). The
+    // review itself (whatever its moderation status) is attached
+    // regardless of the order's current status — a later status change
+    // (e.g. a return) must not make an already-submitted review vanish
+    // from the page.
+    const reviews = await findReviewsByOrderItemIds(items.map((i) => i.id));
+    const imagesByReviewId = await findImagesByReviewIds(reviews.map((r) => r.id));
+    const reviewsByItemId = new Map(reviews.map((r) => [r.order_item_id, r]));
+    dto.items = dto.items.map((item) => {
+      const review = reviewsByItemId.get(item.id) ?? null;
+      return {
+        ...item,
+        canReview: order.order_status === 'DELIVERED' && !review,
+        review: review
+          ? {
+              id: review.id,
+              rating: review.rating,
+              title: review.title,
+              body: review.body,
+              status: review.status,
+              images: imagesByReviewId.get(review.id) ?? [],
+            }
+          : null,
+      };
+    });
 
     res.json({ order: dto });
   } catch (err) {

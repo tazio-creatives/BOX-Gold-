@@ -18,6 +18,11 @@ export async function findReturnRequestByOrderId(orderId) {
   return rows[0] ?? null;
 }
 
+export async function findReturnRequestById(id) {
+  const { rows } = await query('SELECT * FROM return_requests WHERE id = $1', [id]);
+  return rows[0] ?? null;
+}
+
 export async function hasActiveReturnRequest(orderId) {
   const { rows } = await query(
     `SELECT 1 FROM return_requests WHERE order_id = $1 AND status = ANY($2) LIMIT 1`,
@@ -43,6 +48,27 @@ export async function updateReturnRequestStatus(id, status, adminId) {
      WHERE id = $1
      RETURNING *`,
     [id, status, adminId],
+  );
+  return rows[0] ?? null;
+}
+
+// Customer-initiated, unlike updateReturnRequestStatus (admin approve/reject)
+// — no resolved_by_admin_user_id, since no admin acted on it.
+export async function cancelReturnRequestTx(client, id) {
+  const { rows } = await client.query(
+    `UPDATE return_requests SET status = 'CANCELLED', resolved_at = now() WHERE id = $1 RETURNING *`,
+    [id],
+  );
+  return rows[0] ?? null;
+}
+
+// System-driven completion (reverse pickup confirmed received at the
+// warehouse) — distinct from updateReturnRequestStatus (an admin decision),
+// so it doesn't stamp resolved_by_admin_user_id.
+export async function completeReturnRequestTx(client, id) {
+  const { rows } = await client.query(
+    `UPDATE return_requests SET status = 'COMPLETED', resolved_at = now() WHERE id = $1 RETURNING *`,
+    [id],
   );
   return rows[0] ?? null;
 }

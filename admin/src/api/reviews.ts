@@ -26,3 +26,9 @@ export function rejectReview(id: string) {
     method: 'POST',
   });
 }
+
+export function resetReviewToPending(id: string) {
+  return apiFetch<{ review: { id: string; status: string } }>(`/admin/reviews/${id}/reset-to-pending`, {
+    method: 'POST',
+  });
+}

@@ -1,18 +1,31 @@
+/* Plain full-width wrapper — no box-shadow/clip-path trick (clip-path
+   creates a stacking context that clips the element's OWN pseudo-elements
+   too, not just its descendants, which silently ate an earlier attempt at
+   bridging the gap to Footer below). Full-bleed white background needs
+   nothing cleverer than an unconstrained width here. */
 .page {
-  max-width: 1600px;
-  margin: 0 auto -6px;
-  padding: 0 var(--space-4) 0;
+  position: relative;
   background: var(--color-white);
-  /* Beyond 1400px-wide viewports, .page's own centered box no longer
-     reaches the screen edges, leaving the body's cream background visible
-     on either side — a huge, blur-free box-shadow paints a solid white
-     rectangle extending past .page's edges without touching its own
-     padding/box model (safer than making .page full-bleed, which would
-     fight .hero's own padding since .hero is a direct child with no
-     separate outer wrapper). clip-path keeps the shadow from also
-     extending past .page's own top/bottom edges. */
-  box-shadow: 0 0 0 100vmax var(--color-white);
-  clip-path: inset(0 -100vmax);
+  margin-bottom: -6px;
+}
+
+/* Footer's own margin-top opens a gap that only Footer's background fills
+   — recolors exactly that existing gap white without adding any extra
+   space (the gap itself, Footer's margin-top, is unchanged). */
+.page::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: calc(-1 * var(--space-12));
+  height: var(--space-12);
+  background: var(--color-white);
+}
+
+.pageInner {
+  max-width: 1600px;
+  margin: 0 auto;
+  padding: 20px var(--space-4) 0;
 }
 
 .hero {

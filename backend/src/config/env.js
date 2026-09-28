@@ -116,6 +116,19 @@ export const env = {
   delhiveryPickupLocation: process.env.DELHIVERY_PICKUP_LOCATION ?? 'Box Diamonds Warehouse',
   delhiveryTrackingSyncCron: process.env.DELHIVERY_TRACKING_SYNC_CRON ?? '*/15 * * * *',
 
+  // Reverse pickup (return-to-warehouse) — Delhivery's create-shipment API
+  // treats these as the shipment's `return_*` fields (where the courier
+  // drops the item off), distinct from DELHIVERY_PICKUP_LOCATION (a
+  // registered warehouse *name* only, used for forward shipments). Defaults
+  // fall back to the same warehouse name/no-address so a missing .env value
+  // fails loudly at the Delhivery API call rather than silently.
+  delhiveryReturnName: process.env.DELHIVERY_RETURN_NAME ?? process.env.DELHIVERY_PICKUP_LOCATION ?? 'Box Diamonds Warehouse',
+  delhiveryReturnAddress: process.env.DELHIVERY_RETURN_ADDRESS ?? '',
+  delhiveryReturnPincode: process.env.DELHIVERY_RETURN_PINCODE ?? '',
+  delhiveryReturnCity: process.env.DELHIVERY_RETURN_CITY ?? '',
+  delhiveryReturnState: process.env.DELHIVERY_RETURN_STATE ?? '',
+  delhiveryReturnPhone: process.env.DELHIVERY_RETURN_PHONE ?? '',
+
   // Storage + AI image pipeline (plan §2/§9/§10)
   storageProvider: process.env.STORAGE_PROVIDER ?? 'local',
   uploadDir: process.env.UPLOAD_DIR ?? 'uploads',

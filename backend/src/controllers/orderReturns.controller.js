@@ -11,6 +11,7 @@ import {
   findReturnRequestByOrderId,
   hasActiveReturnRequest,
   insertReturnRequest,
+  cancelReturnRequestTx,
 } from '../repositories/returnRequests.repository.js';
 import { storageProvider } from '../providers/storage/index.js';
 import { RETURN_WINDOW_DAYS } from '../utils/orderStatus.js';
@@ -87,6 +88,32 @@ export async function create(req, res, next) {
     });
 
     res.status(201).json({ returnRequest: toReturnRequestDto(returnRequest) });
+  } catch (err) {
+    next(err);
+  }
+}
+
+// Only while still REQUESTED — once an admin has approved/rejected it,
+// that decision stands; the customer can't un-do a moderation outcome
+// through this endpoint.
+export async function cancel(req, res, next) {
+  try {
+    const order = await loadOwnedOrder(req);
+    const returnRequest = await findReturnRequestByOrderId(order.id);
+    if (!returnRequest || returnRequest.status !== 'REQUESTED') {
+      throw new AppError(400, 'This return request can no longer be cancelled');
+    }
+
+    const updated = await withTransaction(async (client) => {
+      const cancelled = await cancelReturnRequestTx(client, returnRequest.id);
+      await updateOrderStatusFieldsTx(client, order.id, { orderStatus: 'DELIVERED' });
+      await insertOrderStatusHistoryTx(client, order.id, 'DELIVERED', 'Return request cancelled by customer', {
+        source: 'CUSTOMER',
+      });
+      return cancelled;
+    });
+
+    res.json({ returnRequest: toReturnRequestDto(updated) });
   } catch (err) {
     next(err);
   }

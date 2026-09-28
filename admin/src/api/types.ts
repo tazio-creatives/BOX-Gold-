@@ -527,10 +527,11 @@ export interface OrderDetail {
   invoiceNumber: string | null;
   invoicePrintCount: number;
   returnRequest: ReturnRequest | null;
+  reversePickup: ReversePickup | null;
 }
 
 export type ReturnReason = 'DAMAGED' | 'DEFECTIVE' | 'WRONG_ITEM' | 'NOT_AS_DESCRIBED' | 'CHANGED_MIND' | 'OTHER';
-export type ReturnRequestStatus = 'REQUESTED' | 'APPROVED' | 'REJECTED' | 'COMPLETED';
+export type ReturnRequestStatus = 'REQUESTED' | 'APPROVED' | 'REJECTED' | 'COMPLETED' | 'CANCELLED';
 
 export interface ReturnRequest {
   id: string;
@@ -541,6 +542,24 @@ export interface ReturnRequest {
   createdAt: string;
   resolvedAt: string | null;
   resolvedByAdminName: string | null;
+}
+
+export type ReversePickupStatus =
+  | 'REVERSE_PICKUP_SCHEDULED'
+  | 'REVERSE_PICKED_UP'
+  | 'REVERSE_IN_TRANSIT'
+  | 'REVERSE_RECEIVED'
+  | 'REVERSE_PICKUP_FAILED'
+  | 'REVERSE_PICKUP_CANCELLED';
+
+export interface ReversePickup {
+  id: string;
+  provider: string;
+  courierName: string | null;
+  trackingNumber: string | null;
+  status: ReversePickupStatus;
+  createdAt: string;
+  lastTrackedAt: string | null;
 }
 
 export interface WorkOrderResponse {
@@ -643,6 +662,7 @@ export interface AdminReview {
   productName: string;
   productSlug: string;
   createdAt: string;
+  images: string[];
 }
 
 export interface Coupon {
@@ -688,6 +708,9 @@ export interface AdminRole {
   id: string;
   name: string;
   permissions: string[];
+  // Only present on the list response (GET /admin-users/roles) — create/
+  // update return the bare role without it.
+  adminUserCount?: number;
 }
 
 export interface AdminUser {
@@ -695,7 +718,7 @@ export interface AdminUser {
   email: string;
   fullName: string;
   isActive: boolean;
-  role: { id: string; name: string };
+  role: { id: string; name: string; permissions: string[] };
   createdAt: string;
 }
 
@@ -705,4 +728,9 @@ export interface AdminUserInput {
   fullName?: string;
   roleId?: string;
   isActive?: boolean;
+}
+
+export interface AdminRoleInput {
+  name?: string;
+  permissions?: string[];
 }

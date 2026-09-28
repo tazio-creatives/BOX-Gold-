@@ -68,3 +68,18 @@
   color: var(--color-text-muted);
   white-space: nowrap;
 }
+
+/* Order Details page's tracker — deep teal instead of burgundy. The list
+   page's default (burgundy) stepper is untouched by this. */
+.teal .dotComplete {
+  background: #075a63;
+  border-color: #075a63;
+}
+
+.teal .connectorComplete {
+  background: #075a63;
+}
+
+.teal .labelComplete {
+  color: #075a63;
+}

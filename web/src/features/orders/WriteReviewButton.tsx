@@ -1,94 +1,126 @@
-import { useState, type FormEvent } from 'react';
+import { useState } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { submitReview } from '../../api/reviews';
+import { submitReview, updateReview } from '../../api/reviews';
 import { ApiError } from '../../api/client';
+import type { OwnOrderItemReview } from '../../api/types';
+import { ReviewFormModal } from './ReviewFormModal';
+import { ImageLightbox } from '../../components/ImageLightbox';
 import styles from './WriteReviewButton.module.css';
 
 interface WriteReviewButtonProps {
   productId: string;
+  productName: string;
   orderItemId: string;
   orderId: string;
   canReview: boolean;
+  review: OwnOrderItemReview | null;
 }
 
-export function WriteReviewButton({ productId, orderItemId, orderId, canReview }: WriteReviewButtonProps) {
+const STATUS_LABEL: Record<OwnOrderItemReview['status'], string> = {
+  PENDING: 'Pending moderation',
+  APPROVED: 'Live on the product page',
+  REJECTED: 'Not approved for publishing',
+};
+
+const STATUS_CLASS: Record<OwnOrderItemReview['status'], string> = {
+  PENDING: 'statusPending',
+  APPROVED: 'statusApproved',
+  REJECTED: 'statusRejected',
+};
+
+export function WriteReviewButton({ productId, productName, orderItemId, orderId, canReview, review }: WriteReviewButtonProps) {
   const queryClient = useQueryClient();
   const [isOpen, setIsOpen] = useState(false);
-  const [rating, setRating] = useState(5);
-  const [title, setTitle] = useState('');
-  const [body, setBody] = useState('');
-  const [submitted, setSubmitted] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [openImageIndex, setOpenImageIndex] = useState<number | null>(null);
 
   const mutation = useMutation({
-    mutationFn: () => submitReview(productId, { rating, title: title || null, body: body || null, orderItemId }),
+    mutationFn: (input: { rating: number; title: string; body: string; keptImageUrls: string[]; newImages: File[] }) =>
+      review
+        ? updateReview(review.id, {
+            rating: input.rating,
+            title: input.title || null,
+            body: input.body || null,
+            keepImageUrls: input.keptImageUrls,
+            images: input.newImages,
+          })
+        : submitReview(productId, {
+            rating: input.rating,
+            title: input.title || null,
+            body: input.body || null,
+            orderItemId,
+            images: input.newImages,
+          }),
     onSuccess: () => {
-      setSubmitted(true);
       setIsOpen(false);
       queryClient.invalidateQueries({ queryKey: ['order', orderId] });
     },
-    onError: (err) => setError(err instanceof ApiError ? err.message : 'Could not submit review.'),
+    onError: (err) =>
+      setError(err instanceof ApiError ? err.message : `Could not ${review ? 'update' : 'submit'} review.`),
   });
 
-  function handleSubmit(e: FormEvent) {
-    e.preventDefault();
+  function openModal() {
     setError(null);
-    mutation.mutate();
-  }
-
-  if (submitted) {
-    return <p className={styles.submittedNote}>Thanks — your review is pending moderation.</p>;
-  }
-
-  if (!canReview) {
-    return null;
-  }
-
-  if (!isOpen) {
-    return (
-      <button type="button" className={styles.writeButton} onClick={() => setIsOpen(true)}>
-        Write a Review
-      </button>
-    );
+    setIsOpen(true);
   }
 
   return (
-    <form className={styles.form} onSubmit={handleSubmit}>
-      <div className={styles.starsInput}>
-        {[1, 2, 3, 4, 5].map((n) => (
-          <button
-            key={n}
-            type="button"
-            className={n <= rating ? styles.starActive : styles.star}
-            onClick={() => setRating(n)}
-            aria-label={`${n} star${n > 1 ? 's' : ''}`}
-          >
-            ★
+    <>
+      {review ? (
+        <div className={styles.reviewCard}>
+          <div className={styles.reviewCardHeader}>
+            <span className={styles.stars} aria-label={`You rated this ${review.rating} out of 5 stars`}>
+              {'★'.repeat(review.rating)}
+              {'☆'.repeat(5 - review.rating)}
+            </span>
+            <span className={`${styles.statusTag} ${styles[STATUS_CLASS[review.status]]}`}>
+              {STATUS_LABEL[review.status]}
+            </span>
+          </div>
+          {review.title && <p className={styles.reviewTitle}>{review.title}</p>}
+          {review.body && <p className={styles.reviewBody}>{review.body}</p>}
+          {review.images.length > 0 && (
+            <div className={styles.reviewImages}>
+              {review.images.map((url, i) => (
+                <button
+                  key={url}
+                  type="button"
+                  className={styles.reviewImageButton}
+                  onClick={() => setOpenImageIndex(i)}
+                  aria-label="View full-size photo"
+                >
+                  <img src={url} alt="" className={styles.reviewImageThumb} />
+                </button>
+              ))}
+            </div>
+          )}
+          <button type="button" className={styles.editButton} onClick={openModal}>
+            Edit Review
           </button>
-        ))}
-      </div>
-      <input
-        className={styles.input}
-        placeholder="Title (optional)"
-        value={title}
-        onChange={(e) => setTitle(e.target.value)}
-      />
-      <textarea
-        className={styles.textarea}
-        placeholder="Share your thoughts (optional)"
-        rows={3}
-        value={body}
-        onChange={(e) => setBody(e.target.value)}
-      />
-      {error && <p className={styles.error}>{error}</p>}
-      <div className={styles.actions}>
-        <button type="submit" className={styles.submitButton} disabled={mutation.isPending}>
-          {mutation.isPending ? 'Submitting…' : 'Submit Review'}
+        </div>
+      ) : canReview ? (
+        <button type="button" className={styles.writeButton} onClick={openModal}>
+          Write a Review
         </button>
-        <button type="button" className={styles.cancelButton} onClick={() => setIsOpen(false)}>
-          Cancel
-        </button>
-      </div>
-    </form>
+      ) : null}
+
+      {isOpen && (
+        <ReviewFormModal
+          productName={productName}
+          isEditing={!!review}
+          initialRating={review?.rating ?? 5}
+          initialTitle={review?.title ?? ''}
+          initialBody={review?.body ?? ''}
+          initialImages={review?.images ?? []}
+          isSubmitting={mutation.isPending}
+          error={error}
+          onSubmit={(input) => mutation.mutate(input)}
+          onClose={() => setIsOpen(false)}
+        />
+      )}
+      {openImageIndex !== null && review && (
+        <ImageLightbox images={review.images} startIndex={openImageIndex} onClose={() => setOpenImageIndex(null)} />
+      )}
+    </>
   );
 }

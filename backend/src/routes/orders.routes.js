@@ -1,6 +1,10 @@
 import { Router } from 'express';
 import { list, get, stats } from '../controllers/orders.controller.js';
-import { get as getReturnRequest, create as createReturnRequest } from '../controllers/orderReturns.controller.js';
+import {
+  get as getReturnRequest,
+  create as createReturnRequest,
+  cancel as cancelReturnRequest,
+} from '../controllers/orderReturns.controller.js';
 import { requireCustomerAuth } from '../middleware/customerAuth.js';
 import { uploadReturnVideo } from '../middleware/upload.js';
 
@@ -15,3 +19,4 @@ ordersRouter.get('/stats', stats);
 ordersRouter.get('/:id', get);
 ordersRouter.get('/:id/return-request', getReturnRequest);
 ordersRouter.post('/:id/return-request', uploadReturnVideo.single('video'), createReturnRequest);
+ordersRouter.post('/:id/return-request/cancel', cancelReturnRequest);

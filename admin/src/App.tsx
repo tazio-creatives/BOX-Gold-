@@ -1,5 +1,6 @@
 import { Routes, Route } from 'react-router-dom';
 import { AdminLayout } from './layouts/AdminLayout';
+import { RequirePermission } from './components/RequirePermission';
 import { LoginPage } from './pages/LoginPage';
 import { DashboardPage } from './pages/DashboardPage';
 import { ProductsListPage } from './pages/products/ProductsListPage';
@@ -29,25 +30,158 @@ export function App() {
       <Route path="/orders/:id/work-order/print" element={<WorkOrderPrintPage />} />
       <Route path="/orders/:id/invoice/print" element={<InvoicePrintPage />} />
       <Route element={<AdminLayout />}>
-        <Route path="/" element={<DashboardPage />} />
-        <Route path="/products" element={<ProductsListPage />} />
-        <Route path="/products/new" element={<ProductFormPage />} />
-        <Route path="/products/:id/edit" element={<ProductFormPage />} />
-        <Route path="/products/:id/ai-image-studio" element={<AiImageStudioPage />} />
-        <Route path="/products/:id/variants" element={<ProductVariantsPage />} />
-        <Route path="/categories" element={<CategoriesPage />} />
-        <Route path="/collections" element={<CollectionsPage />} />
-        <Route path="/homepage" element={<HomepagePage />} />
-        <Route path="/orders" element={<OrdersListPage />} />
-        <Route path="/orders/:id" element={<OrderDetailPage />} />
-        <Route path="/customers" element={<CustomersListPage />} />
-        <Route path="/customers/:id" element={<CustomerDetailPage />} />
-        <Route path="/reviews" element={<ReviewsListPage />} />
-        <Route path="/coupons" element={<CouponsListPage />} />
-        <Route path="/pricing" element={<PricingPage />} />
-        <Route path="/attributes" element={<AttributesPage />} />
-        <Route path="/admin-users" element={<AdminUsersListPage />} />
-        <Route path="/audit-logs" element={<AuditLogsPage />} />
+        <Route
+          path="/"
+          element={
+            <RequirePermission permission="dashboard">
+              <DashboardPage />
+            </RequirePermission>
+          }
+        />
+        <Route
+          path="/products"
+          element={
+            <RequirePermission permission="products">
+              <ProductsListPage />
+            </RequirePermission>
+          }
+        />
+        <Route
+          path="/products/new"
+          element={
+            <RequirePermission permission="products">
+              <ProductFormPage />
+            </RequirePermission>
+          }
+        />
+        <Route
+          path="/products/:id/edit"
+          element={
+            <RequirePermission permission="products">
+              <ProductFormPage />
+            </RequirePermission>
+          }
+        />
+        <Route
+          path="/products/:id/ai-image-studio"
+          element={
+            <RequirePermission permission="products">
+              <AiImageStudioPage />
+            </RequirePermission>
+          }
+        />
+        <Route
+          path="/products/:id/variants"
+          element={
+            <RequirePermission permission="products">
+              <ProductVariantsPage />
+            </RequirePermission>
+          }
+        />
+        <Route
+          path="/categories"
+          element={
+            <RequirePermission permission="categories">
+              <CategoriesPage />
+            </RequirePermission>
+          }
+        />
+        <Route
+          path="/collections"
+          element={
+            <RequirePermission permission="collections">
+              <CollectionsPage />
+            </RequirePermission>
+          }
+        />
+        <Route
+          path="/homepage"
+          element={
+            <RequirePermission permission="homepage">
+              <HomepagePage />
+            </RequirePermission>
+          }
+        />
+        <Route
+          path="/orders"
+          element={
+            <RequirePermission permission="orders">
+              <OrdersListPage />
+            </RequirePermission>
+          }
+        />
+        <Route
+          path="/orders/:id"
+          element={
+            <RequirePermission permission="orders">
+              <OrderDetailPage />
+            </RequirePermission>
+          }
+        />
+        <Route
+          path="/customers"
+          element={
+            <RequirePermission permission="customers">
+              <CustomersListPage />
+            </RequirePermission>
+          }
+        />
+        <Route
+          path="/customers/:id"
+          element={
+            <RequirePermission permission="customers">
+              <CustomerDetailPage />
+            </RequirePermission>
+          }
+        />
+        <Route
+          path="/reviews"
+          element={
+            <RequirePermission permission="reviews">
+              <ReviewsListPage />
+            </RequirePermission>
+          }
+        />
+        <Route
+          path="/coupons"
+          element={
+            <RequirePermission permission="coupons">
+              <CouponsListPage />
+            </RequirePermission>
+          }
+        />
+        <Route
+          path="/pricing"
+          element={
+            <RequirePermission permission="pricing">
+              <PricingPage />
+            </RequirePermission>
+          }
+        />
+        <Route
+          path="/attributes"
+          element={
+            <RequirePermission permission="attributes">
+              <AttributesPage />
+            </RequirePermission>
+          }
+        />
+        <Route
+          path="/admin-users"
+          element={
+            <RequirePermission superAdminOnly>
+              <AdminUsersListPage />
+            </RequirePermission>
+          }
+        />
+        <Route
+          path="/audit-logs"
+          element={
+            <RequirePermission permission="audit-logs">
+              <AuditLogsPage />
+            </RequirePermission>
+          }
+        />
       </Route>
     </Routes>
   );

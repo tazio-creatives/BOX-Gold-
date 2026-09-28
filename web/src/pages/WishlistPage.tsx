@@ -1,11 +1,9 @@
 import { Link } from 'react-router-dom';
 import { useQuery, useQueryClient, useMutation } from '@tanstack/react-query';
 import { fetchWishlist, removeWishlistItem } from '../api/wishlist';
-import { addCartItem } from '../api/cart';
-import type { Wishlist } from '../api/types';
-import { productUrl } from '../utils/productUrl';
-import { formatPrice } from '../utils/formatPrice';
-import { placeholderGradient } from '../utils/placeholderGradient';
+import { PlpProductCard } from '../components/PlpProductCard';
+import { QuickAddSheet } from '../features/plp/QuickAddSheet';
+import { useQuickAdd } from '../features/plp/useQuickAdd';
 import { useDocumentTitle } from '../utils/useDocumentTitle';
 import styles from './WishlistPage.module.css';
 import placeholderStyles from './PlaceholderPage.module.css';
@@ -16,21 +14,13 @@ export function WishlistPage() {
 
   const { data, isLoading } = useQuery({ queryKey: ['wishlist'], queryFn: fetchWishlist });
 
+  // Once an item actually lands in the cart, it moves out of the wishlist —
+  // same "Move to Bag" semantics the old hand-rolled card had.
   const removeMutation = useMutation({
     mutationFn: (productId: string) => removeWishlistItem(productId),
-    onSuccess: (wishlist: Wishlist) => queryClient.setQueryData(['wishlist'], wishlist),
+    onSuccess: (wishlist) => queryClient.setQueryData(['wishlist'], wishlist),
   });
-
-  const moveToBagMutation = useMutation({
-    mutationFn: async (productId: string) => {
-      await addCartItem(productId, 1);
-      return removeWishlistItem(productId);
-    },
-    onSuccess: (wishlist: Wishlist) => {
-      queryClient.setQueryData(['wishlist'], wishlist);
-      queryClient.invalidateQueries({ queryKey: ['cart'] });
-    },
-  });
+  const quickAdd = useQuickAdd((productId) => removeMutation.mutate(productId));
 
   if (isLoading) {
     return (
@@ -63,49 +53,25 @@ export function WishlistPage() {
 
       <div className={styles.grid}>
         {data.items.map((item, i) => (
-          <div key={item.productId} className={styles.card}>
-            <Link to={productUrl({ slug: item.slug, categorySlug: item.categorySlug })}>
-              <div
-                className={styles.image}
-                style={item.primaryImageUrl ? undefined : { background: placeholderGradient(i) }}
-              >
-                {item.primaryImageUrl && (
-                  <img src={item.primaryImageUrl} alt={item.name} className={styles.imageTag} />
-                )}
-              </div>
-            </Link>
-            <div className={styles.body}>
-              <Link
-                to={productUrl({ slug: item.slug, categorySlug: item.categorySlug })}
-                className={styles.name}
-              >
-                {item.name}
-              </Link>
-              <p className={styles.price}>
-                {formatPrice(item.sellingPrice)}
-                {item.strikePrice > 0 && <span className={styles.mrp}>{formatPrice(item.strikePrice)}</span>}
-              </p>
-              {item.offerLabel && <span className={styles.offerLabel}>{item.offerLabel}</span>}
-
-              <button
-                type="button"
-                className={styles.moveButton}
-                disabled={item.availableStock <= 0 || moveToBagMutation.isPending}
-                onClick={() => moveToBagMutation.mutate(item.productId)}
-              >
-                {item.availableStock <= 0 ? 'Out of Stock' : 'Move to Bag'}
-              </button>
-              <button
-                type="button"
-                className={styles.removeButton}
-                onClick={() => removeMutation.mutate(item.productId)}
-              >
-                Remove
-              </button>
-            </div>
-          </div>
+          <PlpProductCard
+            key={item.productId}
+            product={item}
+            index={i}
+            onAddToCart={() => quickAdd.addToCart(item)}
+            isAdding={quickAdd.pendingProductId === item.productId}
+            justAdded={quickAdd.justAddedProductId === item.productId}
+            hasError={quickAdd.errorProductId === item.productId}
+          />
         ))}
       </div>
+
+      {quickAdd.sheetProduct && (
+        <QuickAddSheet
+          product={quickAdd.sheetProduct}
+          onClose={quickAdd.closeSheet}
+          onAdded={(productId) => removeMutation.mutate(productId)}
+        />
+      )}
     </div>
   );
 }

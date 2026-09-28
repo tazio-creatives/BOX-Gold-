@@ -1,10 +1,18 @@
 import { query } from '../config/db.js';
 
+// FORWARD-only — a REVERSE (reverse pickup) row can exist for the same
+// order_id, and would otherwise win the ORDER BY created_at DESC LIMIT 1
+// once created, silently swapping what the order-detail page shows.
 export async function findShipmentByOrderId(orderId) {
   const { rows } = await query(
-    'SELECT * FROM shipments WHERE order_id = $1 ORDER BY created_at DESC LIMIT 1',
+    `SELECT * FROM shipments WHERE order_id = $1 AND direction = 'FORWARD' ORDER BY created_at DESC LIMIT 1`,
     [orderId],
   );
+  return rows[0] ?? null;
+}
+
+export async function findReversePickupByReturnRequestId(returnRequestId) {
+  const { rows } = await query('SELECT * FROM shipments WHERE return_request_id = $1', [returnRequestId]);
   return rows[0] ?? null;
 }
 
@@ -20,12 +28,15 @@ export async function insertShipment({
   packageWidthCm,
   packageHeightCm,
   labelUrl,
+  direction = 'FORWARD',
+  returnRequestId = null,
 }) {
   const { rows } = await query(
     `INSERT INTO shipments
        (order_id, provider, provider_shipment_id, tracking_number, courier_name, status,
-        package_weight_grams, package_length_cm, package_width_cm, package_height_cm, label_url)
-     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11) RETURNING *`,
+        package_weight_grams, package_length_cm, package_width_cm, package_height_cm, label_url,
+        direction, return_request_id)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13) RETURNING *`,
     [
       orderId,
       provider,
@@ -38,6 +49,8 @@ export async function insertShipment({
       packageWidthCm ?? null,
       packageHeightCm ?? null,
       labelUrl ?? null,
+      direction,
+      returnRequestId,
     ],
   );
   return rows[0];

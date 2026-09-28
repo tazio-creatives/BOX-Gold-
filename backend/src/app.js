@@ -37,6 +37,7 @@ import { adminCustomersRouter } from './routes/admin/customers.routes.js';
 import { adminHomepageRouter } from './routes/admin/homepage.routes.js';
 import { adminReviewsRouter } from './routes/admin/reviews.routes.js';
 import { productReviewsRouter } from './routes/productReviews.routes.js';
+import { reviewsRouter } from './routes/reviews.routes.js';
 import { couponsRouter } from './routes/coupons.routes.js';
 import { adminCouponsRouter } from './routes/admin/coupons.routes.js';
 import { adminAuditLogsRouter } from './routes/admin/auditLogs.routes.js';
@@ -155,6 +156,7 @@ export function createApp() {
   customerRouter.use('/orders', ordersRouter);
   customerRouter.use('/coupons', couponsRouter);
   customerRouter.use('/products/:id/reviews', productReviewsRouter);
+  customerRouter.use('/reviews', reviewsRouter);
   app.use('/api/v1', customerRouter);
 
   app.use(notFoundHandler);

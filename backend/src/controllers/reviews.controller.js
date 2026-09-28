@@ -1,4 +1,4 @@
-import { createReviewSchema, listReviewsQuerySchema } from '../validators/reviews.validators.js';
+import { createReviewSchema, updateReviewSchema, listReviewsQuerySchema } from '../validators/reviews.validators.js';
 import * as reviewsService from '../services/reviewsService.js';
 
 function toPublicReviewDto(row) {
@@ -10,6 +10,7 @@ function toPublicReviewDto(row) {
     isVerifiedPurchase: row.is_verified_purchase,
     reviewerName: row.full_name ?? 'Anonymous',
     createdAt: row.created_at,
+    images: row.images ?? [],
   };
 }
 
@@ -34,8 +35,18 @@ export async function list(req, res, next) {
 export async function create(req, res, next) {
   try {
     const input = createReviewSchema.parse(req.body);
-    const review = await reviewsService.createReview(req.customer.id, req.params.id, input);
-    res.status(201).json({ review: { id: review.id, status: review.status } });
+    const review = await reviewsService.createReview(req.customer.id, req.params.id, input, req.files ?? []);
+    res.status(201).json({ review: { id: review.id, status: review.status, images: review.images ?? [] } });
+  } catch (err) {
+    next(err);
+  }
+}
+
+export async function update(req, res, next) {
+  try {
+    const input = updateReviewSchema.parse(req.body);
+    const review = await reviewsService.updateReview(req.customer.id, req.params.id, input, req.files ?? []);
+    res.json({ review: { id: review.id, status: review.status, images: review.images ?? undefined } });
   } catch (err) {
     next(err);
   }

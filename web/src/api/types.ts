@@ -423,6 +423,7 @@ export interface OrderItem {
   productId: string;
   productName: string;
   productSku: string;
+  productImageUrl: string | null;
   quantity: number;
   goldValue: number;
   diamondValue: number;
@@ -431,12 +432,24 @@ export interface OrderItem {
   unitPrice: number;
   lineTotal: number;
   canReview: boolean;
+  review: OwnOrderItemReview | null;
   sizeLabel: string | null;
   goldColor: string | null;
   purity: string | null;
   diamondConfigName: string | null;
   customizationNote: string | null;
   isBackordered: boolean;
+}
+
+// The customer's own review for this order item, whatever its moderation
+// status — distinct from the public Review shape shown on a product page.
+export interface OwnOrderItemReview {
+  id: string;
+  rating: number;
+  title: string | null;
+  body: string | null;
+  status: 'PENDING' | 'APPROVED' | 'REJECTED';
+  images: string[];
 }
 
 export interface Review {
@@ -447,6 +460,7 @@ export interface Review {
   isVerifiedPurchase: boolean;
   reviewerName: string;
   createdAt: string;
+  images: string[];
 }
 
 export interface ReviewListResponse {
@@ -462,6 +476,7 @@ export interface ReviewInput {
   title?: string | null;
   body?: string | null;
   orderItemId: string;
+  images?: File[];
 }
 
 export interface OrderStatusHistoryEntry {
@@ -530,7 +545,7 @@ export interface Order {
 }
 
 export type ReturnReason = 'DAMAGED' | 'DEFECTIVE' | 'WRONG_ITEM' | 'NOT_AS_DESCRIBED' | 'CHANGED_MIND' | 'OTHER';
-export type ReturnRequestStatus = 'REQUESTED' | 'APPROVED' | 'REJECTED' | 'COMPLETED';
+export type ReturnRequestStatus = 'REQUESTED' | 'APPROVED' | 'REJECTED' | 'COMPLETED' | 'CANCELLED';
 
 export interface ReturnRequest {
   id: string;

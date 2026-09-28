@@ -1,65 +1,88 @@
-.back {
-  display: inline-block;
-  color: var(--color-text-muted);
-  font-size: var(--text-sm);
-  text-decoration: none;
-  margin-bottom: var(--space-4);
+.grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 350px;
+  gap: 16px;
+  align-items: start;
 }
 
-.header {
-  margin-bottom: var(--space-5);
-}
-
-.subheading {
-  font-size: var(--text-xl);
-  margin: 0;
-}
-
-.date {
-  margin: var(--space-1) 0 0;
-  font-size: var(--text-sm);
-  color: var(--color-text-muted);
-}
-
-.statusRow {
+.main,
+.sidebar {
   display: flex;
-  flex-wrap: wrap;
-  gap: var(--space-2);
-  margin-top: var(--space-3);
+  flex-direction: column;
+  gap: 14px;
+  min-width: 0;
 }
 
-.status {
-  font-size: var(--text-xs);
+.skeletonCard {
+  composes: shimmer from '../../styles/skeleton.module.css';
+  border-radius: 8px;
+}
+
+.stateCard {
+  max-width: 480px;
+  margin: 40px auto;
+  padding: 28px;
+  text-align: center;
+  background: #ffffff;
+  border: 1px solid #e3e8eb;
+  border-radius: 8px;
+}
+
+.stateTitle {
+  margin: 0 0 6px;
+  font-size: 15px;
   font-weight: 600;
-  padding: 3px var(--space-3);
+  color: #0f2a30;
+}
+
+.stateBody {
+  margin: 0;
+  font-size: 12px;
+  color: #667085;
+}
+
+.stateActions {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 14px;
+  margin-top: 16px;
+}
+
+.retryButton {
+  height: 36px;
+  padding: 0 18px;
+  border: 1px solid #075a63;
   border-radius: 999px;
-  white-space: nowrap;
+  background: transparent;
+  color: #075a63;
+  font-size: 12px;
+  font-weight: 600;
+  font-family: inherit;
+  cursor: pointer;
 }
 
-.statusGood {
-  background: #e6f0e6;
-  color: #2f6b2f;
+.back {
+  color: #667085;
+  font-size: 12px;
+  text-decoration: none;
 }
 
-.statusPending {
-  background: var(--color-bg-alt);
-  color: var(--color-text-muted);
+.back:hover {
+  color: #075a63;
 }
 
-.statusBad {
-  background: #f5e6e6;
-  color: var(--color-burgundy);
+/* Tablet — the tracking/timeline sidebar moves below the main column
+   instead of sitting beside it (the account nav sidebar's own collapse is
+   handled by AccountLayout at the same breakpoint). */
+@media (max-width: 900px) {
+  .grid {
+    grid-template-columns: 1fr;
+  }
 }
 
-.skeletonLine {
-  composes: shimmer from '../../styles/skeleton.module.css';
-  height: 16px;
-  border-radius: var(--radius-sm);
-}
-
-.skeletonContent {
-  composes: shimmer from '../../styles/skeleton.module.css';
-  height: 320px;
-  border-radius: var(--radius-md);
-  margin-top: var(--space-5);
+@media (max-width: 767px) {
+  .grid {
+    gap: 10px;
+  }
 }

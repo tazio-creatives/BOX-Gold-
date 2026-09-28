@@ -50,10 +50,12 @@ import {
 } from '../../controllers/productSizeImage.controller.js';
 import { upload, uploadEnhanceImage } from '../../middleware/upload.js';
 import { aiStudioRateLimiter } from '../../middleware/rateLimit.js';
+import { requirePermission } from '../../middleware/adminAuth.js';
 
 // Mounted at /api/v1/admin/products.
 export const adminProductsRouter = Router();
 
+adminProductsRouter.use(requirePermission('products'));
 adminProductsRouter.get('/', adminList);
 adminProductsRouter.post('/', adminCreate);
 // Registered before "/:id" — Express would otherwise treat "images" as an id.

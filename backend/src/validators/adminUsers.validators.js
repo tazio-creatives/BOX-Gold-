@@ -1,4 +1,17 @@
 import { z } from 'zod';
+import { ADMIN_PERMISSION_MODULES } from '../constants/adminPermissions.js';
+
+const permissionsField = z.array(z.enum(ADMIN_PERMISSION_MODULES)).min(1, 'Select at least one permission');
+
+export const createRoleSchema = z.object({
+  name: z.string().trim().min(2).max(50),
+  permissions: permissionsField,
+});
+
+export const updateRoleSchema = z.object({
+  name: z.string().trim().min(2).max(50).optional(),
+  permissions: permissionsField.optional(),
+});
 
 export const createAdminUserSchema = z.object({
   email: z.string().trim().toLowerCase().email(),

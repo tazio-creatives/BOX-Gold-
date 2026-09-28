@@ -7,6 +7,7 @@ import type {
   WorkOrderResponse,
   InvoiceResponse,
   ReturnRequest,
+  ReversePickup,
 } from './types';
 
 export interface OrderListResponse {
@@ -106,4 +107,28 @@ export function updateReturnRequestStatus(id: string, status: 'APPROVED' | 'REJE
     method: 'PATCH',
     body: JSON.stringify({ status }),
   });
+}
+
+// Only reachable once the return request is APPROVED — the backend enforces
+// this too (see shippingService.js#createReversePickupForReturnRequest); the
+// admin UI just doesn't offer the button outside that state.
+export function createReversePickup(orderId: string) {
+  return apiFetch<{ reversePickup: ReversePickup }>(`/admin/orders/${orderId}/return-request/reverse-pickup`, {
+    method: 'POST',
+  });
+}
+
+export function syncReversePickup(orderId: string) {
+  return apiFetch<{ reversePickup: ReversePickup }>(`/admin/orders/${orderId}/return-request/reverse-pickup/sync`, {
+    method: 'POST',
+  });
+}
+
+// Dev-only — walks a stub-provider reverse pickup through its lifecycle
+// without a real courier, mirroring simulateTracking for forward shipments.
+export function simulateReversePickup(orderId: string, status: ReversePickup['status']) {
+  return apiFetch<{ reversePickup: ReversePickup }>(
+    `/admin/orders/${orderId}/return-request/reverse-pickup/simulate`,
+    { method: 'POST', body: JSON.stringify({ status }) },
+  );
 }

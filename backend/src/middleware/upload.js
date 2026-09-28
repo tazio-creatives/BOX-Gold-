@@ -19,6 +19,9 @@ export const upload = multer({
 // rather than letting the provider call fail after an upload round-trip.
 const ENHANCE_MIME_TYPES = new Set(['image/png', 'image/jpeg', 'image/webp']);
 
+// Customer-submitted photos on a product review — up to 5 per review.
+export const uploadReviewImages = upload.array('images', 5);
+
 export const uploadEnhanceImage = multer({
   storage: multer.memoryStorage(),
   limits: { fileSize: env.maxUploadSizeMb * 1024 * 1024 },

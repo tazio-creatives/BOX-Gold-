@@ -1,7 +1,12 @@
 import { ZodError } from 'zod';
+import multer from 'multer';
 import { isProduction } from '../config/env.js';
 
 export function errorHandler(err, req, res, _next) {
+  if (err instanceof multer.MulterError) {
+    return res.status(400).json({ error: { message: err.message } });
+  }
+
   if (err instanceof ZodError) {
     return res.status(400).json({
       error: {

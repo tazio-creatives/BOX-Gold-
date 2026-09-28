@@ -27,6 +27,19 @@ async function main() {
        RETURNING id`,
     );
 
+    // Starter roles for the module-permission system (backend/src/constants/
+    // adminPermissions.js) — a convenience default, not the only roles that
+    // can exist: SUPER_ADMIN can create/edit further roles from the Admin
+    // Users page. Re-running the seed updates permissions on these two if
+    // the module list changes, same ON CONFLICT pattern as SUPER_ADMIN.
+    await client.query(
+      `INSERT INTO admin_roles (name, permissions)
+       VALUES
+         ('ORDER_MANAGER', '["dashboard", "orders"]'),
+         ('CATALOG_MANAGER', '["dashboard", "products", "categories", "collections", "attributes"]')
+       ON CONFLICT (name) DO UPDATE SET permissions = EXCLUDED.permissions`,
+    );
+
     const passwordHash = await bcrypt.hash('dev-only-password', 12);
     await client.query(
       `INSERT INTO admin_users (email, password_hash, full_name, role_id)
@@ -372,8 +385,16 @@ async function main() {
 
     // Homepage sections/items (plan §3 Homepage structure, items 3-14 — the
     // 12 dynamic, admin-configurable sections; Announcement/Header/Footer
-    // are layout chrome, not homepage_sections rows). Re-seedable: clears
-    // and rebuilds these known section types each run.
+    // are layout chrome, not homepage_sections rows).
+    //
+    // Only seeded on a genuinely fresh database — this used to unconditionally
+    // DELETE + recreate these section types on every run, which meant running
+    // `npm run seed` again on a DB an admin had already customized (real
+    // uploaded hero images, curated Best Sellers/Collection Cards/Occasion
+    // Cards content, etc.) silently wiped all of it back to these placeholder
+    // defaults. Real incident: 2026-09-28, see git history for the recovery.
+    // Now it's insert-only-if-missing, so re-running this script is safe once
+    // the homepage has ever been seeded or edited.
     const SECTION_TYPES = [
       'HERO',
       'BENTO_CATEGORIES',
@@ -388,14 +409,21 @@ async function main() {
       'NEWSLETTER',
       'TRUST_STRIP',
     ];
-    await client.query(
-      `DELETE FROM homepage_items WHERE section_id IN
-         (SELECT id FROM homepage_sections WHERE type = ANY($1))`,
+    const {
+      rows: [{ count: existingHomepageSectionCount }],
+    } = await client.query(
+      `SELECT COUNT(*)::int AS count FROM homepage_sections WHERE type = ANY($1)`,
       [SECTION_TYPES],
     );
-    await client.query(`DELETE FROM homepage_sections WHERE type = ANY($1)`, [SECTION_TYPES]);
+    const shouldSeedHomepage = existingHomepageSectionCount === 0;
+    if (!shouldSeedHomepage) {
+      console.log(
+        `Homepage sections already exist (${existingHomepageSectionCount} found) — skipping homepage seed to avoid overwriting real content.`,
+      );
+    }
 
     async function createSection(type, heading, sortOrder, items) {
+      if (!shouldSeedHomepage) return;
       const {
         rows: [section],
       } = await client.query(

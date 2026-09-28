@@ -14,6 +14,7 @@ function toAdminReviewDto(row) {
     productName: row.product_name,
     productSlug: row.product_slug,
     createdAt: row.created_at,
+    images: row.images ?? [],
   };
 }
 
@@ -47,6 +48,15 @@ export async function approve(req, res, next) {
 export async function reject(req, res, next) {
   try {
     const review = await reviewsService.rejectReview(req.params.id);
+    res.json({ review: { id: review.id, status: review.status } });
+  } catch (err) {
+    next(err);
+  }
+}
+
+export async function resetToPending(req, res, next) {
+  try {
+    const review = await reviewsService.resetReviewToPending(req.params.id);
     res.json({ review: { id: review.id, status: review.status } });
   } catch (err) {
     next(err);

@@ -8,7 +8,7 @@
    (Product Details → "You May Also Like"), or any other single-instance
    usage (e.g. CartPage's Best Sellers). */
 .section + .section {
-  margin-top: 20px;
+  margin-top: 8px;
 }
 
 .header {
@@ -34,7 +34,7 @@
 .grid {
   display: grid;
   grid-template-columns: repeat(5, 1fr);
-  gap: var(--space-5);
+  gap: var(--space-3);
 }
 
 /* "You May Also Like" and "Most Loved" are two independent grids (separate

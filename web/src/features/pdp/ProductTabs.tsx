@@ -33,7 +33,7 @@ export function ProductTabs({ product }: { product: ProductDetail }) {
 
   return (
     <div className={styles.wrap}>
-      {tabs.length > 1 && (
+      {tabs.length > 1 ? (
         <div className={styles.tabListWrap}>
           <div className={styles.tabList} role="tablist" aria-label="Product information" onKeyDown={handleKeyDown}>
             {tabs.map((tab) => (
@@ -53,6 +53,12 @@ export function ProductTabs({ product }: { product: ProductDetail }) {
             ))}
           </div>
         </div>
+      ) : (
+        // Only one section exists (e.g. no description text, just reviews)
+        // — the interactive tab strip has nothing to switch between, but
+        // the section still needs its own visible heading instead of
+        // rendering with no label at all.
+        <h2 className={styles.singleHeading}>{tabs[0].label}</h2>
       )}
 
       {hasDescription && (

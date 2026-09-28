@@ -13,13 +13,16 @@ import styles from './QuickAddSheet.module.css';
 interface QuickAddSheetProps {
   product: ProductDetail;
   onClose: () => void;
+  // Optional — the Wishlist page uses it to remove the item once it's
+  // actually in the cart ("Move to Bag" semantics); see useQuickAdd's onAdded.
+  onAdded?: (_productId: string) => void;
 }
 
 // Compact mobile bottom sheet shown when a PLP "Add to Cart" tap lands on a
 // product with mandatory selections — reuses the exact same selector
 // components and variant-selection/pricing hook as the PDP, so validation,
 // defaults, and price recompute all stay identical rather than reimplemented.
-export function QuickAddSheet({ product, onClose }: QuickAddSheetProps) {
+export function QuickAddSheet({ product, onClose, onAdded }: QuickAddSheetProps) {
   const queryClient = useQueryClient();
   const {
     selectedSizeId,
@@ -49,6 +52,7 @@ export function QuickAddSheet({ product, onClose }: QuickAddSheetProps) {
     mutationFn: () => addCartItem(product.id, 1, selectedVariantId),
     onSuccess: (cart: Cart) => {
       queryClient.setQueryData(['cart'], cart);
+      onAdded?.(product.id);
       onClose();
     },
   });

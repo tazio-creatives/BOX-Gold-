@@ -151,29 +151,31 @@ export function PDPPage() {
   if (isProductLoading) {
     return (
       <div className={styles.page} aria-busy="true">
-        <div className={styles.hero}>
-          <div className={styles.skeletonCrumb} />
+        <div className={styles.pageInner}>
+          <div className={styles.hero}>
+            <div className={styles.skeletonCrumb} />
 
-          <div className={styles.layout}>
-            <div className={styles.skeletonImage} />
-            <div className={styles.skeletonInfo}>
-              <div className={styles.skeletonLine} style={{ width: '80%', height: 32 }} />
-              <div className={styles.skeletonLine} style={{ width: '40%' }} />
-              <div className={styles.skeletonLine} style={{ width: '55%', height: 28 }} />
-              <div className={styles.skeletonLine} style={{ width: '90%' }} />
-              <div className={styles.skeletonLine} style={{ width: '70%' }} />
-              <div className={styles.skeletonLine} style={{ width: '100%', height: 54 }} />
+            <div className={styles.layout}>
+              <div className={styles.skeletonImage} />
+              <div className={styles.skeletonInfo}>
+                <div className={styles.skeletonLine} style={{ width: '80%', height: 32 }} />
+                <div className={styles.skeletonLine} style={{ width: '40%' }} />
+                <div className={styles.skeletonLine} style={{ width: '55%', height: 28 }} />
+                <div className={styles.skeletonLine} style={{ width: '90%' }} />
+                <div className={styles.skeletonLine} style={{ width: '70%' }} />
+                <div className={styles.skeletonLine} style={{ width: '100%', height: 54 }} />
+              </div>
+            </div>
+
+            <div className={styles.detailsGrid}>
+              <div className={styles.skeletonCard} />
+              <div className={styles.skeletonCard} />
             </div>
           </div>
 
-          <div className={styles.detailsGrid}>
-            <div className={styles.skeletonCard} />
-            <div className={styles.skeletonCard} />
-          </div>
+          <div className={styles.skeletonTabs} />
+          <div className={styles.skeletonTrust} />
         </div>
-
-        <div className={styles.skeletonTabs} />
-        <div className={styles.skeletonTrust} />
       </div>
     );
   }
@@ -199,86 +201,88 @@ export function PDPPage() {
 
   return (
     <div className={styles.page}>
-      <div className={styles.hero}>
-        <Breadcrumbs items={breadcrumbs} />
+      <div className={styles.pageInner}>
+        <div className={styles.hero}>
+          <Breadcrumbs items={breadcrumbs} />
 
-        <div className={styles.layout}>
-          <ImageGallery
-            images={galleryImages}
-            productName={product.name}
-            productId={product.id}
-            isNew={product.isNew}
-          />
+          <div className={styles.layout}>
+            <ImageGallery
+              images={galleryImages}
+              productName={product.name}
+              productId={product.id}
+              isNew={product.isNew}
+            />
 
-          <ProductInfo
-            product={product}
-            isOutOfStock={isOutOfStock}
-            isLowStock={isLowStock}
-            justAdded={justAdded}
-            isAddingToCart={addToCartMutation.isPending}
-            selectedSizeId={selectedSizeId}
-            onSelectSize={setSelectedSizeId}
-            selectedGoldColor={selectedGoldColor}
-            onSelectGoldColor={setSelectedGoldColor}
-            isColorAvailableAtPurity={isColorAvailableAtPurity}
-            selectedPurity={selectedPurity}
-            onSelectPurity={setSelectedPurity}
-            isPurityAvailable={isPurityAvailable}
-            selectedDiamondConfigId={selectedDiamondConfigId}
-            onSelectDiamondConfigId={setSelectedDiamondConfigId}
-            isDiamondAvailableAtPurity={isDiamondAvailableAtPurity}
-            displayPrice={displayPrice}
-            displayMrp={displayMrp}
-            offerLabel={displayOfferLabel}
-            displayBreakup={displayBreakup ?? product.priceBreakup}
-            displayGoldWeightGrams={displayGoldWeightGrams}
-            displayNetWeightGrams={displayNetWeightGrams}
-            displayGrossWeightGrams={displayGrossWeightGrams}
-            displayDiamondWeightCarats={displayDiamondWeightCarats}
-            onAddToCart={() =>
-              addToCartMutation.mutate({
-                productId: product.id,
-                variantId: selectedVariantId,
-              })
-            }
-            onBuyNow={() =>
-              navigate('/checkout', {
-                state: {
-                  buyNow: {
-                    productId: product.id,
-                    variantId: selectedVariantId,
-                    quantity: 1,
-                    name: product.name,
-                    slug: product.slug,
-                    categorySlug: category?.slug ?? null,
-                    sellingPrice: displayPrice,
-                    gstAmount: displayGstAmount,
-                    primaryImageUrl:
-                      product.images.find((img) => img.isPrimary && img.variant === 'small')?.url ?? null,
-                    availableStock: product.availableStock,
-                    sizeLabel: selectedSize?.label ?? null,
-                    goldColor: selectedGoldColor ?? null,
-                    purity: selectedPurity ?? null,
-                    diamondConfigName: selectedDiamondOption?.name ?? null,
-                    isBackordered: isOutOfStock,
-                    deliveryEstimate: product.deliveryEstimate,
+            <ProductInfo
+              product={product}
+              isOutOfStock={isOutOfStock}
+              isLowStock={isLowStock}
+              justAdded={justAdded}
+              isAddingToCart={addToCartMutation.isPending}
+              selectedSizeId={selectedSizeId}
+              onSelectSize={setSelectedSizeId}
+              selectedGoldColor={selectedGoldColor}
+              onSelectGoldColor={setSelectedGoldColor}
+              isColorAvailableAtPurity={isColorAvailableAtPurity}
+              selectedPurity={selectedPurity}
+              onSelectPurity={setSelectedPurity}
+              isPurityAvailable={isPurityAvailable}
+              selectedDiamondConfigId={selectedDiamondConfigId}
+              onSelectDiamondConfigId={setSelectedDiamondConfigId}
+              isDiamondAvailableAtPurity={isDiamondAvailableAtPurity}
+              displayPrice={displayPrice}
+              displayMrp={displayMrp}
+              offerLabel={displayOfferLabel}
+              displayBreakup={displayBreakup ?? product.priceBreakup}
+              displayGoldWeightGrams={displayGoldWeightGrams}
+              displayNetWeightGrams={displayNetWeightGrams}
+              displayGrossWeightGrams={displayGrossWeightGrams}
+              displayDiamondWeightCarats={displayDiamondWeightCarats}
+              onAddToCart={() =>
+                addToCartMutation.mutate({
+                  productId: product.id,
+                  variantId: selectedVariantId,
+                })
+              }
+              onBuyNow={() =>
+                navigate('/checkout', {
+                  state: {
+                    buyNow: {
+                      productId: product.id,
+                      variantId: selectedVariantId,
+                      quantity: 1,
+                      name: product.name,
+                      slug: product.slug,
+                      categorySlug: category?.slug ?? null,
+                      sellingPrice: displayPrice,
+                      gstAmount: displayGstAmount,
+                      primaryImageUrl:
+                        product.images.find((img) => img.isPrimary && img.variant === 'small')?.url ?? null,
+                      availableStock: product.availableStock,
+                      sizeLabel: selectedSize?.label ?? null,
+                      goldColor: selectedGoldColor ?? null,
+                      purity: selectedPurity ?? null,
+                      diamondConfigName: selectedDiamondOption?.name ?? null,
+                      isBackordered: isOutOfStock,
+                      deliveryEstimate: product.deliveryEstimate,
+                    },
                   },
-                },
-              })
-            }
-          />
+                })
+              }
+            />
+          </div>
         </div>
+
+        <ProductTabs product={product} />
+
+        <RelatedProducts products={relatedData?.products ?? []} categorySlug={category?.slug ?? null} />
+
+        <RelatedProducts
+          products={mostLovedData?.products ?? []}
+          categorySlug={category?.slug ?? null}
+          heading="Most Loved"
+        />
       </div>
-
-      <ProductTabs product={product} />
-
-      <RelatedProducts products={relatedData?.products ?? []} categorySlug={category?.slug ?? null} />
-
-      <RelatedProducts
-        products={mostLovedData?.products ?? []}
-        categorySlug={category?.slug ?? null}
-        heading="Most Loved"
-      />
     </div>
   );
 }

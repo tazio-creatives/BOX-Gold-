@@ -9,7 +9,11 @@ import { addCartItem } from '../../api/cart';
 // (mandatory gold color / purity / diamond quality / size), by fetching the
 // same full product detail the PDP itself uses (same query key, so it's
 // instant from cache if the shopper already visited that PDP this session).
-export function useQuickAdd() {
+//
+// onAdded is optional — the Wishlist page passes it to also remove the item
+// from the wishlist once it's actually in the cart ("Move to Bag" semantics);
+// the plain PLP grid has no wishlist context to clean up, so it omits it.
+export function useQuickAdd(onAdded?: (_productId: string) => void) {
   const queryClient = useQueryClient();
   const [pendingProductId, setPendingProductId] = useState<string | null>(null);
   const [justAddedProductId, setJustAddedProductId] = useState<string | null>(null);
@@ -22,6 +26,7 @@ export function useQuickAdd() {
       queryClient.setQueryData(['cart'], cart);
       setJustAddedProductId(productId);
       setTimeout(() => setJustAddedProductId((cur) => (cur === productId ? null : cur)), 2000);
+      onAdded?.(productId);
     },
     onError: (_err, productId) => {
       setErrorProductId(productId);

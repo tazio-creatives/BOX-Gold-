@@ -84,6 +84,10 @@ export const SHIPMENT_STATUS_BADGE_CLASS: Record<string, string> = {
 // badge) rather than leaving a blank space.
 export function formatOrderStatus(status: string | null) {
   if (!status) return 'Awaiting Payment';
+  // The orders list's PENDING_PAYMENT pseudo-status (see OrdersListPage's
+  // displayStatus()) otherwise formats to "Pending Payment", inconsistent
+  // with the "Pending" tab label right above it.
+  if (status === 'PENDING_PAYMENT') return 'Pending';
   return status
     .replace(/_/g, ' ')
     .toLowerCase()

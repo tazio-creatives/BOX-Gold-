@@ -1,5 +1,5 @@
 import { Suspense } from 'react';
-import { NavLink, Outlet, useNavigate } from 'react-router-dom';
+import { NavLink, Outlet, useNavigate, useMatch } from 'react-router-dom';
 import { useQueryClient, useMutation } from '@tanstack/react-query';
 import { useCustomer } from '../features/auth/useCustomer';
 import { SignInRequired } from '../features/auth/SignInRequired';
@@ -79,10 +79,25 @@ function SignOutIcon() {
   );
 }
 
+// Mobile-only (see .identityChevron) — decorative, matches the reference
+// design's profile-row affordance; the row itself has no expand/collapse
+// behaviour to trigger.
+function ChevronRightIcon() {
+  return (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" aria-hidden="true">
+      <path d="M9 6l6 6-6 6" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
+}
+
 export function AccountLayout() {
   const { customer, isLoggedIn, isLoading } = useCustomer();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
+  // Order Details gets its own narrower (190px) sidebar + a 350px tracking
+  // column inside .content — every other account page keeps the standard
+  // 260px sidebar untouched.
+  const isOrderDetailRoute = Boolean(useMatch('/account/orders/:orderId'));
 
   const logoutMutation = useMutation({
     mutationFn: logout,
@@ -112,57 +127,74 @@ export function AccountLayout() {
 
   return (
     <div className={styles.page}>
+      <div className={styles.pageInner}>
       <Breadcrumbs items={[{ label: 'My Account' }]} />
       <h1 className={styles.heading}>My Account</h1>
-      <p className={styles.subheading}>Manage your orders, addresses and account details.</p>
+      <p className={`${styles.subheading} ${isOrderDetailRoute ? styles.subheadingCompact : ''}`}>
+        Manage your orders, addresses and account details.
+      </p>
 
-      <div className={styles.layout}>
+      <div className={`${styles.layout} ${isOrderDetailRoute ? styles.layoutNarrowSidebar : ''}`}>
         <aside className={styles.sidebar}>
           <div className={styles.identity}>
             <div className={styles.avatar}>{initials(customer.fullName)}</div>
-            <p className={styles.name}>{customer.fullName || 'Welcome'}</p>
-            <p className={styles.mobile}>{maskMobile(customer.mobileNumber)}</p>
+            <div className={styles.identityText}>
+              <p className={styles.name}>{customer.fullName || 'Welcome'}</p>
+              <p className={styles.mobile}>{maskMobile(customer.mobileNumber)}</p>
+            </div>
             {/* Every logged-in customer authenticated via OTP — phone
                 verification isn't a separate optional step in this app. */}
             <span className={styles.verifiedBadge}>Verified</span>
+            <span className={styles.identityChevron}>
+              <ChevronRightIcon />
+            </span>
           </div>
 
+          {/* Same six links/actions as a 1-column list on desktop and a
+              2-column grid on mobile (see .nav's media query) — the DOM
+              order (5 NavLinks then the Sign Out button, no divider
+              element in between) is what lets the mobile grid's
+              nth-child border/rounding rules land on the right cells. */}
           <nav className={styles.nav} aria-label="Account">
             {/* Redirects to /account/orders (see App.tsx's index route) — a
                 separate entry point rather than a duplicate of "My Orders"
                 below, so the two don't both show as active at once. */}
-            <NavLink to="/account" end className={({ isActive }) => (isActive ? styles.navLinkActive : styles.navLink)}>
+            <NavLink
+              to="/account"
+              end
+              className={({ isActive }) => `${styles.navCell} ${isActive ? styles.navLinkActive : styles.navLink}`}
+            >
               <HomeIcon />
               Overview
             </NavLink>
-            <NavLink to="/account/orders" className={({ isActive }) => (isActive ? styles.navLinkActive : styles.navLink)}>
+            <NavLink
+              to="/account/orders"
+              className={({ isActive }) => `${styles.navCell} ${isActive ? styles.navLinkActive : styles.navLink}`}
+            >
               <BagIcon />
               My Orders
             </NavLink>
-            <NavLink to="/wishlist" className={styles.navLink}>
+            <NavLink to="/wishlist" className={`${styles.navCell} ${styles.navLink}`}>
               <HeartIcon />
               Wishlist
             </NavLink>
             <NavLink
               to="/account/addresses"
-              className={({ isActive }) => (isActive ? styles.navLinkActive : styles.navLink)}
+              className={({ isActive }) => `${styles.navCell} ${isActive ? styles.navLinkActive : styles.navLink}`}
             >
               <PinIcon />
               Saved Addresses
             </NavLink>
             <NavLink
               to="/account/profile"
-              className={({ isActive }) => (isActive ? styles.navLinkActive : styles.navLink)}
+              className={({ isActive }) => `${styles.navCell} ${isActive ? styles.navLinkActive : styles.navLink}`}
             >
               <UserIcon />
               Profile Details
             </NavLink>
-
-            <div className={styles.navDivider} />
-
             <button
               type="button"
-              className={styles.signOutButton}
+              className={`${styles.navCell} ${styles.signOutButton}`}
               disabled={logoutMutation.isPending}
               onClick={() => logoutMutation.mutate()}
             >
@@ -177,6 +209,7 @@ export function AccountLayout() {
             <Outlet />
           </Suspense>
         </div>
+      </div>
       </div>
     </div>
   );

@@ -2,41 +2,13 @@ import { Link, useParams } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { fetchOrderById } from '../../api/orders';
 import { OrderDetails } from '../../features/orders/OrderDetails';
+import { OrderSidebar } from '../../features/orders/OrderSidebar';
 import { useDocumentTitle } from '../../utils/useDocumentTitle';
 import styles from './OrderDetailPage.module.css';
 
-function formatStatus(status: string) {
-  return status
-    .replace(/_/g, ' ')
-    .toLowerCase()
-    .replace(/\b\w/g, (c) => c.toUpperCase());
-}
-
-const PAYMENT_STATUS_CLASS: Record<string, string> = {
-  PENDING: 'statusPending',
-  PAID: 'statusGood',
-  FAILED: 'statusBad',
-  REFUNDED: 'statusPending',
-};
-
-const ORDER_STATUS_CLASS: Record<string, string> = {
-  CONFIRMED: 'statusGood',
-  PROCESSING: 'statusGood',
-  READY_TO_SHIP: 'statusGood',
-  SHIPPED: 'statusGood',
-  IN_TRANSIT: 'statusGood',
-  OUT_FOR_DELIVERY: 'statusGood',
-  DELIVERED: 'statusGood',
-  DELAYED: 'statusPending',
-  DELIVERY_FAILED: 'statusBad',
-  RETURN_INITIATED: 'statusPending',
-  RETURNED: 'statusBad',
-  CANCELLED: 'statusBad',
-};
-
 export function OrderDetailPage() {
   const { orderId } = useParams<{ orderId: string }>();
-  const { data, isLoading, isError } = useQuery({
+  const { data, isLoading, isError, refetch } = useQuery({
     queryKey: ['order', orderId],
     queryFn: () => fetchOrderById(orderId as string),
     enabled: !!orderId,
@@ -46,23 +18,35 @@ export function OrderDetailPage() {
 
   if (isLoading) {
     return (
-      <div aria-busy="true">
-        <div className={styles.header}>
-          <div className={styles.skeletonLine} style={{ width: 160, height: 22, marginBottom: 8 }} />
-          <div className={styles.skeletonLine} style={{ width: 220 }} />
+      <div className={styles.grid} aria-busy="true">
+        <div className={styles.main}>
+          <div className={styles.skeletonCard} style={{ height: 140 }} />
+          <div className={styles.skeletonCard} style={{ height: 220 }} />
+          <div className={styles.skeletonCard} style={{ height: 140 }} />
         </div>
-        <div className={styles.skeletonContent} />
+        <div className={styles.sidebar}>
+          <div className={styles.skeletonCard} style={{ height: 180 }} />
+          <div className={styles.skeletonCard} style={{ height: 180 }} />
+        </div>
       </div>
     );
   }
 
   if (isError || !data) {
     return (
-      <div>
-        <h2 className={styles.subheading}>Order not found</h2>
-        <Link to="/account/orders" className={styles.back}>
-          ← Back to orders
-        </Link>
+      <div className={styles.stateCard}>
+        <p className={styles.stateTitle}>Order not found</p>
+        <p className={styles.stateBody}>
+          We couldn&apos;t load this order. It may not exist, or something went wrong on our end.
+        </p>
+        <div className={styles.stateActions}>
+          <button type="button" className={styles.retryButton} onClick={() => refetch()}>
+            Retry
+          </button>
+          <Link to="/account/orders" className={styles.back}>
+            ← Back to orders
+          </Link>
+        </div>
       </div>
     );
   }
@@ -70,29 +54,13 @@ export function OrderDetailPage() {
   const { order } = data;
 
   return (
-    <div>
-      <Link to="/account/orders" className={styles.back}>
-        ← Back to orders
-      </Link>
-      <div className={styles.header}>
-        <h2 className={styles.subheading}>{order.orderNumber}</h2>
-        <p className={styles.date}>
-          Placed {new Date(order.createdAt).toLocaleDateString('en-IN', { dateStyle: 'long' })}
-        </p>
-        <div className={styles.statusRow}>
-          <span className={`${styles.status} ${styles[PAYMENT_STATUS_CLASS[order.paymentStatus] ?? 'statusPending']}`}>
-            Payment: {formatStatus(order.paymentStatus)}
-          </span>
-          <span
-            className={`${styles.status} ${
-              styles[order.orderStatus ? ORDER_STATUS_CLASS[order.orderStatus] ?? 'statusPending' : 'statusPending']
-            }`}
-          >
-            {formatStatus(order.orderStatus ?? 'Awaiting Payment')}
-          </span>
-        </div>
+    <div className={styles.grid}>
+      <div className={styles.main}>
+        <OrderDetails order={order} />
       </div>
-      <OrderDetails order={order} />
+      <div className={styles.sidebar}>
+        <OrderSidebar order={order} />
+      </div>
     </div>
   );
 }

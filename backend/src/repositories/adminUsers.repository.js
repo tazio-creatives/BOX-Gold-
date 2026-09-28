@@ -28,7 +28,7 @@ export async function listAdminUsers({ page = 1, limit = 20 } = {}) {
   const offset = (page - 1) * limit;
   const { rows } = await query(
     `SELECT u.id, u.email, u.full_name, u.is_active, u.created_at,
-            r.id AS role_id, r.name AS role_name
+            r.id AS role_id, r.name AS role_name, r.permissions
      FROM admin_users u
      JOIN admin_roles r ON r.id = u.role_id
      ORDER BY u.created_at DESC
@@ -72,4 +72,12 @@ export async function updateAdminUser(id, fields) {
   setClauses.push('updated_at = now()');
   await query(`UPDATE admin_users SET ${setClauses.join(', ')} WHERE id = $1`, values);
   return findAdminById(id);
+}
+
+// Every actor_admin_user_id / admin_user_id FK pointing at this row is
+// ON DELETE SET NULL (audit_logs, order_status_history, invoices,
+// work_order_prints, return_requests) — their history rows survive with the
+// actor link cleared, never blocked or cascaded away.
+export async function deleteAdminUser(id) {
+  await query('DELETE FROM admin_users WHERE id = $1', [id]);
 }

@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { fetchReturnRequest, createReturnRequest } from '../../api/orders';
+import { fetchReturnRequest, createReturnRequest, cancelReturnRequest } from '../../api/orders';
 import type { ReturnReason } from '../../api/types';
 import { ApiError } from '../../api/client';
 import styles from './ReturnRequestSection.module.css';
@@ -25,6 +25,7 @@ const STATUS_LABEL: Record<string, string> = {
   APPROVED: 'Return approved — pickup will be arranged',
   REJECTED: 'Return request rejected',
   COMPLETED: 'Return completed',
+  CANCELLED: 'Return request cancelled',
 };
 
 export function ReturnRequestSection({ orderId, deliveredAt }: { orderId: string; deliveredAt: string | null }) {
@@ -33,6 +34,7 @@ export function ReturnRequestSection({ orderId, deliveredAt }: { orderId: string
   const [reason, setReason] = useState<ReturnReason>('DAMAGED');
   const [note, setNote] = useState('');
   const [video, setVideo] = useState<File | null>(null);
+  const [confirmingCancel, setConfirmingCancel] = useState(false);
 
   const { data, isLoading } = useQuery({
     queryKey: ['return-request', orderId],
@@ -49,6 +51,15 @@ export function ReturnRequestSection({ orderId, deliveredAt }: { orderId: string
       // OrderDetailPage.tsx) don't keep showing the stale "Delivered" state.
       queryClient.invalidateQueries({ queryKey: ['order', orderId] });
       setShowForm(false);
+    },
+  });
+
+  const cancelMutation = useMutation({
+    mutationFn: () => cancelReturnRequest(orderId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['return-request', orderId] });
+      queryClient.invalidateQueries({ queryKey: ['order', orderId] });
+      setConfirmingCancel(false);
     },
   });
 
@@ -70,6 +81,32 @@ export function ReturnRequestSection({ orderId, deliveredAt }: { orderId: string
             <a href={returnRequest.videoUrl} target="_blank" rel="noreferrer" className={styles.videoLink}>
               View submitted video
             </a>
+          )}
+          {returnRequest.status === 'REQUESTED' &&
+            (confirmingCancel ? (
+              <div className={styles.formActions}>
+                <span className={styles.meta}>Cancel this return request?</span>
+                <button
+                  type="button"
+                  className={styles.requestButton}
+                  disabled={cancelMutation.isPending}
+                  onClick={() => cancelMutation.mutate()}
+                >
+                  {cancelMutation.isPending ? 'Cancelling…' : 'Yes, cancel it'}
+                </button>
+                <button type="button" className={styles.cancelButton} onClick={() => setConfirmingCancel(false)}>
+                  No, keep it
+                </button>
+              </div>
+            ) : (
+              <button type="button" className={styles.cancelButton} onClick={() => setConfirmingCancel(true)}>
+                Cancel Return Request
+              </button>
+            ))}
+          {cancelMutation.isError && (
+            <p className={styles.error}>
+              {cancelMutation.error instanceof ApiError ? cancelMutation.error.message : 'Could not cancel return request.'}
+            </p>
           )}
         </div>
       ) : !withinWindow ? (

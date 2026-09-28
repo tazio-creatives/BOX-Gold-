@@ -11,7 +11,11 @@ import {
   insertOrderStatusHistoryTx,
   hasOrderStatusHistoryEntry,
 } from '../repositories/orders.repository.js';
-import { findShipmentByOrderId, findTrackingEventsByShipmentId } from '../repositories/shipments.repository.js';
+import {
+  findShipmentByOrderId,
+  findTrackingEventsByShipmentId,
+  findReversePickupByReturnRequestId,
+} from '../repositories/shipments.repository.js';
 import { findWorkOrderPrints } from '../repositories/workOrderPrints.repository.js';
 import { findInvoicePrints } from '../repositories/invoices.repository.js';
 import { findReturnRequestByOrderId, updateReturnRequestStatus } from '../repositories/returnRequests.repository.js';
@@ -118,6 +122,7 @@ async function loadOrderDto(orderId) {
       findReturnRequestByOrderId(order.id),
     ]);
   const trackingEvents = shipment ? await findTrackingEventsByShipmentId(shipment.id) : [];
+  const reversePickup = returnRequest ? await findReversePickupByReturnRequestId(returnRequest.id) : null;
   return toOrderDto(
     order,
     items,
@@ -139,6 +144,17 @@ async function loadOrderDto(orderId) {
             createdAt: returnRequest.created_at,
             resolvedAt: returnRequest.resolved_at,
             resolvedByAdminName: returnRequest.resolved_by_admin_name ?? null,
+          }
+        : null,
+      reversePickup: reversePickup
+        ? {
+            id: reversePickup.id,
+            provider: reversePickup.provider,
+            courierName: reversePickup.courier_name,
+            trackingNumber: reversePickup.tracking_number,
+            status: reversePickup.status,
+            createdAt: reversePickup.created_at,
+            lastTrackedAt: reversePickup.last_tracked_at,
           }
         : null,
     },

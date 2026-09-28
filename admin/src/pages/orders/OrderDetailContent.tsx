@@ -6,6 +6,9 @@ import {
   startProcessing,
   markReadyToShip,
   updateReturnRequestStatus,
+  createReversePickup,
+  syncReversePickup,
+  simulateReversePickup,
 } from '../../api/orders';
 import { createShipment, cancelShipment, syncTracking, simulateTracking, addTrackingEvent } from '../../api/shipping';
 import type { OrderStatus, OrderItem } from '../../api/types';
@@ -148,6 +151,24 @@ export function OrderDetailContent({ id, compact = false }: { id: string; compac
     mutationFn: (status: 'APPROVED' | 'REJECTED') => updateReturnRequestStatus(id, status),
     onSuccess: invalidate,
     onError: (err) => window.alert(err instanceof ApiError ? err.message : 'Could not update return request.'),
+  });
+
+  const schedulePickupMutation = useMutation({
+    mutationFn: () => createReversePickup(id),
+    onSuccess: invalidate,
+    onError: (err) => window.alert(err instanceof ApiError ? err.message : 'Could not schedule reverse pickup.'),
+  });
+
+  const syncPickupMutation = useMutation({
+    mutationFn: () => syncReversePickup(id),
+    onSuccess: invalidate,
+    onError: (err) => window.alert(err instanceof ApiError ? err.message : 'Could not refresh pickup tracking.'),
+  });
+
+  const simulatePickupMutation = useMutation({
+    mutationFn: (status: Parameters<typeof simulateReversePickup>[1]) => simulateReversePickup(id, status),
+    onSuccess: invalidate,
+    onError: (err) => window.alert(err instanceof ApiError ? err.message : 'Could not simulate pickup update.'),
   });
 
   const eventMutation = useMutation({
@@ -369,9 +390,16 @@ export function OrderDetailContent({ id, compact = false }: { id: string; compac
           {order.returnRequest && (
             <ReturnRequestCard
               returnRequest={order.returnRequest}
+              reversePickup={order.reversePickup}
               onApprove={() => returnRequestMutation.mutate('APPROVED')}
               onReject={() => returnRequestMutation.mutate('REJECTED')}
               isPending={returnRequestMutation.isPending}
+              onSchedulePickup={() => schedulePickupMutation.mutate()}
+              onSyncPickup={() => syncPickupMutation.mutate()}
+              onSimulatePickup={(status) => simulatePickupMutation.mutate(status)}
+              isPickupPending={
+                schedulePickupMutation.isPending || syncPickupMutation.isPending || simulatePickupMutation.isPending
+              }
             />
           )}
 
