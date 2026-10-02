@@ -24,7 +24,7 @@ const BRAND = {
 };
 
 const FONT_STACK = "Arial, Helvetica, 'Segoe UI', sans-serif";
-const SUPPORT_EMAIL = 'support@boxdiamonds.com';
+const SUPPORT_EMAIL = 'info@boxdiamonds.com';
 const LOGO_URL = `${env.webAppBaseUrl}/images/logo.png`;
 
 // Order in which every step appears in the tracker — deliberately only the

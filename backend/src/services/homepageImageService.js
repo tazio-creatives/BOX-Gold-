@@ -20,6 +20,10 @@ export async function processAndStoreHomepageImage(sourceBuffer) {
   return processAndStore('homepage', sourceBuffer);
 }
 
+export async function processAndStoreBlogImage(sourceBuffer) {
+  return processAndStore('blog', sourceBuffer);
+}
+
 export async function processAndStoreCategoryImage(sourceBuffer) {
   return processAndStore('categories', sourceBuffer);
 }

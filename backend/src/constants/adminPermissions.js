@@ -18,4 +18,6 @@ export const ADMIN_PERMISSION_MODULES = [
   'pricing',
   'attributes',
   'audit-logs',
+  'messages',
+  'blog',
 ];

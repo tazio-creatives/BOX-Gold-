@@ -36,7 +36,6 @@ const CSR_ONLY_SINGLE_SEGMENT = new Set([
   'care-guide',
   'our-story',
   'why-box-diamonds',
-  'blog',
   'careers',
   'press',
   'sustainability',
@@ -48,6 +47,9 @@ function classifyRoute(pathname) {
   const segments = pathname.split('/').filter(Boolean);
 
   if (CSR_ONLY_PREFIXES.includes(segments[0])) return null;
+  // /blog and /blog/:slug — must be checked before the generic 1/2-segment
+  // PLP/PDP rules below, or a post URL would be treated as a product.
+  if (segments[0] === 'blog' && segments.length <= 2) return 'blog';
   if (segments.length === 1) return CSR_ONLY_SINGLE_SEGMENT.has(segments[0]) ? null : 'plp';
   if (segments.length === 2) return segments[0] === 'collections' ? 'collection' : 'pdp';
   return null;

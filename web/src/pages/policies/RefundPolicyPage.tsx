@@ -118,6 +118,10 @@ const SECTIONS: PolicySection[] = [
             accessories.
           </li>
         </ul>
+        <p>
+          <strong>Free return shipping:</strong> Box Diamonds provides free reverse shipping across India for eligible
+          products approved under this policy, subject to pickup availability at your location.
+        </p>
         <p>Please do not send jewellery independently unless Box Diamonds provides written instructions.</p>
         <p>
           Box Diamonds may not be responsible for products returned through an unauthorised courier or sent without
@@ -653,7 +657,8 @@ export function RefundPolicyPage() {
             </p>
             <p>
               Eligible products may be returned within seven calendar days from the date of delivery, subject to the
-              conditions, exclusions, verification requirements, and quality inspection explained below.
+              conditions, exclusions, verification requirements, and quality inspection explained below. Free return
+              shipping is available across India for eligible returns.
             </p>
           </>
         ),

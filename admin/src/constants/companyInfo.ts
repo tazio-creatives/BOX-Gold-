@@ -10,6 +10,6 @@ export const COMPANY_INFO = {
   cin: 'U32111MH2025PTC458218',
   gstin: 'GSTIN_PLACEHOLDER',
   addressLines: ['No 281/287, 39 1-3, Narsi Natha Street', 'Princess Dock, Mumbai – 400009, Maharashtra'],
-  email: 'support@boxdiamonds.com',
+  email: 'info@boxdiamonds.com',
   website: 'www.boxdiamonds.com',
 };

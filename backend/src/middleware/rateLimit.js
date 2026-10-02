@@ -32,6 +32,16 @@ export const otpSendRateLimiter = rateLimit({
 // "Refresh Rate" in the admin Pricing page calls OroPocket's public endpoint
 // (their own limit: 10 req/60s per IP) — this keeps repeated admin clicks
 // from ever approaching that, independent of general admin traffic.
+// Public Contact Us form — a handful of messages per network per hour is
+// plenty for a real customer and stops scripted flooding of the inbox.
+export const contactRateLimiter = rateLimit({
+  windowMs: 60 * 60 * 1000,
+  max: 5,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: { message: 'Too many messages sent from this network. Please try again later or email us directly.' } },
+});
+
 export const goldRateSyncRateLimiter = rateLimit({
   windowMs: 60 * 1000,
   max: 5,

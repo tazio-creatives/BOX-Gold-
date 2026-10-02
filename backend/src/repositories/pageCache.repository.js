@@ -9,3 +9,13 @@ export async function invalidatePageCache(urls) {
   if (uniqueUrls.length === 0) return;
   await query('DELETE FROM page_cache WHERE url = ANY($1)', [uniqueUrls]);
 }
+
+// Prefix variant for sections whose cached URLs include query strings
+// (e.g. /blog?page=2) — exact-URL matching would miss those.
+export async function invalidatePageCacheByPrefix(prefix) {
+  await query("DELETE FROM page_cache WHERE url = $1 OR url LIKE $2 OR url LIKE $3", [
+    prefix,
+    `${prefix}/%`,
+    `${prefix}?%`,
+  ]);
+}

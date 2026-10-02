@@ -42,6 +42,9 @@ const RefundPolicyPage = lazy(() =>
   import('./pages/policies/RefundPolicyPage').then((m) => ({ default: m.RefundPolicyPage })),
 );
 const OurStoryPage = lazy(() => import('./pages/OurStoryPage').then((m) => ({ default: m.OurStoryPage })));
+const BlogListPage = lazy(() => import('./pages/blog/BlogListPage').then((m) => ({ default: m.BlogListPage })));
+const BlogPostPage = lazy(() => import('./pages/blog/BlogPostPage').then((m) => ({ default: m.BlogPostPage })));
+const ContactPage = lazy(() => import('./pages/ContactPage').then((m) => ({ default: m.ContactPage })));
 const WhyBoxDiamondsPage = lazy(() =>
   import('./pages/WhyBoxDiamondsPage').then((m) => ({ default: m.WhyBoxDiamondsPage })),
 );
@@ -104,7 +107,7 @@ export function App() {
               (even just this placeholder), or the single-segment path falls
               through to /:categorySlug below and renders a confusing
               "category not found" instead of "coming soon". */}
-          <Route path="/contact" element={<PlaceholderPage title="Contact Us" />} />
+          <Route path="/contact" element={<ContactPage />} />
           {/* FAQs / Size Guide / Careers / Press were removed from the site —
               old links go home instead of falling through to /:categorySlug. */}
           <Route path="/faqs" element={<Navigate to="/" replace />} />
@@ -112,7 +115,8 @@ export function App() {
           <Route path="/care-guide" element={<CareGuidePage />} />
           <Route path="/our-story" element={<OurStoryPage />} />
           <Route path="/why-box-diamonds" element={<WhyBoxDiamondsPage />} />
-          <Route path="/blog" element={<PlaceholderPage title="Blog" />} />
+          <Route path="/blog" element={<BlogListPage />} />
+          <Route path="/blog/:slug" element={<BlogPostPage />} />
           <Route path="/careers" element={<Navigate to="/" replace />} />
           <Route path="/press" element={<Navigate to="/" replace />} />
           <Route path="/sustainability" element={<SustainabilityPage />} />

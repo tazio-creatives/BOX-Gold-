@@ -17,6 +17,9 @@ import { CustomersListPage } from './pages/customers/CustomersListPage';
 import { CustomerDetailPage } from './pages/customers/CustomerDetailPage';
 import { HomepagePage } from './pages/HomepagePage';
 import { ReviewsListPage } from './pages/reviews/ReviewsListPage';
+import { MessagesPage } from './pages/messages/MessagesPage';
+import { BlogListPage } from './pages/blog/BlogListPage';
+import { BlogFormPage } from './pages/blog/BlogFormPage';
 import { CouponsListPage } from './pages/coupons/CouponsListPage';
 import { PricingLayout } from './pages/pricing/PricingLayout';
 import { RatesPage } from './pages/pricing/RatesPage';
@@ -144,6 +147,38 @@ export function App() {
           element={
             <RequirePermission permission="reviews">
               <ReviewsListPage />
+            </RequirePermission>
+          }
+        />
+        <Route
+          path="/blog"
+          element={
+            <RequirePermission permission="blog">
+              <BlogListPage />
+            </RequirePermission>
+          }
+        />
+        <Route
+          path="/blog/new"
+          element={
+            <RequirePermission permission="blog">
+              <BlogFormPage />
+            </RequirePermission>
+          }
+        />
+        <Route
+          path="/blog/:id"
+          element={
+            <RequirePermission permission="blog">
+              <BlogFormPage />
+            </RequirePermission>
+          }
+        />
+        <Route
+          path="/messages"
+          element={
+            <RequirePermission permission="messages">
+              <MessagesPage />
             </RequirePermission>
           }
         />

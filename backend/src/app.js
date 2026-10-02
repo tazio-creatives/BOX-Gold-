@@ -7,6 +7,8 @@ import path from 'node:path';
 import { env } from './config/env.js';
 import { createSessionMiddleware } from './config/session.js';
 import { healthRouter } from './routes/health.routes.js';
+import { contactRouter } from './routes/contact.routes.js';
+import { blogRouter } from './routes/blog.routes.js';
 import { adminAuthRouter } from './routes/adminAuth.routes.js';
 import { otpRouter } from './routes/otp.routes.js';
 import { customersRouter } from './routes/customers.routes.js';
@@ -41,6 +43,8 @@ import { reviewsRouter } from './routes/reviews.routes.js';
 import { couponsRouter } from './routes/coupons.routes.js';
 import { adminCouponsRouter } from './routes/admin/coupons.routes.js';
 import { adminAuditLogsRouter } from './routes/admin/auditLogs.routes.js';
+import { adminContactMessagesRouter } from './routes/admin/contactMessages.routes.js';
+import { adminBlogRouter } from './routes/admin/blog.routes.js';
 import { adminUsersRouter } from './routes/admin/adminUsers.routes.js';
 import { errorHandler, notFoundHandler } from './middleware/errorHandler.js';
 import { loadAdmin, requireAdminAuth } from './middleware/adminAuth.js';
@@ -89,6 +93,7 @@ export function createApp() {
   app.use(ensureGuestCartSession);
 
   app.use('/api/v1', healthRouter);
+  app.use('/api/v1/contact', contactRouter);
 
   // Public catalog (products/categories/collections/search): deliberately
   // NOT behind the customer session middleware — these are GET-only, and
@@ -102,6 +107,7 @@ export function createApp() {
   publicCatalogRouter.use('/collections', collectionsRouter);
   publicCatalogRouter.use('/search', searchRouter);
   publicCatalogRouter.use('/homepage', homepageRouter);
+  publicCatalogRouter.use('/blog', blogRouter);
   app.use('/api/v1', publicCatalogRouter);
 
   // Admin and customer sessions are two entirely separate express-session
@@ -135,6 +141,8 @@ export function createApp() {
   adminCatalogRouter.use('/reviews', adminReviewsRouter);
   adminCatalogRouter.use('/coupons', adminCouponsRouter);
   adminCatalogRouter.use('/audit-logs', adminAuditLogsRouter);
+  adminCatalogRouter.use('/contact-messages', adminContactMessagesRouter);
+  adminCatalogRouter.use('/blog', adminBlogRouter);
   adminCatalogRouter.use('/admin-users', adminUsersRouter);
   app.use('/api/v1/admin', adminCatalogRouter);
 

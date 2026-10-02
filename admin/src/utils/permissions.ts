@@ -16,6 +16,8 @@ export const ADMIN_PERMISSION_MODULES = [
   'pricing',
   'attributes',
   'audit-logs',
+  'messages',
+  'blog',
 ] as const;
 
 export type AdminPermissionModule = (typeof ADMIN_PERMISSION_MODULES)[number];
@@ -33,6 +35,8 @@ export const PERMISSION_LABELS: Record<AdminPermissionModule, string> = {
   pricing: 'Pricing',
   attributes: 'Attributes',
   'audit-logs': 'Audit Logs',
+  messages: 'Messages',
+  blog: 'Blog',
 };
 
 export function hasPermission(admin: Admin | null | undefined, module: AdminPermissionModule): boolean {

@@ -1,4 +1,4 @@
-import { invalidatePageCache } from '../repositories/pageCache.repository.js';
+import { invalidatePageCache, invalidatePageCacheByPrefix } from '../repositories/pageCache.repository.js';
 import { findCategoryById, getCategoryAndAncestorSlugs } from '../repositories/categories.repository.js';
 
 // Every mutation that can change what a public SSR page (plan §1a: Home,
@@ -60,6 +60,13 @@ export async function invalidateCategoryPages(category, previousSlug) {
     urls.push(...ancestorSlugs.map((slug) => `/${slug}`));
   }
   await invalidatePageCache(urls);
+}
+
+// Any blog change can affect the list page(s) and the post itself (and the
+// "more from the blog" strip on other posts), so the whole /blog section
+// is cleared — it's small, and re-rendering it is cheap.
+export async function invalidateBlogPages() {
+  await invalidatePageCacheByPrefix('/blog');
 }
 
 export async function invalidateCollectionPages(collection, previousSlug) {

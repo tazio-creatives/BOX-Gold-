@@ -139,6 +139,9 @@ export const env = {
   // BLUEDART_LOGIN_ID are both set (see shippingProvider.bluedart.js's
   // isConfigured). Values come from Blue Dart's API Gateway onboarding; the
   // base URL defaults to their sandbox (UAT) host until production is set.
+  // Where storefront Contact Us submissions are emailed.
+  contactInboxEmail: process.env.CONTACT_INBOX_EMAIL ?? 'info@boxdiamonds.com',
+
   bluedartBaseUrl: process.env.BLUEDART_BASE_URL ?? 'https://apigateway-sandbox.bluedart.com',
   bluedartClientId: process.env.BLUEDART_CLIENT_ID,
   bluedartClientSecret: process.env.BLUEDART_CLIENT_SECRET,

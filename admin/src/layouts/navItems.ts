@@ -12,6 +12,8 @@ import {
   AdminUsersIcon,
   AuditLogsIcon,
   AttributesIcon,
+  MessagesIcon,
+  BlogIcon,
 } from './NavIcons';
 import type { AdminPermissionModule } from '../utils/permissions';
 
@@ -44,6 +46,8 @@ export const NAV_ITEMS: NavItem[] = [
   { to: '/homepage', label: 'Homepage', icon: HomepageIcon, permission: 'homepage' },
   { to: '/customers', label: 'Customers', icon: CustomersIcon, permission: 'customers' },
   { to: '/reviews', label: 'Reviews', icon: ReviewsIcon, permission: 'reviews' },
+  { to: '/messages', label: 'Messages', icon: MessagesIcon, permission: 'messages' },
+  { to: '/blog', label: 'Blog', icon: BlogIcon, permission: 'blog' },
   { to: '/coupons', label: 'Coupons', icon: CouponsIcon, permission: 'coupons' },
   { to: '/pricing', label: 'Pricing', icon: PricingIcon, permission: 'pricing' },
   { to: '/attributes', label: 'Attributes', icon: AttributesIcon, permission: 'attributes' },

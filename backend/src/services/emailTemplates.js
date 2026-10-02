@@ -29,6 +29,18 @@ const templates = {
     body: `Hi ${contactName},\n\nAs requested, your order ${orderNumber} has been cancelled.\n\nRefund: ₹${Number(totalAmount).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} will be credited back to your original payment method within ${refundDays} days. Depending on your bank, it may take a few additional working days to reflect in your account.\n\nIf you have any questions, just reply to this email.\n\n— BOX DIAMONDS`,
   }),
 
+  // To the support inbox — payload: { name, email, phone, orderNumber, message }
+  CONTACT_MESSAGE_RECEIVED: ({ name, email, phone, orderNumber, message }) => ({
+    subject: `New contact message from ${name}`,
+    body: `A new message was sent through the Box Diamonds Contact Us form.\n\nName: ${name}\nEmail: ${email}\nPhone: ${phone || '—'}\nOrder number: ${orderNumber || '—'}\n\nMessage:\n${message}\n\nReply to the customer directly at ${email}. You can also track this message in Admin → Messages.`,
+  }),
+
+  // To the customer — payload: { name }
+  CONTACT_ACKNOWLEDGEMENT: ({ name }) => ({
+    subject: 'We have received your message — Box Diamonds',
+    body: `Hi ${name},\n\nThank you for contacting Box Diamonds. We have received your message and our customer-support team will get back to you as soon as possible.\n\nIf your question is about an order, please keep your order number handy.\n\n— BOX DIAMONDS`,
+  }),
+
   // payload: { contactName, orderNumber }
   ORDER_DELIVERY_FAILED: ({ contactName, orderNumber }) => ({
     subject: `Delivery attempt failed for order ${orderNumber}`,

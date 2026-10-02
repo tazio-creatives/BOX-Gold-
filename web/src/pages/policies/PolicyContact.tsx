@@ -6,7 +6,7 @@ export function PolicyContact({ assistanceWith }: { assistanceWith: string }) {
     <>
       <p>
         For {assistanceWith}, please email us at{' '}
-        <a href="mailto:support@boxdiamonds.com">support@boxdiamonds.com</a> or visit{' '}
+        <a href="mailto:info@boxdiamonds.com">info@boxdiamonds.com</a> or visit{' '}
         <a href="https://www.boxdiamonds.com">www.boxdiamonds.com</a>. Please keep your order number available when
         contacting our team.
       </p>

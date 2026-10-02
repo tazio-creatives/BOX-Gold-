@@ -13,6 +13,7 @@ import {
   type ProductsQueryFilters,
 } from '../features/plp/productsQuery';
 import type { Category } from '../api/types';
+import { fetchBlogPosts, fetchBlogPost, blogListQueryKey, blogPostQueryKey } from '../api/blog';
 
 // Prefetches the exact same TanStack Query key + data each of the 4 SSR
 // page components fetches client-side (plan §1a) — the query key has to
@@ -32,6 +33,19 @@ export async function prefetchForRoute(
   if (pathname === '/') {
     await safePrefetch(queryClient, ['homepage'], fetchHomepage);
     return { notFound: false };
+  }
+
+  if (pathname === '/blog') {
+    const page = Math.max(1, Number(searchParams.get('page')) || 1);
+    await safePrefetch(queryClient, [...blogListQueryKey(page)], () => fetchBlogPosts(page));
+    return { notFound: false };
+  }
+
+  const blogPostMatch = matchPath('/blog/:slug', pathname);
+  if (blogPostMatch) {
+    const slug = blogPostMatch.params.slug as string;
+    const notFound = await fetchPrimary(queryClient, [...blogPostQueryKey(slug)], () => fetchBlogPost(slug));
+    return { notFound };
   }
 
   const collectionMatch = matchPath('/collections/:collectionSlug', pathname);
