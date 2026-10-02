@@ -194,6 +194,16 @@ export const ASSET_DISPLAY_ORDER = {
 // PRESENTER_YELLOW_2 (a second, different-angle yellow view) is reserved for
 // the no-rose-gold+presenter case, where there's no rose shot to pair
 // against instead.
+// Necklace always produces the full Yellow + Rose set — 2 catalogue shots
+// per metal, plus one presenter shot per metal when a presenter is chosen —
+// regardless of the admin's Rose Gold toggle (client requirement). Every
+// other type follows the toggle.
+const ALWAYS_ROSE_GOLD_TYPES = new Set(['NECKLACE']);
+
+export function effectiveGenerateRoseGold(confirmedType, requested) {
+  return ALWAYS_ROSE_GOLD_TYPES.has(confirmedType) ? true : requested;
+}
+
 export function resolveAssetTypesForJob({ generateRoseGold, hasPresenter, confirmedType }) {
   if (confirmedType === 'RING') {
     const types = ['RING_HAND_1', 'RING_HAND_2', 'RING_GOLD_FRONT', 'RING_GOLD_SIDE'];
@@ -348,8 +358,26 @@ const BRACELET_CLASP_HIDDEN_NOTE =
 // image. Kept conditional on what the reference actually shows (not a
 // separate type), and deliberately silent on position/background/framing so
 // every existing Necklace composition stays exactly as it was.
-const NECKLACE_SET_NOTE =
-  'If the uploaded reference shows a necklace set — the necklace together with matching earrings — the earrings are part of this product: show the necklace AND the matching earrings together in this one image, reproducing both exactly as in the reference, and on a presenter shot the presenter must wear both (the necklace on the neck and the matching earrings on both ears, clearly visible and not hidden by hair). Do not drop the earrings or the necklace from a set. If the reference shows only a necklace, do not add any earrings.';
+// Two variants on purpose: mentioning a presenter in a catalogue shot's
+// prompt was enough to make the model put a woman into a product-only
+// image, so catalogue shots never see the presenter wording.
+// Earrings in a set are small and easy for the image model to "upgrade" —
+// it repeatedly turned compact clover studs into long drop earrings. Their
+// type, size and length are pinned explicitly, in both shot kinds.
+const SET_EARRING_FIDELITY =
+  'Reproduce the matching earrings exactly as they appear in the uploaded reference — the same earring type, size, length, motif and stone layout. If they are stud earrings, render them as small studs sitting flat directly on the earlobe: never turn studs into drop, dangle, chandelier, jhumka or hoop earrings, never add hanging elements, chains, extra motifs or extra stones, and never lengthen or enlarge them. Keep the earrings in realistic proportion to the necklace motifs, as in the reference.';
+
+const NECKLACE_SET_NOTE_CATALOGUE =
+  `If the uploaded reference shows a necklace set — the necklace together with matching earrings — the earrings are part of this product: lay the necklace AND the matching earrings out together in this one product image, reproducing both exactly as in the reference. ${SET_EARRING_FIDELITY} Do not drop the earrings or the necklace from a set. If the reference shows only a necklace, do not add any earrings.`;
+const NECKLACE_SET_NOTE_PRESENTER =
+  `If the uploaded reference shows a necklace set — the necklace together with matching earrings — the earrings are part of this product: the presenter must wear both, the necklace on the neck and the matching earrings on both ears, clearly visible and not hidden by hair, reproducing both exactly as in the reference. ${SET_EARRING_FIDELITY} Do not drop the earrings or the necklace from a set. If the reference shows only a necklace, do not add any earrings.`;
+
+// Every non-presenter catalogue shot (FRONT / HERO_45, any category) is
+// product-only — stated explicitly because the front prompt previously
+// only listed props, and the image model filled the gap with a model.
+const CATALOGUE_NO_PERSON_NOTE =
+  'This is a product-only catalogue image: do not include any person, model, mannequin, bust, face, neck, ears, hands or other body part — show only the jewellery on the backdrop.';
+const CATALOGUE_ASSET_TYPES = new Set(['YELLOW_FRONT', 'YELLOW_HERO_45', 'ROSE_FRONT', 'ROSE_HERO_45']);
 
 // Audience-specific presenter description (Gents/Kids), substituted for
 // whichever real presenter's own prompt_descriptor would otherwise be used
@@ -571,7 +599,10 @@ function buildAssetPromptSections({
   const negativeParts = ['Do not redesign, reinterpret or add/remove/resize/reposition any component.'];
   if (RING_ASSET_TYPE_SET.has(assetType)) negativeParts.push(RING_FIDELITY_EXTRA);
   if (confirmedType === 'BRACELET') negativeParts.push(BRACELET_CLASP_HIDDEN_NOTE);
-  if (confirmedType === 'NECKLACE') negativeParts.push(NECKLACE_SET_NOTE);
+  if (confirmedType === 'NECKLACE') {
+    negativeParts.push(CATALOGUE_ASSET_TYPES.has(assetType) ? NECKLACE_SET_NOTE_CATALOGUE : NECKLACE_SET_NOTE_PRESENTER);
+  }
+  if (CATALOGUE_ASSET_TYPES.has(assetType)) negativeParts.push(CATALOGUE_NO_PERSON_NOTE);
 
   switch (assetType) {
     case 'YELLOW_FRONT':
@@ -986,9 +1017,14 @@ function ringValidationContextFor(assetType) {
 
 // Necklace sets — the system prompt's rule (2) ("no additional jewellery")
 // would otherwise flag a set's own matching earrings as an extra ornament.
+function catalogueValidationContextFor(assetType) {
+  if (!CATALOGUE_ASSET_TYPES.has(assetType)) return '';
+  return ' This is a PRODUCT-ONLY catalogue image (no model). Set validationStatus to "failed" if any person, model, mannequin, bust, face, neck, ears, hands or other body part appears anywhere in the generated image.';
+}
+
 function necklaceValidationContextFor(confirmedType) {
   if (confirmedType !== 'NECKLACE') return '';
-  return ' This is the Necklace category: if the original reference shows the necklace together with matching earrings (a necklace set), those earrings are part of the product and must NOT be flagged as additional jewellery. In that case set validationStatus to "failed" if the generated image is missing the necklace or the matching earrings, or — on a presenter shot — if the presenter is not wearing both (necklace on the neck, matching earrings on the ears). If the reference shows only a necklace, set validationStatus to "failed" if any earrings appear in the generated image.';
+  return ' This is the Necklace category: if the original reference shows the necklace together with matching earrings (a necklace set), those earrings are part of the product and must NOT be flagged as additional jewellery. In that case set validationStatus to "failed" if the generated image is missing the necklace or the matching earrings, or — on a presenter shot — if the presenter is not wearing both (necklace on the neck, matching earrings on the ears). Also compare the earrings closely with the reference: set validationStatus to "failed" if their type, size or length differs — e.g. the reference shows small stud earrings but the generated image shows drop, dangle, chandelier or hoop earrings, or the earrings are visibly longer or larger than in the reference — and say so explicitly, e.g. "Failed: Earrings changed from studs to long drops." If the reference shows only a necklace, set validationStatus to "failed" if any earrings appear in the generated image.';
 }
 
 // A presenter shot showing a hand only (Ring's dedicated workflow) has no
@@ -1041,7 +1077,7 @@ export async function validateGeneratedImage({
   const generatedBase64 = generatedBuffer.toString('base64');
   const referenceBase64 = referenceBuffer.toString('base64');
 
-  let text = `Expected jewellery category: ${confirmedType}. Expected metal colour: ${metalColor}. Asset type: ${assetType}. The first image is the generated result; the second image is the original product reference.${ringValidationContextFor(assetType)}${necklaceValidationContextFor(confirmedType)}${audienceValidationContextFor(confirmedCustomerCategory, assetType)}`;
+  let text = `Expected jewellery category: ${confirmedType}. Expected metal colour: ${metalColor}. Asset type: ${assetType}. The first image is the generated result; the second image is the original product reference.${ringValidationContextFor(assetType)}${necklaceValidationContextFor(confirmedType)}${catalogueValidationContextFor(assetType)}${audienceValidationContextFor(confirmedCustomerCategory, assetType)}`;
 
   const content = [
     { type: 'text', text },

@@ -30,7 +30,11 @@ import { PresenterStep } from '../../features/aiStudio/PresenterStep';
 import { ReviewPromptsStep } from '../../features/aiStudio/ReviewPromptsStep';
 import { GenerateStep } from '../../features/aiStudio/GenerateStep';
 import { ReviewImportStep } from '../../features/aiStudio/ReviewImportStep';
-import { resolveAssetTypesForJob, inferJewelleryTypeFromCategory } from '../../features/aiStudio/generationRules';
+import {
+  resolveAssetTypesForJob,
+  inferJewelleryTypeFromCategory,
+  isRoseGoldForced,
+} from '../../features/aiStudio/generationRules';
 import sharedStyles from '../../styles/shared.module.css';
 import styles from './AiImageStudioPage.module.css';
 
@@ -74,6 +78,9 @@ export function AiImageStudioPage() {
   const [generateRoseGold, setGenerateRoseGold] = useState(
     () => localStorage.getItem(ROSE_GOLD_PREF_KEY) !== 'false',
   );
+  // Necklace always gets the Yellow + Rose set (see generationRules'
+  // isRoseGoldForced) — the saved toggle preference only applies elsewhere.
+  const effectiveRoseGold = isRoseGoldForced(jewelleryType) || generateRoseGold;
   const [presenterId, setPresenterId] = useState<string | null>(null);
   const [promptOverrides, setPromptOverrides] = useState<PromptOverrides>({});
   // A Set (not a single id) so "Regenerate All" — Ring-only — can show every
@@ -174,7 +181,7 @@ export function AiImageStudioPage() {
         jewelleryType: jewelleryType as Exclude<JewelleryType, 'UNKNOWN'>,
         categoryId: product?.categoryId ?? null,
         presenterId: isRing ? null : presenterId,
-        generateRoseGold,
+        generateRoseGold: effectiveRoseGold,
         promptOverrides,
         customerCategory: customerCategory || undefined,
       }),
@@ -272,7 +279,7 @@ export function AiImageStudioPage() {
     localStorage.setItem(ROSE_GOLD_PREF_KEY, String(value));
   }
 
-  const generateCount = resolveAssetTypesForJob({ generateRoseGold, hasPresenter: !!presenterId, jewelleryType }).length;
+  const generateCount = resolveAssetTypesForJob({ generateRoseGold: effectiveRoseGold, hasPresenter: !!presenterId, jewelleryType }).length;
 
   return (
     <div>
@@ -307,7 +314,7 @@ export function AiImageStudioPage() {
               onJewelleryTypeChange={setJewelleryType}
               categoryConfirmed={categoryConfirmed}
               onCategoryConfirmedChange={setCategoryConfirmed}
-              generateRoseGold={generateRoseGold}
+              generateRoseGold={effectiveRoseGold}
               onGenerateRoseGoldChange={handleGenerateRoseGoldChange}
               customerCategory={customerCategory}
               onCustomerCategoryChange={setCustomerCategory}
@@ -409,7 +416,7 @@ export function AiImageStudioPage() {
               jewelleryType={jewelleryType}
               presenterId={presenterId}
               onChange={setPresenterId}
-              generateRoseGold={generateRoseGold}
+              generateRoseGold={effectiveRoseGold}
             />
             <div className={styles.actions}>
               <button type="button" className={sharedStyles.button} onClick={() => setConfirmSubStep('analyse')}>
@@ -434,7 +441,7 @@ export function AiImageStudioPage() {
               jewelleryType={jewelleryType as Exclude<JewelleryType, 'UNKNOWN'>}
               presenterId={presenterId}
               presenterName={presenters.find((p) => p.id === presenterId)?.displayName ?? null}
-              generateRoseGold={generateRoseGold}
+              generateRoseGold={effectiveRoseGold}
               promptOverrides={promptOverrides}
               onPromptOverridesChange={setPromptOverrides}
               customerCategory={customerCategory}

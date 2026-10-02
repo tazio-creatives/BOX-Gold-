@@ -6,6 +6,7 @@ import { env } from '../config/env.js';
 import { boss } from '../jobs/queue.js';
 import { JOB_AI_STUDIO_ANALYSE, JOB_AI_STUDIO_GENERATE, resetAssetForRetry } from '../jobs/aiStudioJob.js';
 import {
+  effectiveGenerateRoseGold,
   JEWELLERY_TYPES,
   ASSET_DISPLAY_ORDER,
   previewPromptsForJob,
@@ -331,7 +332,7 @@ export async function confirmJob(req, res, next) {
       }
     }
 
-    const generateRoseGold = input.generateRoseGold ?? true;
+    const generateRoseGold = effectiveGenerateRoseGold(input.jewelleryType, input.generateRoseGold ?? true);
     const customerCategory = input.customerCategory ?? DEFAULT_CUSTOMER_CATEGORY;
 
     await updateJob(job.id, {
@@ -408,7 +409,10 @@ export async function previewPrompts(req, res, next) {
       if (!presenter || !presenter.is_active) throw new AppError(400, 'Selected presenter is not available');
     }
 
-    const generateRoseGold = input.generateRoseGold ?? job.generate_rose_gold ?? true;
+    const generateRoseGold = effectiveGenerateRoseGold(
+      jewelleryType,
+      input.generateRoseGold ?? job.generate_rose_gold ?? true,
+    );
     const customerCategory = input.customerCategory ?? job.customer_category ?? DEFAULT_CUSTOMER_CATEGORY;
 
     const previews = previewPromptsForJob({

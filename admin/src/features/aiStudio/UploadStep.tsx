@@ -26,6 +26,7 @@ export function UploadStep({ onSubmit, isPending, error }: UploadStepProps) {
   const [slots, setSlots] = useState<(File | null)[]>([null, null, null, null]);
   const [previews, setPreviews] = useState<(string | null)[]>([null, null, null, null]);
   const [validationError, setValidationError] = useState<string | null>(null);
+  const [dragOver, setDragOver] = useState<number | null>(null);
   const fileInputRefs = [useRef<HTMLInputElement>(null), useRef<HTMLInputElement>(null), useRef<HTMLInputElement>(null), useRef<HTMLInputElement>(null)];
 
   function setSlot(index: number, file: File) {
@@ -57,11 +58,15 @@ export function UploadStep({ onSubmit, isPending, error }: UploadStepProps) {
               {label} {i === 0 ? '(required)' : '(optional)'}
               {i === 0 && <span className={styles.primaryBadge}>Primary</span>}
             </p>
+            {/* Visually hidden (not display:none) and activated by its <label>
+                below — some browsers (notably Safari) ignore a script-triggered
+                .click() on a display:none file input, so the picker never opened. */}
             <input
+              id={`studio-upload-${i}`}
               ref={fileInputRefs[i]}
               type="file"
               accept="image/png,image/jpeg,image/webp"
-              hidden
+              className={styles.fileInput}
               onChange={(e) => {
                 const file = e.target.files?.[0];
                 if (file) setSlot(i, file);
@@ -72,21 +77,36 @@ export function UploadStep({ onSubmit, isPending, error }: UploadStepProps) {
               <div className={styles.filled}>
                 <img src={previews[i] as string} alt={label} className={styles.previewImg} />
                 <div className={styles.slotActions}>
-                  <button type="button" className={sharedStyles.buttonLink} onClick={() => fileInputRefs[i].current?.click()}>
+                  <label htmlFor={`studio-upload-${i}`} className={sharedStyles.buttonLink} style={{ cursor: 'pointer' }}>
                     Replace
-                  </button>
+                  </label>
                   <button type="button" className={sharedStyles.buttonLink} onClick={() => clearSlot(i)}>
                     Remove
                   </button>
                 </div>
               </div>
             ) : (
-              <button type="button" className={styles.empty} onClick={() => fileInputRefs[i].current?.click()}>
+              <label
+                htmlFor={`studio-upload-${i}`}
+                className={`${styles.empty} ${dragOver === i ? styles.emptyDragOver : ''}`}
+                onDragOver={(e) => {
+                  e.preventDefault();
+                  setDragOver(i);
+                }}
+                onDragLeave={() => setDragOver(null)}
+                onDrop={(e) => {
+                  e.preventDefault();
+                  setDragOver(null);
+                  const file = e.dataTransfer.files?.[0];
+                  if (file) setSlot(i, file);
+                }}
+              >
                 <span>Click to upload</span>
+                <span className={styles.hint}>or drag a photo here</span>
                 <span className={styles.hint}>
                   PNG, JPG, JPEG, or WebP — up to {MAX_FILE_SIZE_MB}MB
                 </span>
-              </button>
+              </label>
             )}
           </div>
         ))}

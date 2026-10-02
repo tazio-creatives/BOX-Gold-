@@ -44,6 +44,12 @@ export function inferJewelleryTypeFromCategory(categoryName: string | null): Jew
 // a completely separate, fixed 4/6-image output structure (Hand Pose 1/2 +
 // Front/Side, no 45° Hero) — ignores hasPresenter entirely, since Rings
 // never use a Presenter.
+// Mirrors backend effectiveGenerateRoseGold — Necklace always gets the full
+// Yellow + Rose set regardless of the Rose Gold toggle.
+export function isRoseGoldForced(jewelleryType?: JewelleryType | ''): boolean {
+  return jewelleryType === 'NECKLACE';
+}
+
 export function resolveAssetTypesForJob({
   generateRoseGold,
   hasPresenter,
