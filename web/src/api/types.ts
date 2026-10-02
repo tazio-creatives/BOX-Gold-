@@ -10,6 +10,16 @@ export interface DeliveryEstimate {
   timezone: string;
 }
 
+// A single discount badge — Making Charge and Diamond Value discounts are
+// always rendered as separate badges, never combined into one string, so a
+// "20% off Making Charges" offer and a "15% off Diamond Value" offer stay
+// visually distinct even when both apply to the same product.
+export interface OfferBadge {
+  type: 'MAKING_CHARGE' | 'DIAMOND';
+  percent: number;
+  label: string;
+}
+
 export interface ProductCard {
   id: string;
   slug: string;
@@ -33,6 +43,7 @@ export interface ProductCard {
   makingChargeDiscountPercent: number;
   diamondDiscountPercent: number;
   offerLabel: string | null;
+  offerBadges: OfferBadge[];
   primaryImageUrl: string | null;
   availableStock: number;
   ratingAvg: number;
@@ -77,6 +88,7 @@ export interface HomepageItem {
         hasDiscount: boolean;
         effectiveDiscountPercent: number;
         offerLabel: string | null;
+        offerBadges: OfferBadge[];
         imageUrl: string | null;
         metalType: MetalType | null;
         purity: Purity | null;
@@ -248,6 +260,7 @@ export interface ProductDetail {
   hasDiscount: boolean;
   effectiveDiscountPercent: number;
   offerLabel: string | null;
+  offerBadges: OfferBadge[];
 
   stockQuantity: number;
   availableStock: number;
@@ -326,6 +339,7 @@ export interface VariantPricePreview {
   hasDiscount: boolean;
   effectiveDiscountPercent: number;
   offerLabel: string | null;
+  offerBadges: OfferBadge[];
 }
 
 export type SortOption = 'featured' | 'newest' | 'price_asc' | 'price_desc' | 'bestseller';

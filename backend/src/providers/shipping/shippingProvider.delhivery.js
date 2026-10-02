@@ -34,6 +34,12 @@ async function parseJsonResponse(response, label) {
 
 export const delhiveryShippingProvider = {
   name: 'delhivery',
+  displayName: 'Delhivery',
+  trackingSource: 'DELHIVERY',
+
+  isConfigured() {
+    return Boolean(env.delhiveryApiToken);
+  },
 
   // GET /c/api/pin-codes/json/?filter_codes=<pin> — prepaid orders need
   // postal_code.pre_paid === 'Y' at the destination pincode.

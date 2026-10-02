@@ -54,6 +54,11 @@ export const env = {
   // see goldRateService.js for the real provider-priority chain.
   metalRateProvider: process.env.METAL_RATE_PROVIDER ?? 'stub',
   goldRateSyncCron: process.env.GOLD_RATE_SYNC_CRON ?? '*/15 * * * *', // every 15 minutes
+  // Pricing Rule Management (Phase 2) — flips SCHEDULED->ACTIVE and
+  // ACTIVE->EXPIRED on a tick; resolution never depends on this having run
+  // (pricingRuleResolver.isLive derives real liveness from the rule's own
+  // dates), so a slower tick only affects audit-log/UI freshness.
+  pricingRuleStatusSweepCron: process.env.PRICING_RULE_STATUS_SWEEP_CRON ?? '*/5 * * * *',
   goldapiAccessToken: process.env.GOLDAPI_ACCESS_TOKEN,
   // GoldAPI quotes the raw international spot price with no Indian import
   // duty applied — see metalRateProvider.goldapi.js for the live comparison
@@ -128,6 +133,25 @@ export const env = {
   delhiveryReturnCity: process.env.DELHIVERY_RETURN_CITY ?? '',
   delhiveryReturnState: process.env.DELHIVERY_RETURN_STATE ?? '',
   delhiveryReturnPhone: process.env.DELHIVERY_RETURN_PHONE ?? '',
+
+  // Blue Dart — second real courier, selectable per shipment from admin's
+  // Create Shipment dialog. Only offered once BLUEDART_CLIENT_ID and
+  // BLUEDART_LOGIN_ID are both set (see shippingProvider.bluedart.js's
+  // isConfigured). Values come from Blue Dart's API Gateway onboarding; the
+  // base URL defaults to their sandbox (UAT) host until production is set.
+  bluedartBaseUrl: process.env.BLUEDART_BASE_URL ?? 'https://apigateway-sandbox.bluedart.com',
+  bluedartClientId: process.env.BLUEDART_CLIENT_ID,
+  bluedartClientSecret: process.env.BLUEDART_CLIENT_SECRET,
+  bluedartLoginId: process.env.BLUEDART_LOGIN_ID,
+  bluedartLicenceKey: process.env.BLUEDART_LICENCE_KEY,
+  bluedartCustomerCode: process.env.BLUEDART_CUSTOMER_CODE,
+  bluedartOriginArea: process.env.BLUEDART_ORIGIN_AREA,
+  bluedartProductCode: process.env.BLUEDART_PRODUCT_CODE ?? 'A',
+  bluedartSubProductCode: process.env.BLUEDART_SUB_PRODUCT_CODE ?? 'P',
+  bluedartShipperName: process.env.BLUEDART_SHIPPER_NAME ?? 'Box Diamonds',
+  bluedartShipperAddress: process.env.BLUEDART_SHIPPER_ADDRESS ?? '',
+  bluedartShipperPincode: process.env.BLUEDART_SHIPPER_PINCODE ?? '',
+  bluedartShipperPhone: process.env.BLUEDART_SHIPPER_PHONE ?? '',
 
   // Storage + AI image pipeline (plan §2/§9/§10)
   storageProvider: process.env.STORAGE_PROVIDER ?? 'local',

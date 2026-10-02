@@ -4,6 +4,7 @@ import {
   STATUS_FILTER_VALUES,
   RETURN_REASONS,
   RETURN_REQUEST_STATUSES,
+  CUSTOMER_CANCEL_REASONS,
 } from '../utils/orderStatus.js';
 
 export const listOrdersQuerySchema = z.object({
@@ -27,6 +28,16 @@ export const updateOrderStatusSchema = z.object({
 
 // multipart/form-data body (video is a separate file field, handled by
 // multer) — everything here comes through as strings.
+export const cancelOrderSchema = z.object({
+  reason: z.enum(CUSTOMER_CANCEL_REASONS),
+  note: z.string().trim().max(500).optional(),
+});
+
+// Optional Cashfree refund id/UTR, recorded in the order history.
+export const markRefundedSchema = z.object({
+  reference: z.string().trim().max(100).optional(),
+});
+
 export const createReturnRequestSchema = z.object({
   reason: z.enum(RETURN_REASONS),
   note: z.string().trim().max(1000).optional(),

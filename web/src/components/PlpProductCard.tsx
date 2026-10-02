@@ -111,10 +111,20 @@ export function PlpProductCard({ product, index = 0, onAddToCart, isAdding, just
         </p>
         <p className={styles.taxNote}>Inclusive of all taxes</p>
 
-        {product.offerLabel && (
+        {(product.offerBadges.length > 0 || product.offerLabel) && (
           <div className={styles.offerStrip}>
             <TagIcon />
-            <span className={styles.offerText}>{product.offerLabel}</span>
+            {product.offerBadges.length > 0 ? (
+              <span className={styles.offerTextGroup}>
+                {product.offerBadges.map((badge) => (
+                  <span key={badge.type} className={styles.offerText}>
+                    {badge.label}
+                  </span>
+                ))}
+              </span>
+            ) : (
+              <span className={styles.offerText}>{product.offerLabel}</span>
+            )}
           </div>
         )}
 

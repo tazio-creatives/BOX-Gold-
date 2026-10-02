@@ -16,6 +16,11 @@
   flex-direction: column;
   padding: var(--space-5) 0;
   overflow: hidden;
+  /* Pinned to the viewport so only the page content scrolls. */
+  position: sticky;
+  top: 0;
+  height: 100vh;
+  align-self: start;
 }
 
 .brandRow {
@@ -66,7 +71,14 @@
   flex-direction: column;
   gap: 2px;
   flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  scrollbar-width: none;
   padding: 0 var(--space-3);
+}
+
+.nav::-webkit-scrollbar {
+  display: none;
 }
 
 .sidebarCollapsed .nav {
@@ -81,7 +93,7 @@
   padding: var(--space-3) var(--space-3);
   text-decoration: none;
   color: rgba(255, 255, 255, 0.65);
-  font-size: var(--text-sm);
+  font-size: 0.75rem;
   font-weight: 400;
   border-radius: var(--radius-sm);
   transition: background-color 0.12s ease, color 0.12s ease;

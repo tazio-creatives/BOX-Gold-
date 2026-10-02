@@ -47,7 +47,9 @@ import {
 } from '../repositories/categories.repository.js';
 import { findCollectionBySlug } from '../repositories/collections.repository.js';
 import { findDiamondConfigById } from '../repositories/diamondConfigs.repository.js';
+import { findDiamondTypeById } from '../repositories/diamondTypes.repository.js';
 import { computeVariantPricing, resolvePurityPricingFields } from './pricingService.js';
+import { loadActiveRuleSet } from './pricingRuleResolver.js';
 import { invalidateProductPages } from './pageCacheInvalidation.js';
 
 // Weight-rule and variant edits must invalidate the SSR page cache after
@@ -78,6 +80,23 @@ function deriveNetWeightGrams(goldWeightGrams) {
 function deriveGrossWeightGrams(goldWeightGrams, diamondWeightGrams) {
   if (goldWeightGrams == null && diamondWeightGrams == null) return null;
   return Math.round(((goldWeightGrams ?? 0) + (diamondWeightGrams ?? 0)) * 1000) / 1000;
+}
+
+// products.diamond_type (free TEXT) is being retired in favor of
+// diamond_type_id (Pricing Rule Management, Phase 4) — whenever the admin
+// form sends a diamondTypeId, this keeps the legacy text column in sync
+// with it automatically (never independently editable anymore), so the two
+// can never drift apart the way the plan's "denormalized display copy"
+// promise requires. Mutates `fields` in place, mirroring
+// deriveNetWeightGrams/deriveGrossWeightGrams's own call style above.
+async function syncDiamondTypeName(fields) {
+  if (!Object.hasOwn(fields, 'diamondTypeId')) return;
+  if (!fields.diamondTypeId) {
+    fields.diamondType = null;
+    return;
+  }
+  const diamondType = await findDiamondTypeById(fields.diamondTypeId);
+  fields.diamondType = diamondType?.name ?? null;
 }
 
 // Mirrors web/src/hooks/useVariantSelection.ts's own default-size effect
@@ -148,15 +167,61 @@ function percentDiffers(a, b) {
   return Math.abs(a - b) > 1e-9;
 }
 
-export async function applyBaseProductPricing(productId, isPriceLocked) {
-  if (isPriceLocked) return;
-  const product = await findProductById(productId);
-  if (!product) return;
+// Same null-safe comparison as percentDiffers, for the new amount/id cache
+// columns (Pricing Rule Management) — null and 0/absent are different
+// states, and a UUID id either matches or it doesn't.
+function amountDiffers(a, b) {
+  if (a == null || b == null) return a !== b;
+  return Math.abs(a - b) > 1e-9;
+}
 
+function idDiffers(a, b) {
+  return (a ?? null) !== (b ?? null);
+}
+
+// Deterministic, key-order-independent stringify — Postgres's jsonb type
+// explicitly does NOT preserve object key order (unlike the json type), so
+// a plain JSON.stringify(freshValue) === JSON.stringify(storedValue) check
+// would spuriously report "changed" after every round trip through the
+// database even when the content is identical. Used only for the unchanged
+// comparison below, never for what's actually written.
+function stableStringify(value) {
+  if (Array.isArray(value)) return `[${value.map(stableStringify).join(',')}]`;
+  if (value && typeof value === 'object') {
+    return `{${Object.keys(value)
+      .sort()
+      .map((k) => `${JSON.stringify(k)}:${stableStringify(value[k])}`)
+      .join(',')}}`;
+  }
+  return JSON.stringify(value);
+}
+
+// productId, isPriceLocked -> { changed, oldSellingPrice, newSellingPrice }.
+// The return value used to be undefined; every one of this function's ~8
+// call sites in this file ignored it, so returning a value is non-breaking.
+// It exists so the Phase 2 background repricing job (and, as a smaller
+// side-benefit, the existing gold/diamond recalculation jobs) can tell
+// whether a price actually changed without a second findProductById just to
+// diff before/after.
+//
+// `ruleSet` is optional — omitted, this loads the current live rule set
+// itself (cheap: pricingRuleResolver caches it for 30s), so every existing
+// caller (admin product save, gold/diamond recalculation jobs) automatically
+// resolves through Pricing Rule Management once rules exist, with zero call
+// site changes needed. A caller repricing many products in one pass (the
+// Phase 2 job) should load the rule set once and pass it explicitly instead,
+// to avoid loading it once per product.
+export async function applyBaseProductPricing(productId, isPriceLocked, ruleSet = null) {
+  if (isPriceLocked) return { changed: false, oldSellingPrice: null, newSellingPrice: null };
+  const product = await findProductById(productId);
+  if (!product) return { changed: false, oldSellingPrice: null, newSellingPrice: null };
+
+  const oldSellingPrice = Number(product.selling_price);
   const weightRules = await findWeightRuleValuesByProduct(productId);
   const purityPricingRules = await findPurityPricingRuleValuesByProduct(productId);
   const baseVariant = await buildBaseConfigVariant(product);
-  const pricing = await computeVariantPricing(product, baseVariant, weightRules, purityPricingRules);
+  const effectiveRuleSet = ruleSet ?? (await loadActiveRuleSet());
+  const pricing = await computeVariantPricing(product, baseVariant, weightRules, purityPricingRules, effectiveRuleSet);
 
   // effective_making_charge_discount_percent / effective_diamond_discount_percent
   // are what list-view cards (rowOffer/toListDto) actually read for the offer
@@ -170,6 +235,18 @@ export async function applyBaseProductPricing(productId, isPriceLocked) {
     product.effective_making_charge_discount_percent == null ? null : Number(product.effective_making_charge_discount_percent);
   const currentEffectiveDiamondDiscount =
     product.effective_diamond_discount_percent == null ? null : Number(product.effective_diamond_discount_percent);
+  const currentEffectiveMakingAmount =
+    product.effective_making_charge_discount_amount == null ? null : Number(product.effective_making_charge_discount_amount);
+  const currentEffectiveDiamondAmount =
+    product.effective_diamond_discount_amount == null ? null : Number(product.effective_diamond_discount_amount);
+  const currentEffectiveMakingRuleId = product.effective_making_charge_rule_id ?? null;
+  const currentEffectiveDiamondRuleId = product.effective_diamond_rule_id ?? null;
+  const currentBreakdownStable = stableStringify(product.effective_diamond_breakdown ?? []);
+
+  const newMakingRuleId = pricing.appliedMakingChargeRuleId ?? null;
+  const newDiamondRuleId = pricing.diamondComponents[0]?.appliedRuleId ?? null;
+  const newBreakdownJson = JSON.stringify(pricing.diamondComponents);
+  const newBreakdownStable = stableStringify(pricing.diamondComponents);
 
   // Every field compared here is a field the write below actually sets —
   // comparing only the aggregate sellingPriceOriginal let a prior bug through:
@@ -186,8 +263,13 @@ export async function applyBaseProductPricing(productId, isPriceLocked) {
     Math.abs(pricing.makingChargeOriginal - Number(product.making_charge)) < 1e-9 &&
     Math.abs(pricing.sellingPriceOriginal - Number(product.selling_price)) < 1e-9 &&
     !percentDiffers(pricing.makingChargeDiscountPercent, currentEffectiveMakingDiscount) &&
-    !percentDiffers(pricing.diamondDiscountPercent, currentEffectiveDiamondDiscount);
-  if (unchanged) return;
+    !percentDiffers(pricing.diamondDiscountPercent, currentEffectiveDiamondDiscount) &&
+    !amountDiffers(pricing.makingChargeDiscountAmount, currentEffectiveMakingAmount) &&
+    !amountDiffers(pricing.diamondDiscountAmount, currentEffectiveDiamondAmount) &&
+    !idDiffers(newMakingRuleId, currentEffectiveMakingRuleId) &&
+    !idDiffers(newDiamondRuleId, currentEffectiveDiamondRuleId) &&
+    newBreakdownStable === currentBreakdownStable;
+  if (unchanged) return { changed: false, oldSellingPrice, newSellingPrice: oldSellingPrice };
 
   await updateProductRow(productId, {
     goldValue: pricing.goldValue,
@@ -196,7 +278,14 @@ export async function applyBaseProductPricing(productId, isPriceLocked) {
     sellingPrice: pricing.sellingPriceOriginal,
     effectiveMakingChargeDiscountPercent: pricing.makingChargeDiscountPercent,
     effectiveDiamondDiscountPercent: pricing.diamondDiscountPercent,
+    effectiveMakingChargeDiscountAmount: pricing.makingChargeDiscountAmount,
+    effectiveDiamondDiscountAmount: pricing.diamondDiscountAmount,
+    effectiveMakingChargeRuleId: newMakingRuleId,
+    effectiveDiamondRuleId: newDiamondRuleId,
+    effectiveDiamondBreakdown: newBreakdownJson,
   });
+
+  return { changed: true, oldSellingPrice, newSellingPrice: pricing.sellingPriceOriginal };
 }
 
 // Resolves purity/size *codes* ("9K", "6") to this product's actual
@@ -431,6 +520,7 @@ export async function adminCreateProduct(input) {
   } = input;
   fields.netWeightGrams = deriveNetWeightGrams(fields.goldWeightGrams);
   fields.grossWeightGrams = deriveGrossWeightGrams(fields.goldWeightGrams, fields.diamondWeightGrams);
+  await syncDiamondTypeName(fields);
 
   // The row insert, variant-matrix generation, weight/purity-pricing rule
   // application, and cheapest-price cache refresh all succeed or fail
@@ -499,6 +589,7 @@ export async function adminUpdateProduct(id, input) {
     fields.netWeightGrams = deriveNetWeightGrams(goldWeightGrams);
     fields.grossWeightGrams = deriveGrossWeightGrams(goldWeightGrams, diamondWeightGrams);
   }
+  await syncDiamondTypeName(fields);
   const axesChanged =
     sizesInput !== undefined ||
     goldColors !== undefined ||
@@ -587,7 +678,14 @@ export async function previewProductVariantPricing(id, { variantId }) {
     }
   }
 
-  const pricing = await computeVariantPricing(product, variant);
+  // This is the storefront PDP's live variant-price-preview endpoint
+  // (public route, hit every time a shopper changes purity/size/diamond
+  // quality) — it must resolve through the same ruleSet the cached PLP/
+  // homepage price already does (applyBaseProductPricing), or a shopper
+  // sees one price on the listing card and a DIFFERENT one the moment they
+  // pick a variant on the PDP.
+  const ruleSet = await loadActiveRuleSet();
+  const pricing = await computeVariantPricing(product, variant, null, null, ruleSet);
   const mrp = Number(product.mrp);
   const discountPercent =
     mrp && mrp > pricing.sellingPrice ? Math.round(((mrp - pricing.sellingPrice) / mrp) * 100) : 0;
@@ -603,6 +701,7 @@ export async function adminListVariants(productId) {
   const variants = await findVariantsByProductId(productId);
   const weightRules = await findWeightRuleValuesByProduct(productId);
   const purityPricingRules = await findPurityPricingRuleValuesByProduct(productId);
+  const ruleSet = await loadActiveRuleSet();
   return Promise.all(
     variants.map(async (variant) => {
       const pricing = await computeVariantPricing(
@@ -610,6 +709,7 @@ export async function adminListVariants(productId) {
         variant.combination_key === '' ? null : variant,
         weightRules,
         purityPricingRules,
+        ruleSet,
       );
       return { variant, pricing };
     }),
@@ -631,7 +731,8 @@ export async function adminUpdateVariant(productId, variantId, fields) {
     return u;
   });
   await safeInvalidateProductPages(product, 'adminUpdateVariant');
-  const pricing = await computeVariantPricing(product, updated.combination_key === '' ? null : updated);
+  const ruleSet = await loadActiveRuleSet();
+  const pricing = await computeVariantPricing(product, updated.combination_key === '' ? null : updated, null, null, ruleSet);
   return { variant: updated, pricing };
 }
 
@@ -652,6 +753,7 @@ export async function adminBulkUpdateVariants(productId, variantIds, fields) {
 
   const weightRules = await findWeightRuleValuesByProduct(productId);
   const purityPricingRules = await findPurityPricingRuleValuesByProduct(productId);
+  const ruleSet = await loadActiveRuleSet();
   return Promise.all(
     updated.map(async (variant) => ({
       variant,
@@ -660,6 +762,7 @@ export async function adminBulkUpdateVariants(productId, variantIds, fields) {
         variant.combination_key === '' ? null : variant,
         weightRules,
         purityPricingRules,
+        ruleSet,
       ),
     })),
   );

@@ -13,7 +13,7 @@ import { createExclusionRuleSchema } from '../validators/exclusionRules.validato
 import { replaceWeightRulesSchema } from '../validators/weightRules.validators.js';
 import { replacePurityPricingRulesSchema } from '../validators/purityPricingRules.validators.js';
 import * as productsService from '../services/productsService.js';
-import { applyProductOffer, round2 } from '../services/pricingService.js';
+import { applyProductOffer, computeSellingPrice, round2 } from '../services/pricingService.js';
 import { calculateDeliveryEstimate } from '../services/deliveryEstimateService.js';
 import { AppError } from '../utils/AppError.js';
 
@@ -64,14 +64,125 @@ export function offerLabel(makingChargeDiscountPercent, diamondDiscountPercent) 
   return parts.length ? parts.join(' + ') : null;
 }
 
-// The effective_* columns hold the purity-rule-resolved discount for the
-// product's base configuration (kept in sync by
-// productsService.applyBaseProductPricing) — preferred whenever populated so
-// a Purity Pricing Rule's discount shows in listings the same way it already
-// does on the detail page. Falls back to the flat admin-typed default
-// (making_charge_discount_percent/diamond_discount_percent) when null, e.g.
-// a product that hasn't been saved/recalculated since this column was added.
+// Separate badges, per Pricing Rule Management's storefront requirement:
+// "20% off Making Charges" and "15% off Natural Diamond Value" render as
+// two distinct badges, never combined into one string the way the legacy
+// offerLabel above does (kept as-is for whatever still reads it). The
+// diamond badge names the diamond type when known, since a Natural-only
+// discount and a Lab-Grown-only discount are meaningfully different offers,
+// not one generic "Diamond" badge.
+export function offerBadges(makingChargeDiscountPercent, diamondDiscountPercent, diamondTypeName) {
+  const badges = [];
+  if (makingChargeDiscountPercent > 0) {
+    badges.push({ type: 'MAKING_CHARGE', percent: makingChargeDiscountPercent, label: `${makingChargeDiscountPercent}% off Making Charges` });
+  }
+  if (diamondDiscountPercent > 0) {
+    const noun = diamondTypeName ? `${diamondTypeName} Diamond Value` : 'Diamond Value';
+    badges.push({ type: 'DIAMOND', percent: diamondDiscountPercent, label: `${diamondDiscountPercent}% off ${noun}` });
+  }
+  return badges;
+}
+
+// Which pricing_rules row (if any) is actually responsible for each side of
+// the current discount — null for either that's resolving from the legacy
+// purity-rule/flat-column tiers instead of a real Category/Global/Product
+// rule. Ids only (no name/discount details) — the badge label above is
+// already the customer-facing summary; this is for anything that needs to
+// trace a displayed price back to its rule (e.g. future admin tooling).
+function appliedRules(row) {
+  const rules = [];
+  if (row.effective_making_charge_rule_id) rules.push({ type: 'MAKING_CHARGE', ruleId: row.effective_making_charge_rule_id });
+  if (row.effective_diamond_rule_id) rules.push({ type: 'DIAMOND', ruleId: row.effective_diamond_rule_id });
+  return rules;
+}
+
+// Amount-first sibling of applyProductOffer for the cached-row read path —
+// a FIXED_AMOUNT/FIXED_AMOUNT_PER_CARAT pricing rule (Pricing Rule
+// Management) has no faithful percent equivalent, so once the cache holds a
+// real amount it's used directly rather than re-derived through a percent.
+// Mirrors applyProductOffer's shape/no-op behavior exactly (same
+// computeSellingPrice call — GST still computed once, after discounts).
+function applyProductOfferFromAmounts({
+  goldValue,
+  diamondValue,
+  makingCharge,
+  gstPercent,
+  sellingPrice,
+  makingChargeDiscountAmount,
+  diamondDiscountAmount,
+}) {
+  const mcAmount = makingChargeDiscountAmount ?? 0;
+  const ddAmount = diamondDiscountAmount ?? 0;
+  if (mcAmount <= 0 && ddAmount <= 0) {
+    return {
+      goldValue,
+      diamondValue,
+      diamondValueOriginal: diamondValue,
+      makingCharge,
+      makingChargeOriginal: makingCharge,
+      makingChargeDiscountPercent: 0,
+      diamondDiscountPercent: 0,
+      sellingPrice,
+      sellingPriceOriginal: sellingPrice,
+    };
+  }
+
+  const discountedMakingCharge = round2(makingCharge - mcAmount);
+  const discountedDiamondValue = round2(diamondValue - ddAmount);
+  const discountedSellingPrice = computeSellingPrice({
+    goldValue,
+    diamondValue: discountedDiamondValue,
+    makingCharge: discountedMakingCharge,
+    gstPercent,
+  });
+
+  return {
+    goldValue,
+    diamondValue: discountedDiamondValue,
+    diamondValueOriginal: diamondValue,
+    makingCharge: discountedMakingCharge,
+    makingChargeOriginal: makingCharge,
+    makingChargeDiscountPercent: makingCharge > 0 ? round2((mcAmount / makingCharge) * 100) : 0,
+    diamondDiscountPercent: diamondValue > 0 ? round2((ddAmount / diamondValue) * 100) : 0,
+    sellingPrice: discountedSellingPrice,
+    sellingPriceOriginal: sellingPrice,
+  };
+}
+
+// The effective_* columns hold the resolved discount for the product's base
+// configuration (kept in sync by productsService.applyBaseProductPricing) —
+// preferred whenever populated so a Purity Pricing Rule's or Pricing Rule's
+// discount shows in listings the same way it already does on the detail
+// page. Amount columns (effective_*_discount_amount) are preferred over the
+// percent columns whenever populated — until a product has actually been
+// recomputed since Pricing Rule Management shipped, both stay null and this
+// falls all the way through to the original percent-based path, byte-
+// identical to before this feature existed. Once populated, the two are
+// mathematically equivalent for every existing (percent-based) discount
+// source: the cached amount is always derived as a difference of two
+// already-rounded values (base minus the already-rounded discounted value),
+// so re-deriving the discounted total from it reproduces the exact same
+// number the percent-based path would — this is what actually lets a
+// FIXED_AMOUNT rule (which has no faithful percent form) share one code path
+// with the pre-existing percent-only discounts.
 export function rowOffer(row) {
+  const makingChargeDiscountAmount =
+    row.effective_making_charge_discount_amount == null ? null : Number(row.effective_making_charge_discount_amount);
+  const diamondDiscountAmount =
+    row.effective_diamond_discount_amount == null ? null : Number(row.effective_diamond_discount_amount);
+
+  if (makingChargeDiscountAmount != null || diamondDiscountAmount != null) {
+    return applyProductOfferFromAmounts({
+      goldValue: Number(row.gold_value),
+      diamondValue: Number(row.diamond_value),
+      makingCharge: Number(row.making_charge),
+      gstPercent: Number(row.gst_percent),
+      sellingPrice: Number(row.selling_price),
+      makingChargeDiscountAmount,
+      diamondDiscountAmount,
+    });
+  }
+
   const makingChargeDiscountPercent =
     row.effective_making_charge_discount_percent ?? row.making_charge_discount_percent ?? 0;
   const diamondDiscountPercent = row.effective_diamond_discount_percent ?? row.diamond_discount_percent ?? 0;
@@ -126,6 +237,8 @@ export function toListDto(row, deliveryEstimate = calculateDeliveryEstimate()) {
     makingChargeDiscountPercent: offer.makingChargeDiscountPercent,
     diamondDiscountPercent: offer.diamondDiscountPercent,
     offerLabel: offerLabel(offer.makingChargeDiscountPercent, offer.diamondDiscountPercent),
+    offerBadges: offerBadges(offer.makingChargeDiscountPercent, offer.diamondDiscountPercent, row.diamond_type),
+    appliedRules: appliedRules(row),
     primaryImageUrl: row.primary_image_url,
     availableStock: row.available_stock,
     ratingAvg: Number(row.rating_avg),
@@ -166,6 +279,11 @@ function toDetailDto(row, deliveryEstimate = calculateDeliveryEstimate()) {
     diamondConfigId: row.diamond_config_id,
     diamondConfigName: row.diamondConfigName ?? null,
     diamondCount: row.diamond_count,
+    // diamond_type_id is the source of truth going forward (Pricing Rule
+    // Management, Phase 4) — diamond_type (TEXT) is kept as a denormalized
+    // display copy, written from the same admin-form select, so any code
+    // still reading the old free-text field keeps working unchanged.
+    diamondTypeId: row.diamond_type_id ?? null,
     diamondType: row.diamond_type,
     diamondColour: row.diamond_colour,
     diamondClarity: row.diamond_clarity,
@@ -210,6 +328,8 @@ function toDetailDto(row, deliveryEstimate = calculateDeliveryEstimate()) {
     hasDiscount: priceInfo.hasDiscount,
     effectiveDiscountPercent: priceInfo.effectiveDiscountPercent,
     offerLabel: offerLabel(offer.makingChargeDiscountPercent, offer.diamondDiscountPercent),
+    offerBadges: offerBadges(offer.makingChargeDiscountPercent, offer.diamondDiscountPercent, row.diamond_type),
+    appliedRules: appliedRules(row),
 
     stockQuantity: row.stock_quantity,
     availableStock: row.available_stock,
@@ -360,6 +480,15 @@ export async function pricePreview(req, res, next) {
       diamondDiscountAmount: round2(result.diamondValueOriginal - result.diamondValue),
       discountedDiamondValue: result.diamondValue,
       offerLabel: offerLabel(result.makingChargeDiscountPercent, result.diamondDiscountPercent),
+      // No diamond-type name here (this live-preview path doesn't otherwise
+      // need a join to diamond_types) — badge falls back to the generic
+      // "Diamond Value" wording; toDetailDto's PDP-load badge has the real
+      // product row and names the type.
+      offerBadges: offerBadges(result.makingChargeDiscountPercent, result.diamondDiscountPercent, null),
+      appliedRules: [
+        ...(result.appliedMakingChargeRuleId ? [{ type: 'MAKING_CHARGE', ruleId: result.appliedMakingChargeRuleId }] : []),
+        ...(result.diamondComponents?.[0]?.appliedRuleId ? [{ type: 'DIAMOND', ruleId: result.diamondComponents[0].appliedRuleId }] : []),
+      ],
       strikePrice: priceInfo.strikePrice,
       hasDiscount: priceInfo.hasDiscount,
       effectiveDiscountPercent: priceInfo.effectiveDiscountPercent,

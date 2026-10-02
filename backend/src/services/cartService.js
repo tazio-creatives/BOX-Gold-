@@ -2,6 +2,7 @@ import { AppError, NotFoundError } from '../utils/AppError.js';
 import { findProductById, findProductsByIds } from '../repositories/products.repository.js';
 import { findVariantById, findVariantsByProductId, resolvedSizeLabel } from '../repositories/productVariants.repository.js';
 import { computeVariantPricing } from './pricingService.js';
+import { loadActiveRuleSet } from './pricingRuleResolver.js';
 import { calculateDeliveryEstimate } from './deliveryEstimateService.js';
 import {
   findCartByOwner,
@@ -86,6 +87,11 @@ export async function getCart(owner) {
 
   const products = await findProductsByIds(items.map((i) => i.product_id));
   const productMap = new Map(products.map((p) => [p.id, p]));
+  // Loaded once for the whole cart (cached 30s inside loadActiveRuleSet
+  // itself, so this is cheap even so) — every line must resolve through the
+  // same active Pricing Rules the PLP/PDP already show, or the cart total
+  // would silently diverge from the price the shopper was quoted.
+  const ruleSet = await loadActiveRuleSet();
 
   const enriched = (
     await Promise.all(
@@ -93,7 +99,7 @@ export async function getCart(owner) {
         const product = productMap.get(item.product_id);
         const variant = await findVariantById(item.product_variant_id);
         if (!product || !variant) return null; // stale line (product/variant since removed) — quietly dropped from display
-        const pricing = await computeVariantPricing(product, variant.combination_key === '' ? null : variant);
+        const pricing = await computeVariantPricing(product, variant.combination_key === '' ? null : variant, null, null, ruleSet);
         return toItemDto(item, product, variant, pricing);
       }),
     )

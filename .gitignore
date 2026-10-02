@@ -21,3 +21,6 @@ coverage/
 # local-disk StorageProvider target (Phase 15, plan §2) — dev-only, never committed
 backend/uploads/*
 !backend/uploads/.gitkeep
+
+# manual pre-flight pg_dump backups (e.g. before running new migrations) — local-only
+backend/db_backups/

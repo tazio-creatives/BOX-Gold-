@@ -342,6 +342,15 @@ const RING_FIDELITY_EXTRA =
 const BRACELET_CLASP_HIDDEN_NOTE =
   "This is a Bracelet — do not show the bracelet's lock, clasp, hook or fastening mechanism anywhere in this image. Position or rotate the bracelet so the locking area stays hidden behind the product itself or outside the visible angle, while keeping the bracelet looking naturally closed and continuous. Do not invent a decorative lock, clasp or connector that is not part of the original design. Preserve the bracelet's original design, stones, metal colour, proportions and pattern exactly.";
 
+// Appended as an extra instruction on every asset type for a confirmed
+// Necklace — a Necklace-category product is either a necklace alone or a
+// necklace + matching earrings set photographed together in one reference
+// image. Kept conditional on what the reference actually shows (not a
+// separate type), and deliberately silent on position/background/framing so
+// every existing Necklace composition stays exactly as it was.
+const NECKLACE_SET_NOTE =
+  'If the uploaded reference shows a necklace set — the necklace together with matching earrings — the earrings are part of this product: show the necklace AND the matching earrings together in this one image, reproducing both exactly as in the reference, and on a presenter shot the presenter must wear both (the necklace on the neck and the matching earrings on both ears, clearly visible and not hidden by hair). Do not drop the earrings or the necklace from a set. If the reference shows only a necklace, do not add any earrings.';
+
 // Audience-specific presenter description (Gents/Kids), substituted for
 // whichever real presenter's own prompt_descriptor would otherwise be used
 // (non-Ring PRESENTER_* shots) or for the hardcoded default-audience text
@@ -488,7 +497,10 @@ const PLACEMENT_RULES = {
   },
   NECKLACE: {
     location: 'the neck',
-    excluded: 'No earrings, rings, bracelet, bangle, nose pin or additional necklace.',
+    // Earrings aren't blanket-excluded here — a necklace set's own matching
+    // earrings are part of the product (see NECKLACE_SET_NOTE).
+    excluded:
+      'No rings, bracelet, bangle, nose pin, additional necklace, or any earrings other than the matching earrings shown in the uploaded reference.',
   },
   PENDANT: {
     location: 'the neck',
@@ -559,6 +571,7 @@ function buildAssetPromptSections({
   const negativeParts = ['Do not redesign, reinterpret or add/remove/resize/reposition any component.'];
   if (RING_ASSET_TYPE_SET.has(assetType)) negativeParts.push(RING_FIDELITY_EXTRA);
   if (confirmedType === 'BRACELET') negativeParts.push(BRACELET_CLASP_HIDDEN_NOTE);
+  if (confirmedType === 'NECKLACE') negativeParts.push(NECKLACE_SET_NOTE);
 
   switch (assetType) {
     case 'YELLOW_FRONT':
@@ -971,6 +984,13 @@ function ringValidationContextFor(assetType) {
   return '';
 }
 
+// Necklace sets — the system prompt's rule (2) ("no additional jewellery")
+// would otherwise flag a set's own matching earrings as an extra ornament.
+function necklaceValidationContextFor(confirmedType) {
+  if (confirmedType !== 'NECKLACE') return '';
+  return ' This is the Necklace category: if the original reference shows the necklace together with matching earrings (a necklace set), those earrings are part of the product and must NOT be flagged as additional jewellery. In that case set validationStatus to "failed" if the generated image is missing the necklace or the matching earrings, or — on a presenter shot — if the presenter is not wearing both (necklace on the neck, matching earrings on the ears). If the reference shows only a necklace, set validationStatus to "failed" if any earrings appear in the generated image.';
+}
+
 // A presenter shot showing a hand only (Ring's dedicated workflow) has no
 // visible model demographic to check — every other presenter-eligible shot
 // (PRESENTER_* and, for a non-Ring category, any future hand/body shot) does.
@@ -1021,7 +1041,7 @@ export async function validateGeneratedImage({
   const generatedBase64 = generatedBuffer.toString('base64');
   const referenceBase64 = referenceBuffer.toString('base64');
 
-  let text = `Expected jewellery category: ${confirmedType}. Expected metal colour: ${metalColor}. Asset type: ${assetType}. The first image is the generated result; the second image is the original product reference.${ringValidationContextFor(assetType)}${audienceValidationContextFor(confirmedCustomerCategory, assetType)}`;
+  let text = `Expected jewellery category: ${confirmedType}. Expected metal colour: ${metalColor}. Asset type: ${assetType}. The first image is the generated result; the second image is the original product reference.${ringValidationContextFor(assetType)}${necklaceValidationContextFor(confirmedType)}${audienceValidationContextFor(confirmedCustomerCategory, assetType)}`;
 
   const content = [
     { type: 'text', text },

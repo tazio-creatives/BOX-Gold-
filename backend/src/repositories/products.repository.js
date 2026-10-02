@@ -47,7 +47,9 @@ const LIST_COLUMNS = `
   p.net_weight_grams, p.gold_weight_grams, p.diamond_weight_grams, p.diamond_weight_carats, p.diamond_config_id,
   p.making_charge_discount_percent, p.diamond_discount_percent,
   p.effective_making_charge_discount_percent, p.effective_diamond_discount_percent,
-  p.diamond_colour, p.diamond_clarity,
+  p.effective_making_charge_discount_amount, p.effective_diamond_discount_amount,
+  p.diamond_colour, p.diamond_clarity, p.diamond_type,
+  p.effective_making_charge_rule_id, p.effective_diamond_rule_id,
   primary_image.url AS primary_image_url,
   cat.slug AS category_slug,
   ${AVAILABLE_STOCK_SELECT}
@@ -270,6 +272,7 @@ const INSERT_COLUMNS = [
   'diamond_weight_carats',
   'diamond_config_id',
   'diamond_count',
+  'diamond_type_id',
   'diamond_type',
   'diamond_colour',
   'diamond_clarity',
@@ -290,6 +293,11 @@ const INSERT_COLUMNS = [
   'diamond_discount_percent',
   'effective_making_charge_discount_percent',
   'effective_diamond_discount_percent',
+  'effective_making_charge_discount_amount',
+  'effective_diamond_discount_amount',
+  'effective_making_charge_rule_id',
+  'effective_diamond_rule_id',
+  'effective_diamond_breakdown',
   'is_price_locked',
   'is_featured',
   'is_best_seller',
@@ -378,6 +386,21 @@ export async function findGoldProductsForRecalculation() {
      FROM products
      WHERE metal_type = 'GOLD' AND purity IS NOT NULL
        AND is_price_locked = false`,
+  );
+  return rows;
+}
+
+// Lean shape for the Pricing Rule Management background repricing job
+// (pricingRuleJobs.js) — just enough to call applyBaseProductPricing and
+// invalidateProductsPagesBatch per chunk, deliberately re-fetched fresh at
+// reprice time (not trusted from the job's scope-resolution snapshot) so a
+// product locked *after* the job was enqueued is correctly skipped rather
+// than repriced anyway.
+export async function findProductsForRepricing(ids) {
+  if (ids.length === 0) return [];
+  const { rows } = await query(
+    `SELECT id, sku, slug, category_id, is_price_locked, selling_price FROM products WHERE id = ANY($1)`,
+    [ids],
   );
   return rows;
 }

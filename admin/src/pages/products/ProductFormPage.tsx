@@ -68,6 +68,7 @@ const EMPTY_FORM: ProductInput = {
   diamondWeightCarats: null,
   diamondConfigId: null,
   diamondCount: null,
+  diamondTypeId: null,
   diamondType: '',
   diamondColour: '',
   diamondClarity: '',
@@ -229,6 +230,7 @@ export function ProductFormPage() {
         diamondWeightCarats: p.diamondWeightCarats,
         diamondConfigId: p.diamondConfigId,
         diamondCount: p.diamondCount,
+        diamondTypeId: p.diamondTypeId,
         diamondType: p.diamondType ?? '',
         diamondColour: p.diamondColour ?? '',
         diamondClarity: p.diamondClarity ?? '',
@@ -350,7 +352,9 @@ export function ProductFormPage() {
       gstPercent: form.gstPercent ?? 3,
       shortDescription: form.shortDescription || null,
       fullDescription: form.fullDescription || null,
-      diamondType: form.diamondType || null,
+      // diamondType (free text) is derived server-side from diamondTypeId now
+      // (productsService.js's syncDiamondTypeName) — no longer sent directly.
+      diamondTypeId: form.diamondTypeId || null,
       diamondColour: form.diamondColour || null,
       diamondClarity: form.diamondClarity || null,
       gemstone: form.gemstone || null,

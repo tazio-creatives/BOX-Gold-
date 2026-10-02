@@ -13,6 +13,7 @@ import {
 } from '../repositories/orders.repository.js';
 import { getActiveReservedQuantityTx, insertReservationTx } from '../repositories/reservations.repository.js';
 import { computeVariantPricing } from './pricingService.js';
+import { loadActiveRuleSet } from './pricingRuleResolver.js';
 import { validateCoupon } from './couponService.js';
 import { calculateDeliveryEstimate } from './deliveryEstimateService.js';
 
@@ -58,6 +59,11 @@ export async function createOrder({ userId, contact, addressId, items, couponCod
     let subtotal = 0;
     let gstTotal = 0;
     let grandTotal = 0;
+    // Loaded once for the whole order, inside the same transaction that
+    // locks every line's product/variant row — an order must be charged
+    // exactly what the cart/PDP quoted, which means resolving through the
+    // identical active-rule snapshot, not the legacy no-rules formula.
+    const ruleSet = await loadActiveRuleSet();
 
     for (const { productId, variantId, quantity, customizationNote } of sortedItems) {
       const product = await lockProductForCheckoutTx(client, productId);
@@ -94,7 +100,13 @@ export async function createOrder({ userId, contact, addressId, items, couponCod
       // here — resolve pricing (and combination validity) from the same
       // variant/pricing engine cart uses, so checkout charges exactly what
       // the shopper saw and can never sell an unavailable combination.
-      const pricing = await computeVariantPricing(product, variant && variant.combination_key !== '' ? variant : null);
+      const pricing = await computeVariantPricing(
+        product,
+        variant && variant.combination_key !== '' ? variant : null,
+        null,
+        null,
+        ruleSet,
+      );
       let diamondConfigName = null;
       if (pricing.diamondConfigId) {
         const config = await findDiamondConfigById(pricing.diamondConfigId);

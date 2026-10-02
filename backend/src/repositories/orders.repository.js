@@ -214,6 +214,13 @@ export async function findOrderByIdTx(client, id) {
   return rows[0] ?? null;
 }
 
+// Row-locked read for state transitions that must not race each other (e.g.
+// a customer cancelling at the same moment an admin starts processing).
+export async function findOrderByIdForUpdateTx(client, id) {
+  const { rows } = await client.query('SELECT * FROM orders WHERE id = $1 FOR UPDATE', [id]);
+  return rows[0] ?? null;
+}
+
 // The admin/customer order-list filter dropdown offers one flat list of
 // "statuses" (see utils/orderStatus.js's STATUS_FILTER_VALUES) that spans
 // two real columns — PENDING_PAYMENT/PAYMENT_FAILED are payment_status

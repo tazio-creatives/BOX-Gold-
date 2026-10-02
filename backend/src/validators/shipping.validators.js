@@ -8,6 +8,8 @@ export const createShipmentSchema = z.object({
   lengthCm: z.coerce.number().positive().max(200),
   widthCm: z.coerce.number().positive().max(200),
   heightCm: z.coerce.number().positive().max(200),
+  // Courier chosen in the dialog (shippingProviders key); omitted = default.
+  provider: z.string().trim().min(1).max(40).optional(),
 });
 
 export const simulateTrackingSchema = z.object({

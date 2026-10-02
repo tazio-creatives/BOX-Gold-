@@ -42,9 +42,6 @@ const COLUMNS: { title: string; links: { label: string; to: string }[] }[] = [
     title: 'Customer Care',
     links: [
       { label: 'Contact Us', to: '/contact' },
-      { label: 'FAQs', to: '/faqs' },
-      { label: 'Track Order', to: '/account/orders' },
-      { label: 'Size Guide', to: '/size-guide' },
       { label: 'Care Guide', to: '/care-guide' },
     ],
   },
@@ -54,8 +51,6 @@ const COLUMNS: { title: string; links: { label: string; to: string }[] }[] = [
       { label: 'Our Story', to: '/our-story' },
       { label: 'Why Box Diamonds', to: '/why-box-diamonds' },
       { label: 'Blog', to: '/blog' },
-      { label: 'Careers', to: '/careers' },
-      { label: 'Press', to: '/press' },
       { label: 'Sustainability', to: '/sustainability' },
     ],
   },
@@ -64,9 +59,8 @@ const COLUMNS: { title: string; links: { label: string; to: string }[] }[] = [
     links: [
       { label: 'Privacy Policy', to: '/privacy-policy' },
       { label: 'Terms & Conditions', to: '/terms' },
-      { label: 'Refund Policy', to: '/refund-policy' },
+      { label: 'Return & Refund Policy', to: '/refund-policy' },
       { label: 'Shipping Policy', to: '/shipping-policy' },
-      { label: 'Cancellation Policy', to: '/cancellation-policy' },
     ],
   },
 ];

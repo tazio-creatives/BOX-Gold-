@@ -35,6 +35,26 @@ export const RETURN_WINDOW_DAYS = 7;
 
 export const RETURN_REQUEST_STATUSES = ['REQUESTED', 'APPROVED', 'REJECTED', 'COMPLETED'];
 
+// Customer self-cancellation — only before an admin starts PROCESSING the
+// order (paid but untouched). Refunds are issued manually from the Cashfree
+// dashboard, then recorded via the admin "Mark as Refunded" action;
+// REFUND_TIMELINE_DAYS is the promise shown to the customer and in the email.
+export const CUSTOMER_CANCELLABLE_ORDER_STATUSES = ['CONFIRMED'];
+export const CUSTOMER_CANCEL_REASONS = ['ORDERED_BY_MISTAKE', 'BETTER_PRICE', 'DELIVERY_TOO_SLOW', 'CHANGED_MIND', 'OTHER'];
+export const CUSTOMER_CANCEL_REASON_LABELS = {
+  ORDERED_BY_MISTAKE: 'Ordered by mistake',
+  BETTER_PRICE: 'Found a better price',
+  DELIVERY_TOO_SLOW: 'Delivery time too long',
+  CHANGED_MIND: 'Changed my mind',
+  OTHER: 'Other',
+};
+export const REFUND_TIMELINE_DAYS = 7;
+
+// A cancellation from one of these puts the paid-for stock back — the piece
+// hasn't left the building yet. From SHIPPED onward it's with the courier,
+// so any restock is a manual decision once it physically comes back.
+export const STOCK_RESTORABLE_ORDER_STATUSES = ['CONFIRMED', 'PROCESSING', 'READY_TO_SHIP'];
+
 // Courier-controlled statuses aren't reachable through the generic admin
 // override — READY_TO_SHIP requires the Ready-to-Ship validation+Delhivery
 // flow (Phase 3), and SHIPPED/IN_TRANSIT/OUT_FOR_DELIVERY/DELIVERED are

@@ -71,6 +71,26 @@ export async function getCategoryAndAncestorSlugs(categoryId) {
   return rows.map((r) => r.slug);
 }
 
+// Same walk as getCategoryAndAncestorSlugs, but ids instead of slugs and
+// explicitly ordered deepest (the category itself) to shallowest (root) —
+// needed by pricingRuleResolver.js, which must check a product's own
+// category for a matching Category-scope rule before falling back to each
+// ancestor in turn. depth is tracked explicitly since a recursive CTE gives
+// no ordering guarantee on its own.
+export async function getCategoryAndAncestorIds(categoryId) {
+  const { rows } = await query(
+    `WITH RECURSIVE ancestors AS (
+       SELECT id, parent_id, 0 AS depth FROM categories WHERE id = $1
+       UNION ALL
+       SELECT c.id, c.parent_id, a.depth + 1 FROM categories c
+       JOIN ancestors a ON c.id = a.parent_id
+     )
+     SELECT id FROM ancestors ORDER BY depth`,
+    [categoryId],
+  );
+  return rows.map((r) => r.id);
+}
+
 // True if `candidateAncestorId` is categoryId itself or one of its
 // descendants — used to reject a parent_id update that would create a cycle.
 export async function isSelfOrDescendant(categoryId, candidateAncestorId) {

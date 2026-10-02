@@ -14,11 +14,14 @@ function ValueCell({ original, discounted }: { original: number; discounted: num
 export function PriceBreakupTable({
   breakup,
   metalType,
+  diamondTypeName,
 }: {
   breakup: PriceBreakup;
   metalType: MetalType;
+  diamondTypeName?: string | null;
 }) {
   const hasOffer = breakup.makingChargeDiscountPercent > 0 || breakup.diamondDiscountPercent > 0;
+  const diamondRowLabel = diamondTypeName ? `${diamondTypeName} Diamond Value` : 'Diamond Value';
 
   return (
     <table className={styles.table}>
@@ -30,7 +33,7 @@ export function PriceBreakupTable({
         {breakup.diamondValueOriginal > 0 && (
           <tr>
             <td>
-              Natural Diamond Value
+              {diamondRowLabel}
               {breakup.diamondDiscountPercent > 0 && (
                 <span className={styles.offerBadge}>{breakup.diamondDiscountPercent}% off</span>
               )}

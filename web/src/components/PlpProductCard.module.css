@@ -209,7 +209,7 @@
   align-items: center;
   gap: 7px;
   min-height: 38px;
-  padding: 0 10px;
+  padding: 6px 10px;
   margin: 0 0 10px;
   background: #fff5f5;
   border: 1px solid #f4b8be;
@@ -221,6 +221,13 @@
   width: 14px;
   height: 14px;
   flex: 0 0 14px;
+}
+
+.offerTextGroup {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
 }
 
 .offerText {

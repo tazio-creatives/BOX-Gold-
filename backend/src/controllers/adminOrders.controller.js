@@ -1,4 +1,9 @@
-import { listOrdersQuerySchema, orderSummaryQuerySchema, updateOrderStatusSchema } from '../validators/orders.validators.js';
+import {
+  listOrdersQuerySchema,
+  orderSummaryQuerySchema,
+  updateOrderStatusSchema,
+  markRefundedSchema,
+} from '../validators/orders.validators.js';
 import { withTransaction } from '../config/db.js';
 import {
   findAllOrders,
@@ -20,7 +25,12 @@ import { findWorkOrderPrints } from '../repositories/workOrderPrints.repository.
 import { findInvoicePrints } from '../repositories/invoices.repository.js';
 import { findReturnRequestByOrderId, updateReturnRequestStatus } from '../repositories/returnRequests.repository.js';
 import { toOrderDto, toShipmentDto, orderDeliveryEstimateDto } from '../utils/orderDto.js';
-import { assertManualTransitionAllowed, ORDER_STATUS_TO_LEGACY_STATUS } from '../utils/orderStatus.js';
+import {
+  assertManualTransitionAllowed,
+  ORDER_STATUS_TO_LEGACY_STATUS,
+  STOCK_RESTORABLE_ORDER_STATUSES,
+} from '../utils/orderStatus.js';
+import { restoreStockForOrderTx } from '../repositories/reservations.repository.js';
 import { NotFoundError, AppError } from '../utils/AppError.js';
 import { enqueueEmail } from '../services/emailService.js';
 
@@ -250,6 +260,38 @@ export async function markReadyToShip(req, res, next) {
 // admin dropdown. assertManualTransitionAllowed also rejects any change
 // once the order is already in a terminal state (Delivered/Cancelled/
 // Returned).
+// Refunds are issued manually from the Cashfree dashboard (no refund API
+// integration yet) — this only records that it happened. Allowed for a
+// cancelled or returned order still marked PAID, i.e. exactly the orders
+// the admin UI flags as "Refund pending".
+const REFUNDABLE_ORDER_STATUSES = ['CANCELLED', 'RETURNED'];
+
+export async function markRefunded(req, res, next) {
+  try {
+    const existing = await findOrderById(req.params.id);
+    if (!existing) throw new NotFoundError('Order not found');
+    const { reference } = markRefundedSchema.parse(req.body ?? {});
+    if (!REFUNDABLE_ORDER_STATUSES.includes(existing.order_status) || existing.payment_status !== 'PAID') {
+      throw new AppError(400, 'Only a cancelled or returned order with a pending refund can be marked as refunded');
+    }
+
+    await withTransaction(async (client) => {
+      await updateOrderStatusFieldsTx(client, existing.id, { paymentStatus: 'REFUNDED' });
+      await insertOrderStatusHistoryTx(
+        client,
+        existing.id,
+        existing.order_status,
+        `Refund issued to customer${reference ? ` — ref ${reference}` : ''}`,
+        { actor: req.admin.id, source: 'ADMIN' },
+      );
+    });
+
+    res.json({ order: await loadOrderDto(existing.id) });
+  } catch (err) {
+    next(err);
+  }
+}
+
 export async function updateStatus(req, res, next) {
   try {
     const existing = await findOrderById(req.params.id);
@@ -268,6 +310,11 @@ export async function updateStatus(req, res, next) {
         actor: req.admin.id,
         source: 'ADMIN',
       });
+      // Put paid-for stock back — but only while the piece is still with us.
+      // Once the courier has it (SHIPPED onward), restocking is a manual call.
+      if (status === 'CANCELLED' && STOCK_RESTORABLE_ORDER_STATUSES.includes(existing.order_status)) {
+        await restoreStockForOrderTx(client, existing.id);
+      }
     });
     await notifyStatusChangeIfNew(existing, status, alreadyNotified);
 

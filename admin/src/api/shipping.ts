@@ -6,6 +6,21 @@ export interface CreateShipmentInput {
   lengthCm: number;
   widthCm: number;
   heightCm: number;
+  // Courier key from fetchShippingProviders(); omitted = server default.
+  provider?: string;
+}
+
+export interface ShippingProviderOption {
+  name: string;
+  displayName: string;
+}
+
+// Couriers selectable when creating a shipment (only configured ones), plus
+// which one to preselect.
+export function fetchShippingProviders() {
+  return apiFetch<{ providers: ShippingProviderOption[]; defaultProvider: string | null }>(
+    '/admin/shipping/providers',
+  );
 }
 
 // Books the shipment with the courier (AWB creation) — only valid once the

@@ -184,6 +184,13 @@
   height: 14px;
 }
 
+.offerBannerHeadlineGroup {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
 .offerBannerHeadline {
   overflow: hidden;
   font-size: 11px;

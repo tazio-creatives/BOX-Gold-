@@ -29,6 +29,8 @@
 .table td {
   padding-top: var(--space-4);
   padding-bottom: var(--space-4);
+  font-size: 0.8125rem;
+  font-weight: 400;
 }
 
 .thumbCell {
@@ -53,7 +55,7 @@
 }
 
 .nameLink {
-  font-weight: 600;
+  font-weight: 400;
   color: var(--color-text);
   text-decoration: none;
 }

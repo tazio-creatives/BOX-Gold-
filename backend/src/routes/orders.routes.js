@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { list, get, stats } from '../controllers/orders.controller.js';
+import { list, get, stats, cancel } from '../controllers/orders.controller.js';
 import {
   get as getReturnRequest,
   create as createReturnRequest,
@@ -17,6 +17,7 @@ ordersRouter.get('/', list);
 // Must come before /:id or Express would match "stats" as the :id param.
 ordersRouter.get('/stats', stats);
 ordersRouter.get('/:id', get);
+ordersRouter.post('/:id/cancel', cancel);
 ordersRouter.get('/:id/return-request', getReturnRequest);
 ordersRouter.post('/:id/return-request', uploadReturnVideo.single('video'), createReturnRequest);
 ordersRouter.post('/:id/return-request/cancel', cancelReturnRequest);

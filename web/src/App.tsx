@@ -41,9 +41,14 @@ const ShippingPolicyPage = lazy(() =>
 const RefundPolicyPage = lazy(() =>
   import('./pages/policies/RefundPolicyPage').then((m) => ({ default: m.RefundPolicyPage })),
 );
-const CancellationPolicyPage = lazy(() =>
-  import('./pages/policies/CancellationPolicyPage').then((m) => ({ default: m.CancellationPolicyPage })),
+const OurStoryPage = lazy(() => import('./pages/OurStoryPage').then((m) => ({ default: m.OurStoryPage })));
+const WhyBoxDiamondsPage = lazy(() =>
+  import('./pages/WhyBoxDiamondsPage').then((m) => ({ default: m.WhyBoxDiamondsPage })),
 );
+const SustainabilityPage = lazy(() =>
+  import('./pages/SustainabilityPage').then((m) => ({ default: m.SustainabilityPage })),
+);
+const CareGuidePage = lazy(() => import('./pages/CareGuidePage').then((m) => ({ default: m.CareGuidePage })));
 const PrivacyPolicyPage = lazy(() =>
   import('./pages/policies/PrivacyPolicyPage').then((m) => ({ default: m.PrivacyPolicyPage })),
 );
@@ -87,7 +92,12 @@ export function App() {
           <Route path="/new-arrivals" element={<NewArrivalsPage />} />
           <Route path="/shipping-policy" element={<ShippingPolicyPage />} />
           <Route path="/refund-policy" element={<RefundPolicyPage />} />
-          <Route path="/cancellation-policy" element={<CancellationPolicyPage />} />
+          {/* Same combined Return and Refund Policy page under its other name. */}
+          <Route path="/return-policy" element={<RefundPolicyPage />} />
+          {/* The standalone Cancellation Policy was retired — its terms live in
+              the Return and Refund Policy's "Cancellation Before Dispatch"
+              section; old links land there instead of a dead page. */}
+          <Route path="/cancellation-policy" element={<Navigate to="/refund-policy#cancellation" replace />} />
           <Route path="/privacy-policy" element={<PrivacyPolicyPage />} />
           <Route path="/terms" element={<TermsPage />} />
           {/* Not built yet — a real page here still needs an explicit route
@@ -95,15 +105,17 @@ export function App() {
               through to /:categorySlug below and renders a confusing
               "category not found" instead of "coming soon". */}
           <Route path="/contact" element={<PlaceholderPage title="Contact Us" />} />
-          <Route path="/faqs" element={<PlaceholderPage title="FAQs" />} />
-          <Route path="/size-guide" element={<PlaceholderPage title="Size Guide" />} />
-          <Route path="/care-guide" element={<PlaceholderPage title="Care Guide" />} />
-          <Route path="/our-story" element={<PlaceholderPage title="Our Story" />} />
-          <Route path="/why-box-diamonds" element={<PlaceholderPage title="Why Box Diamonds" />} />
+          {/* FAQs / Size Guide / Careers / Press were removed from the site —
+              old links go home instead of falling through to /:categorySlug. */}
+          <Route path="/faqs" element={<Navigate to="/" replace />} />
+          <Route path="/size-guide" element={<Navigate to="/" replace />} />
+          <Route path="/care-guide" element={<CareGuidePage />} />
+          <Route path="/our-story" element={<OurStoryPage />} />
+          <Route path="/why-box-diamonds" element={<WhyBoxDiamondsPage />} />
           <Route path="/blog" element={<PlaceholderPage title="Blog" />} />
-          <Route path="/careers" element={<PlaceholderPage title="Careers" />} />
-          <Route path="/press" element={<PlaceholderPage title="Press" />} />
-          <Route path="/sustainability" element={<PlaceholderPage title="Sustainability" />} />
+          <Route path="/careers" element={<Navigate to="/" replace />} />
+          <Route path="/press" element={<Navigate to="/" replace />} />
+          <Route path="/sustainability" element={<SustainabilityPage />} />
           <Route path="/:categorySlug" element={<PLPPage />} />
           <Route path="/:categorySlug/:productSlug" element={<PDPPage />} />
           <Route path="*" element={<PlaceholderPage title="Coming Soon" />} />

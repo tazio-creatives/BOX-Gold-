@@ -7,6 +7,12 @@ import { env } from '../../config/env.js';
 // branch on which provider is active.
 export const stubShippingProvider = {
   name: 'stub',
+  displayName: 'Stub (dev only)',
+  trackingSource: 'SYSTEM',
+
+  isConfigured() {
+    return true;
+  },
 
   async checkServiceability() {
     return { serviceable: true };

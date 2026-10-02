@@ -1,5 +1,6 @@
 import type { Order, ShipmentTrackingEvent } from '../../api/types';
 import { ReturnRequestSection } from './ReturnRequestSection';
+import { CancelOrderSection, shouldShowCancelSection } from './CancelOrderSection';
 import styles from './OrderSidebar.module.css';
 
 function formatStatus(status: string) {
@@ -22,6 +23,8 @@ function milestoneAt(history: Order['statusHistory'], status: string): string | 
 // provider not listed here) simply gets no link rather than a guessed one.
 const COURIER_TRACKING_URL: Record<string, (_awb: string) => string> = {
   delhivery: (awb) => `https://www.delhivery.com/track/package/${awb}`,
+  // Mirrors backend shippingProvider.bluedart.js's trackingUrl.
+  bluedart: (awb) => `https://www.bluedart.com/web/guest/trackdartresult?trackFor=0&trackNo=${encodeURIComponent(awb)}`,
 };
 
 // Defensive display-layer dedup — a webhook delivery and the poll-based
@@ -106,6 +109,13 @@ export function OrderSidebar({ order }: { order: Order }) {
           ))}
         </ul>
       </section>
+
+      {shouldShowCancelSection(order) && (
+        <section className={styles.card}>
+          <h2 className={styles.cardHeading}>{order.orderStatus === 'CANCELLED' ? 'Refund' : 'Cancel Order'}</h2>
+          <CancelOrderSection order={order} />
+        </section>
+      )}
 
       {/* Gated on "was ever delivered" (not "is currently DELIVERED") so a
           later status change (e.g. a return moving the order on to

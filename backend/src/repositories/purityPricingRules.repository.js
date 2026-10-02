@@ -19,6 +19,24 @@ export async function findPurityPricingRuleValuesByProduct(productId) {
   return rows;
 }
 
+// Batch variant of findPurityPricingRuleValuesByProduct — one query for many
+// products (Pricing Rule Management's preview endpoint, which resolves
+// discounts for up to a whole category/global scope without an N+1).
+export async function findPurityPricingRuleValuesByProductIds(productIds) {
+  if (productIds.length === 0) return new Map();
+  const { rows } = await query(
+    `SELECT product_id, purity_value_id, making_charge_percent, making_charge_discount_percent, diamond_discount_percent
+     FROM product_purity_pricing_rules WHERE product_id = ANY($1)`,
+    [productIds],
+  );
+  const byProduct = new Map();
+  for (const row of rows) {
+    if (!byProduct.has(row.product_id)) byProduct.set(row.product_id, []);
+    byProduct.get(row.product_id).push(row);
+  }
+  return byProduct;
+}
+
 // Label-resolved shape for the admin UI.
 export async function findPurityPricingRulesByProduct(productId) {
   const { rows } = await query(`${RULE_SELECT} WHERE r.product_id = $1 ORDER BY pav.sort_order`, [productId]);

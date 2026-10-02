@@ -23,6 +23,12 @@ const templates = {
     body: `Hi ${contactName},\n\nOrder ${orderNumber} has been cancelled. If a payment was made, it will be refunded to the original payment method.\n\n— BOX DIAMONDS`,
   }),
 
+  // payload: { contactName, orderNumber, totalAmount, refundDays }
+  ORDER_CANCELLED_BY_CUSTOMER: ({ contactName, orderNumber, totalAmount, refundDays }) => ({
+    subject: `Your order ${orderNumber} has been cancelled`,
+    body: `Hi ${contactName},\n\nAs requested, your order ${orderNumber} has been cancelled.\n\nRefund: ₹${Number(totalAmount).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} will be credited back to your original payment method within ${refundDays} days. Depending on your bank, it may take a few additional working days to reflect in your account.\n\nIf you have any questions, just reply to this email.\n\n— BOX DIAMONDS`,
+  }),
+
   // payload: { contactName, orderNumber }
   ORDER_DELIVERY_FAILED: ({ contactName, orderNumber }) => ({
     subject: `Delivery attempt failed for order ${orderNumber}`,

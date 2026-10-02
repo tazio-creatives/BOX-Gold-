@@ -1,5 +1,10 @@
-import { listOrdersQuerySchema } from '../validators/orders.validators.js';
+import { withTransaction } from '../config/db.js';
+import { listOrdersQuerySchema, cancelOrderSchema } from '../validators/orders.validators.js';
 import {
+  findOrderByIdForUpdateTx,
+  updateOrderStatusTx,
+  updateOrderStatusFieldsTx,
+  insertOrderStatusHistoryTx,
   findOrderById,
   findOrdersByUser,
   findOrderListExtras,
@@ -10,7 +15,15 @@ import {
 import { findShipmentByOrderId, findTrackingEventsByShipmentId } from '../repositories/shipments.repository.js';
 import { findReviewsByOrderItemIds, findImagesByReviewIds } from '../repositories/reviews.repository.js';
 import { toOrderDto, toShipmentDto, orderDeliveryEstimateDto } from '../utils/orderDto.js';
-import { NotFoundError } from '../utils/AppError.js';
+import { restoreStockForOrderTx } from '../repositories/reservations.repository.js';
+import { enqueueEmail } from '../services/emailService.js';
+import {
+  CUSTOMER_CANCELLABLE_ORDER_STATUSES,
+  CUSTOMER_CANCEL_REASON_LABELS,
+  ORDER_STATUS_TO_LEGACY_STATUS,
+  REFUND_TIMELINE_DAYS,
+} from '../utils/orderStatus.js';
+import { NotFoundError, AppError } from '../utils/AppError.js';
 
 // Card-shaped list DTO, plus the account "My Orders" card's preview
 // (item count/thumbnail) and progress-stepper timestamps — still no full
@@ -77,6 +90,49 @@ async function loadOwnedOrder(req) {
   const order = await findOrderById(req.params.id);
   if (!order || order.user_id !== req.customer.id) throw new NotFoundError('Order not found');
   return order;
+}
+
+// Customer self-cancellation, allowed only while the order is still
+// CONFIRMED (paid, not yet picked up for processing). Re-checked under a row
+// lock so a concurrent admin "Start Processing" can't slip in between the
+// check and the write. Stock the payment decremented is restored; the refund
+// itself is manual (admin refunds via Cashfree, then "Mark as Refunded"),
+// so payment_status deliberately stays PAID here — CANCELLED + PAID is what
+// surfaces as "Refund pending" to admin and "Refund in progress" to the
+// customer.
+export async function cancel(req, res, next) {
+  try {
+    const owned = await loadOwnedOrder(req);
+    const { reason, note } = cancelOrderSchema.parse(req.body);
+
+    const notePart = note ? ` — "${note}"` : '';
+    const historyNote = `Cancelled by customer (${CUSTOMER_CANCEL_REASON_LABELS[reason]})${notePart}`;
+
+    await withTransaction(async (client) => {
+      const order = await findOrderByIdForUpdateTx(client, owned.id);
+      if (!CUSTOMER_CANCELLABLE_ORDER_STATUSES.includes(order.order_status)) {
+        throw new AppError(
+          400,
+          'This order can no longer be cancelled — it is already being processed. Please contact support.',
+        );
+      }
+      await updateOrderStatusTx(client, order.id, ORDER_STATUS_TO_LEGACY_STATUS.CANCELLED);
+      await updateOrderStatusFieldsTx(client, order.id, { orderStatus: 'CANCELLED' });
+      await insertOrderStatusHistoryTx(client, order.id, 'CANCELLED', historyNote, { source: 'CUSTOMER' });
+      await restoreStockForOrderTx(client, order.id);
+    });
+
+    await enqueueEmail(owned.contact_email, 'ORDER_CANCELLED_BY_CUSTOMER', {
+      contactName: owned.contact_name,
+      orderNumber: owned.order_number,
+      totalAmount: Number(owned.total_amount),
+      refundDays: REFUND_TIMELINE_DAYS,
+    });
+
+    res.json({ orderId: owned.id, orderStatus: 'CANCELLED', refundDays: REFUND_TIMELINE_DAYS });
+  } catch (err) {
+    next(err);
+  }
 }
 
 export async function get(req, res, next) {

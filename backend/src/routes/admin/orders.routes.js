@@ -1,5 +1,13 @@
 import { Router } from 'express';
-import { list, get, summary, startProcessing, markReadyToShip, updateStatus } from '../../controllers/adminOrders.controller.js';
+import {
+  list,
+  get,
+  summary,
+  startProcessing,
+  markReadyToShip,
+  updateStatus,
+  markRefunded,
+} from '../../controllers/adminOrders.controller.js';
 import { get as getWorkOrder, recordPrint as recordWorkOrderPrint } from '../../controllers/adminWorkOrder.controller.js';
 import { get as getInvoice, recordPrint as recordInvoicePrint } from '../../controllers/adminInvoice.controller.js';
 import {
@@ -22,6 +30,7 @@ adminOrdersRouter.get('/:id', get);
 adminOrdersRouter.post('/:id/start-processing', startProcessing);
 adminOrdersRouter.post('/:id/mark-ready-to-ship', markReadyToShip);
 adminOrdersRouter.patch('/:id/status', updateStatus);
+adminOrdersRouter.post('/:id/mark-refunded', markRefunded);
 adminOrdersRouter.get('/:id/work-order', getWorkOrder);
 adminOrdersRouter.post('/:id/work-order/print', recordWorkOrderPrint);
 adminOrdersRouter.get('/:id/invoice', getInvoice);

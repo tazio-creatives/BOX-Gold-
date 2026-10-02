@@ -1,4 +1,4 @@
-import { Routes, Route } from 'react-router-dom';
+import { Routes, Route, Navigate } from 'react-router-dom';
 import { AdminLayout } from './layouts/AdminLayout';
 import { RequirePermission } from './components/RequirePermission';
 import { LoginPage } from './pages/LoginPage';
@@ -18,7 +18,12 @@ import { CustomerDetailPage } from './pages/customers/CustomerDetailPage';
 import { HomepagePage } from './pages/HomepagePage';
 import { ReviewsListPage } from './pages/reviews/ReviewsListPage';
 import { CouponsListPage } from './pages/coupons/CouponsListPage';
-import { PricingPage } from './pages/PricingPage';
+import { PricingLayout } from './pages/pricing/PricingLayout';
+import { RatesPage } from './pages/pricing/RatesPage';
+import { PricingRulesListPage } from './pages/pricing/PricingRulesListPage';
+import { RuleFormPage } from './pages/pricing/RuleFormPage';
+import { ProductOverridesPage } from './pages/pricing/ProductOverridesPage';
+import { PricingAuditPage } from './pages/pricing/PricingAuditPage';
 import { AttributesPage } from './pages/AttributesPage';
 import { AdminUsersListPage } from './pages/adminUsers/AdminUsersListPage';
 import { AuditLogsPage } from './pages/AuditLogsPage';
@@ -154,10 +159,21 @@ export function App() {
           path="/pricing"
           element={
             <RequirePermission permission="pricing">
-              <PricingPage />
+              <PricingLayout />
             </RequirePermission>
           }
-        />
+        >
+          <Route index element={<Navigate to="rates" replace />} />
+          <Route path="rates" element={<RatesPage />} />
+          <Route path="making-charge-rules" element={<PricingRulesListPage ruleType="MAKING_CHARGE" />} />
+          <Route path="making-charge-rules/new" element={<RuleFormPage ruleType="MAKING_CHARGE" />} />
+          <Route path="making-charge-rules/:ruleId" element={<RuleFormPage ruleType="MAKING_CHARGE" />} />
+          <Route path="diamond-rules" element={<PricingRulesListPage ruleType="DIAMOND" />} />
+          <Route path="diamond-rules/new" element={<RuleFormPage ruleType="DIAMOND" />} />
+          <Route path="diamond-rules/:ruleId" element={<RuleFormPage ruleType="DIAMOND" />} />
+          <Route path="overrides" element={<ProductOverridesPage />} />
+          <Route path="audit" element={<PricingAuditPage />} />
+        </Route>
         <Route
           path="/attributes"
           element={

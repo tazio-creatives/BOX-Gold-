@@ -103,6 +103,7 @@ export function PDPPage() {
     displayMrp,
     displayGstAmount,
     displayOfferLabel,
+    displayOfferBadges,
     displayBreakup,
   } = useVariantSelection(productData?.product);
 
@@ -233,6 +234,7 @@ export function PDPPage() {
               displayPrice={displayPrice}
               displayMrp={displayMrp}
               offerLabel={displayOfferLabel}
+              offerBadges={displayOfferBadges}
               displayBreakup={displayBreakup ?? product.priceBreakup}
               displayGoldWeightGrams={displayGoldWeightGrams}
               displayNetWeightGrams={displayNetWeightGrams}

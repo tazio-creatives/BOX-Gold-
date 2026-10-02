@@ -1,6 +1,6 @@
 import { withTransaction } from '../config/db.js';
 import { AppError, NotFoundError, ForbiddenError } from '../utils/AppError.js';
-import { shippingProvider, shippingProviders } from '../providers/shipping/index.js';
+import { shippingProvider, shippingProviders, resolveShippingProvider } from '../providers/shipping/index.js';
 import {
   findShipmentByOrderId,
   findReversePickupByReturnRequestId,
@@ -24,6 +24,7 @@ import {
 } from '../repositories/orders.repository.js';
 import { findReturnRequestById, completeReturnRequestTx } from '../repositories/returnRequests.repository.js';
 import { enqueueEmail } from './emailService.js';
+import { restoreStockForOrderTx } from '../repositories/reservations.repository.js';
 
 // Actually books the shipment with the courier — only reachable once an
 // admin has already marked the order READY_TO_SHIP (adminOrders.controller.js
@@ -43,17 +44,24 @@ export async function createShipmentForOrder(orderId, packageDetails, actorAdmin
   const existing = await findShipmentByOrderId(orderId);
   if (existing) throw new AppError(400, 'A shipment already exists for this order');
 
-  const serviceability = await shippingProvider.checkServiceability(order.shipping_address.pincode);
+  // The admin picks the courier per shipment (Create Shipment dialog);
+  // omitted, it falls back to the SHIPPING_PROVIDER default.
+  const provider = resolveShippingProvider(packageDetails.provider);
+
+  const serviceability = await provider.checkServiceability(order.shipping_address.pincode);
   if (!serviceability.serviceable) {
-    throw new AppError(400, `Delivery pincode ${order.shipping_address.pincode} is not serviceable by the courier`);
+    throw new AppError(
+      400,
+      `Delivery pincode ${order.shipping_address.pincode} is not serviceable by ${provider.displayName}`,
+    );
   }
 
   const items = await findOrderItems(orderId);
-  const result = await shippingProvider.createShipment({ order, items, packageDetails });
+  const result = await provider.createShipment({ order, items, packageDetails });
 
   const shipment = await insertShipment({
     orderId,
-    provider: shippingProvider.name,
+    provider: provider.name,
     providerShipmentId: result.waybill,
     trackingNumber: result.waybill,
     courierName: result.courierName,
@@ -95,6 +103,11 @@ export async function cancelShipmentForOrder(orderId, actorAdminId) {
   await provider.cancelShipment(shipment.provider_shipment_id);
 
   await withTransaction(async (client) => {
+    // Not yet picked up by the courier — the piece is still with us, so the
+    // paid-for stock goes back (see STOCK_RESTORABLE_ORDER_STATUSES).
+    if (shipment.status === 'SHIPMENT_CREATED') {
+      await restoreStockForOrderTx(client, orderId);
+    }
     await updateShipmentStatusSimpleTx(client, shipment.id, 'CANCELLED');
     await updateOrderStatusTx(client, orderId, 'CANCELLED');
     await updateOrderStatusFieldsTx(client, orderId, { orderStatus: 'CANCELLED', shipmentStatus: 'CANCELLED' });
@@ -383,7 +396,7 @@ async function syncOneReversePickup(shipment) {
   }
 
   await applyReversePickupStatus(shipment, mapped, {
-    source: 'DELHIVERY',
+    source: provider.trackingSource ?? 'DELHIVERY',
     note: result.instructions ?? result.status,
     raw: result.raw,
   });
@@ -400,7 +413,11 @@ async function syncOneShipment(shipment) {
   }
 
   const result = await provider.trackShipment(shipment.tracking_number, shipment.status);
-  const mapped = result.status ? DELHIVERY_STATUS_MAP[result.status] : null;
+  // Each courier has its own raw status vocabulary — a provider supplies its
+  // own map (e.g. Blue Dart's forwardStatusMap); Delhivery's lives here.
+  const statusMap = provider.forwardStatusMap ?? DELHIVERY_STATUS_MAP;
+  const source = provider.trackingSource ?? 'DELHIVERY';
+  const mapped = result.status ? statusMap[result.status] : null;
 
   if (!mapped) {
     // Nothing we recognize changed — still record that we checked, so the
@@ -421,13 +438,13 @@ async function syncOneShipment(shipment) {
     await updateShipmentTrackingTx(client, shipment.id, mapped, result.raw);
     await updateOrderStatusFieldsTx(client, shipment.order_id, { orderStatus, shipmentStatus: mapped });
     await insertOrderStatusHistoryTx(client, shipment.order_id, orderStatus, `Courier update: ${result.status}`, {
-      source: 'DELHIVERY',
+      source,
     });
     await insertShipmentTrackingEventTx(client, {
       shipmentId: shipment.id,
       status: mapped,
       note: result.instructions ?? result.status,
-      source: 'DELHIVERY',
+      source,
     });
   });
 

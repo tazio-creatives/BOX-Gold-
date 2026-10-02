@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import type { GoldColor, PriceBreakup, ProductDetail } from '../../api/types';
+import type { GoldColor, OfferBadge, PriceBreakup, ProductDetail } from '../../api/types';
 import { formatPrice } from '../../utils/formatPrice';
 import { DeliveryEstimateDetail } from '../../components/DeliveryEstimate';
 import { ProductAssuranceGrid } from '../../components/ProductAssuranceGrid';
@@ -81,6 +81,7 @@ interface ProductInfoProps {
   displayPrice: number;
   displayMrp: number;
   offerLabel: string | null;
+  offerBadges: OfferBadge[];
   onAddToCart: () => void;
   onBuyNow: () => void;
   displayBreakup: PriceBreakup;
@@ -110,6 +111,7 @@ export function ProductInfo({
   displayPrice,
   displayMrp,
   offerLabel,
+  offerBadges,
   onAddToCart,
   onBuyNow,
   displayBreakup,
@@ -247,13 +249,23 @@ export function ProductInfo({
       </p>
       <p className={styles.taxNote}>Inclusive of all taxes</p>
 
-      {offerLabel && (
+      {(offerBadges.length > 0 || offerLabel) && (
         <div className={styles.offerCard}>
           <span className={styles.offerLeft}>
             <span className={styles.offerIcon}>
               <TagIcon />
             </span>
-            <span className={styles.offerHeadline}>{offerLabel}</span>
+            {offerBadges.length > 0 ? (
+              <span className={styles.offerHeadlineGroup}>
+                {offerBadges.map((badge) => (
+                  <span key={badge.type} className={styles.offerHeadline}>
+                    {badge.label}
+                  </span>
+                ))}
+              </span>
+            ) : (
+              <span className={styles.offerHeadline}>{offerLabel}</span>
+            )}
           </span>
           <span className={styles.offerNote}>Limited-period offer</span>
         </div>
@@ -377,7 +389,7 @@ export function ProductInfo({
 
       <div className={styles.detailsStack}>
         <DetailsCard title="Price Breakup" className={styles.detailsCardHeading}>
-          <PriceBreakupTable breakup={displayBreakup} metalType={product.metalType} />
+          <PriceBreakupTable breakup={displayBreakup} metalType={product.metalType} diamondTypeName={product.diamondType} />
         </DetailsCard>
 
         <DetailsCard title="Product Details" className={styles.detailsCardHeading}>
@@ -404,13 +416,23 @@ export function ProductInfo({
               )}
               <span className={styles.mobileBarTax}>Inclusive of all taxes</span>
             </div>
-            {offerLabel && (
+            {(offerBadges.length > 0 || offerLabel) && (
               <div className={styles.mobileBarOfferCard}>
                 <span className={styles.offerLeft}>
                   <span className={styles.offerIcon}>
                     <TagIcon />
                   </span>
-                  <span className={styles.offerHeadline}>{offerLabel}</span>
+                  {offerBadges.length > 0 ? (
+                    <span className={styles.offerHeadlineGroup}>
+                      {offerBadges.map((badge) => (
+                        <span key={badge.type} className={styles.offerHeadline}>
+                          {badge.label}
+                        </span>
+                      ))}
+                    </span>
+                  ) : (
+                    <span className={styles.offerHeadline}>{offerLabel}</span>
+                  )}
                 </span>
                 <span className={styles.offerNote}>Limited-period offer</span>
               </div>

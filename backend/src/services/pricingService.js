@@ -9,6 +9,8 @@ import {
 } from '../repositories/productVariants.repository.js';
 import { findWeightRuleValuesByProduct } from '../repositories/weightRules.repository.js';
 import { findPurityPricingRuleValuesByProduct } from '../repositories/purityPricingRules.repository.js';
+import { getCategoryAndAncestorIds } from '../repositories/categories.repository.js';
+import { resolveMakingChargeDiscount, resolveDiamondDiscount } from './pricingRuleResolver.js';
 
 // karat/24 — default purity multiplier (plan §9a: "overridable in settings
 // if market convention differs"; no settings table exists in the approved
@@ -111,6 +113,120 @@ export function applyProductOffer({
   };
 }
 
+// Builds the diamond-component array a variant's pricing resolves discounts
+// against. Today this is always exactly one entry (or zero, for a product
+// with no diamond), built from the product's existing single diamond_type_id/
+// diamond_colour/diamond_clarity fields — deliberately an array, not a
+// single object, so a future multi-diamond-type product only needs this one
+// function's body replaced with a read of a real components table, with zero
+// rework of the resolver, jobs, or DTOs that consume the array shape.
+function buildDiamondComponents(product, diamondConfigId, diamondWeightCarats, diamondValue) {
+  if (!diamondConfigId || !diamondWeightCarats) return [];
+  return [
+    {
+      diamondTypeId: product.diamond_type_id ?? null,
+      diamondConfigId,
+      carats: diamondWeightCarats,
+      value: diamondValue,
+      colour: product.diamond_colour ?? null,
+      clarity: product.diamond_clarity ?? null,
+    },
+  ];
+}
+
+// Amount-first sibling of applyProductOffer, used only when an actual
+// PRODUCT/CATEGORY/GLOBAL pricing_rules row won the resolution for making
+// charge and/or at least one diamond component (see computeVariantPricing).
+// Still calls the same single computeSellingPrice — GST is still computed
+// once, after discounts, on the summed subtotal, never a second formula.
+// `makingChargeDiscount` and each component's `.discount` are the {amount,
+// percent, ruleId, ruleName, source, clamped} shape pricingRuleResolver.js
+// returns.
+// `fallbackDiamondValue` is the product's real diamond value for products
+// with no resolvable diamond component at all (no diamond_config_id — a
+// real, common case: legacy/manually-priced diamonds, confirmed against the
+// dev DB) — diamondComponents is then always [], and summing an empty array
+// would silently zero out that value the instant ANY pricing rule applies
+// to the product, even a MAKING_CHARGE-only rule with nothing to do with
+// diamonds. Bug found and fixed while wiring cart/checkout into Pricing
+// Rule Management (Phase 6) — computeVariantPricing's fallback-vs-usesNewRule
+// split meant this path was untested until a rule actually went live.
+export function applyResolvedDiscounts({
+  goldValue,
+  makingCharge,
+  gstPercent,
+  sellingPrice,
+  makingChargeDiscount,
+  diamondComponents,
+  fallbackDiamondValue = 0,
+}) {
+  const discountedMakingCharge = round2(makingCharge - makingChargeDiscount.amount);
+
+  if (diamondComponents.length === 0) {
+    const discountedSellingPrice = computeSellingPrice({
+      goldValue,
+      diamondValue: fallbackDiamondValue,
+      makingCharge: discountedMakingCharge,
+      gstPercent,
+    });
+    return {
+      goldValue,
+      diamondValue: fallbackDiamondValue,
+      diamondValueOriginal: fallbackDiamondValue,
+      makingCharge: discountedMakingCharge,
+      makingChargeOriginal: makingCharge,
+      makingChargeDiscountPercent: makingChargeDiscount.percent,
+      diamondDiscountPercent: 0,
+      sellingPrice: discountedSellingPrice,
+      sellingPriceOriginal: sellingPrice,
+      diamondComponents: [],
+    };
+  }
+
+  const diamondValueOriginal = round2(diamondComponents.reduce((sum, c) => sum + c.value, 0));
+
+  const resolvedComponents = diamondComponents.map((c) => {
+    const finalValue = round2(c.value - c.discount.amount);
+    return {
+      diamondTypeId: c.diamondTypeId,
+      diamondConfigId: c.diamondConfigId,
+      carats: c.carats,
+      value: c.value,
+      colour: c.colour,
+      clarity: c.clarity,
+      finalValue,
+      discountAmount: c.discount.amount,
+      discountPercent: c.discount.percent,
+      appliedRuleId: c.discount.ruleId,
+      appliedRuleName: c.discount.ruleName,
+      source: c.discount.source,
+      clamped: c.discount.clamped,
+    };
+  });
+  const discountedDiamondValue = round2(resolvedComponents.reduce((sum, c) => sum + c.finalValue, 0));
+
+  const discountedSellingPrice = computeSellingPrice({
+    goldValue,
+    diamondValue: discountedDiamondValue,
+    makingCharge: discountedMakingCharge,
+    gstPercent,
+  });
+
+  return {
+    goldValue,
+    diamondValue: discountedDiamondValue,
+    diamondValueOriginal,
+    makingCharge: discountedMakingCharge,
+    makingChargeOriginal: makingCharge,
+    makingChargeDiscountPercent: makingChargeDiscount.percent,
+    diamondDiscountPercent:
+      diamondValueOriginal > 0 ? round2(((diamondValueOriginal - discountedDiamondValue) / diamondValueOriginal) * 100) : 0,
+    sellingPrice: discountedSellingPrice,
+    sellingPriceOriginal: sellingPrice,
+    diamondComponents: resolvedComponents,
+  };
+}
+
 export async function previewPricing({
   metalType,
   purity,
@@ -210,7 +326,16 @@ export function resolvePurityPricingFields(product, purityRule) {
 // avoid re-querying per variant; omitted, each
 // is fetched on demand only when actually needed (the variant carries a
 // purity at all).
-export async function computeVariantPricing(product, variant = null, weightRules = null, purityPricingRules = null) {
+//
+// `ruleSet` (from pricingRuleResolver.loadActiveRuleSet) is optional and
+// additive: omitted entirely (existing callers — cart, checkout, admin
+// variant list — pass nothing), this function is byte-identical to before
+// Pricing Rule Management existed. Passed, it's only actually used for a
+// product/component once a real PRODUCT/CATEGORY/GLOBAL pricing_rules row
+// resolves for it; otherwise this still falls back to the exact legacy
+// applyProductOffer arithmetic, so a ruleSet with zero rules (Phase 1, since
+// no admin UI to create one exists yet) also produces byte-identical output.
+export async function computeVariantPricing(product, variant = null, weightRules = null, purityPricingRules = null, ruleSet = null) {
   const effectivePurity = resolvedPurity(variant) || product.purity;
   const effectiveDiamondConfigId = resolvedDiamondConfigId(variant) || product.diamond_config_id;
   const effectiveGoldColor = resolvedGoldColor(variant) || product.gold_color;
@@ -270,6 +395,8 @@ export async function computeVariantPricing(product, variant = null, weightRules
       .diamondValue;
   }
 
+  const diamondComponentsRaw = buildDiamondComponents(product, effectiveDiamondConfigId, effectiveDiamondWeightCarats, diamondValue);
+
   // Making charge is a live % of gold value when a percent is configured —
   // scales automatically with goldValue above, so it's already correct for
   // whatever purity/size was just resolved. A Product+Purity pricing rule
@@ -314,6 +441,21 @@ export async function computeVariantPricing(product, variant = null, weightRules
       makingChargeOriginal: makingCharge,
       makingChargeDiscountPercent: 0,
       diamondDiscountPercent: 0,
+      makingChargeDiscountAmount: 0,
+      appliedMakingChargeRuleId: null,
+      appliedMakingChargeRuleName: null,
+      makingChargeDiscountSource: 'NONE',
+      diamondDiscountAmount: 0,
+      diamondComponents: diamondComponentsRaw.map((c) => ({
+        ...c,
+        finalValue: c.value,
+        discountAmount: 0,
+        discountPercent: 0,
+        appliedRuleId: null,
+        appliedRuleName: null,
+        source: 'NONE',
+        clamped: false,
+      })),
       gstPercent,
       gstAmount: round2(overridePrice - goldValue - diamondValue - makingCharge),
       sellingPrice: overridePrice,
@@ -322,15 +464,116 @@ export async function computeVariantPricing(product, variant = null, weightRules
     };
   }
 
-  const offer = applyProductOffer({
-    goldValue,
-    diamondValue,
-    makingCharge,
-    gstPercent,
-    sellingPrice: baseSellingPrice,
-    makingChargeDiscountPercent,
-    diamondDiscountPercent,
-  });
+  let offer;
+  let resolvedDiamondComponents;
+  let makingChargeDiscountAmount;
+  let appliedMakingChargeRuleId = null;
+  let appliedMakingChargeRuleName = null;
+  let makingChargeDiscountSource = 'NONE';
+
+  if (ruleSet) {
+    const purityValueId = variant?.attributes?.purity?.valueId ?? null;
+    // Skip the ancestor-chain lookup entirely unless a CATEGORY-scope rule
+    // of either type actually exists — true for 100% of Phase 1 (no admin UI
+    // to create a rule ships until Phase 3), so this adds zero extra queries
+    // today.
+    const needsCategoryLookup =
+      product.category_id != null && (ruleSet.makingByCategory.size > 0 || ruleSet.diamondByCategory.size > 0);
+    const categoryAncestorIds = needsCategoryLookup ? await getCategoryAndAncestorIds(product.category_id) : [];
+
+    const makingChargeDiscount = resolveMakingChargeDiscount({
+      product,
+      categoryAncestorIds,
+      purityValueId,
+      purityRuleRow: purityPricingRule,
+      ruleSet,
+      makingCharge,
+    });
+    const componentsWithDiscount = diamondComponentsRaw.map((c) => ({
+      ...c,
+      discount: resolveDiamondDiscount({ product, categoryAncestorIds, purityRuleRow: purityPricingRule, ruleSet, component: c }),
+    }));
+
+    const NEW_RULE_SOURCES = new Set(['PRODUCT_RULE', 'CATEGORY_RULE', 'GLOBAL_RULE']);
+    const usesNewRule =
+      NEW_RULE_SOURCES.has(makingChargeDiscount.source) ||
+      componentsWithDiscount.some((c) => NEW_RULE_SOURCES.has(c.discount.source));
+
+    if (usesNewRule) {
+      const resolved = applyResolvedDiscounts({
+        goldValue,
+        makingCharge,
+        gstPercent,
+        sellingPrice: baseSellingPrice,
+        makingChargeDiscount,
+        diamondComponents: componentsWithDiscount,
+        fallbackDiamondValue: diamondValue,
+      });
+      offer = resolved;
+      resolvedDiamondComponents = resolved.diamondComponents;
+      makingChargeDiscountAmount = makingChargeDiscount.amount;
+      appliedMakingChargeRuleId = makingChargeDiscount.ruleId;
+      appliedMakingChargeRuleName = makingChargeDiscount.ruleName;
+      makingChargeDiscountSource = makingChargeDiscount.source;
+    } else {
+      // No PRODUCT/CATEGORY/GLOBAL rule actually applies to this product's
+      // making charge OR any diamond component — fall back to the exact
+      // legacy formula (tiers 2/3 only, same values resolveTier already
+      // agreed on) so the numeric output is byte-identical to the
+      // pre-Pricing-Rules code path, not just equivalent.
+      offer = applyProductOffer({
+        goldValue,
+        diamondValue,
+        makingCharge,
+        gstPercent,
+        sellingPrice: baseSellingPrice,
+        makingChargeDiscountPercent,
+        diamondDiscountPercent,
+      });
+      resolvedDiamondComponents = componentsWithDiscount.map((c) => ({
+        diamondTypeId: c.diamondTypeId,
+        diamondConfigId: c.diamondConfigId,
+        carats: c.carats,
+        value: c.value,
+        colour: c.colour,
+        clarity: c.clarity,
+        finalValue: round2(c.value - c.discount.amount),
+        discountAmount: c.discount.amount,
+        discountPercent: c.discount.percent,
+        appliedRuleId: null,
+        appliedRuleName: null,
+        source: c.discount.source,
+        clamped: false,
+      }));
+      makingChargeDiscountAmount = round2(makingCharge - offer.makingCharge);
+      makingChargeDiscountSource = makingChargeDiscount.source;
+    }
+  } else {
+    // No ruleSet passed at all — existing callers (cart, checkout, admin
+    // variant list) take this branch, completely unchanged from before this
+    // feature existed.
+    offer = applyProductOffer({
+      goldValue,
+      diamondValue,
+      makingCharge,
+      gstPercent,
+      sellingPrice: baseSellingPrice,
+      makingChargeDiscountPercent,
+      diamondDiscountPercent,
+    });
+    resolvedDiamondComponents = diamondComponentsRaw.map((c) => ({
+      ...c,
+      finalValue: c.value,
+      discountAmount: 0,
+      discountPercent: 0,
+      appliedRuleId: null,
+      appliedRuleName: null,
+      source: 'NONE',
+      clamped: false,
+    }));
+    makingChargeDiscountAmount = round2(makingCharge - offer.makingCharge);
+  }
+
   const gstAmount = round2(offer.sellingPrice - offer.goldValue - offer.diamondValue - offer.makingCharge);
 
   return {
@@ -348,6 +591,12 @@ export async function computeVariantPricing(product, variant = null, weightRules
     makingChargeOriginal: offer.makingChargeOriginal,
     makingChargeDiscountPercent: offer.makingChargeDiscountPercent,
     diamondDiscountPercent: offer.diamondDiscountPercent,
+    makingChargeDiscountAmount,
+    appliedMakingChargeRuleId,
+    appliedMakingChargeRuleName,
+    makingChargeDiscountSource,
+    diamondComponents: resolvedDiamondComponents,
+    diamondDiscountAmount: round2(offer.diamondValueOriginal - offer.diamondValue),
     gstPercent,
     gstAmount,
     sellingPrice: offer.sellingPrice,

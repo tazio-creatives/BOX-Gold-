@@ -1,6 +1,21 @@
 import { createShipmentSchema, simulateTrackingSchema, addTrackingEventSchema } from '../validators/shipping.validators.js';
 import * as shippingService from '../services/shippingService.js';
 import { toShipmentDto, toTrackingEventDto } from '../utils/orderDto.js';
+import { availableShippingProviders, shippingProvider } from '../providers/shipping/index.js';
+
+// Couriers selectable in admin's Create Shipment dialog — only configured
+// ones — plus which to preselect (SHIPPING_PROVIDER, when it's available).
+export async function listProviders(req, res, next) {
+  try {
+    const providers = availableShippingProviders().map((p) => ({ name: p.name, displayName: p.displayName }));
+    const defaultProvider = providers.some((p) => p.name === shippingProvider.name)
+      ? shippingProvider.name
+      : (providers[0]?.name ?? null);
+    res.json({ providers, defaultProvider });
+  } catch (err) {
+    next(err);
+  }
+}
 
 // Books the shipment with the courier (AWB creation) — only reachable once
 // the order is already sitting at READY_TO_SHIP (set separately via

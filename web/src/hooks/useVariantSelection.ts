@@ -261,6 +261,7 @@ export function useVariantSelection(product: ProductDetail | undefined) {
   const displayMrp = pricePreview?.strikePrice ?? product?.strikePrice ?? 0;
   const displayGstAmount = pricePreview?.gstAmount ?? product?.priceBreakup.gstAmount ?? 0;
   const displayOfferLabel = pricePreview?.offerLabel ?? product?.offerLabel ?? null;
+  const displayOfferBadges = pricePreview?.offerBadges ?? product?.offerBadges ?? [];
 
   // The live-resolved gold weight for whatever combination is selected (may
   // differ from the product's own base weight — see Weight Defaults, a
@@ -326,6 +327,7 @@ export function useVariantSelection(product: ProductDetail | undefined) {
     displaySellingPriceOriginal,
     displayGstAmount,
     displayOfferLabel,
+    displayOfferBadges,
     displayBreakup,
   };
 }

@@ -3,9 +3,10 @@ import { withTransaction } from '../config/db.js';
 import { runGoldRateSync } from '../services/goldRateService.js';
 import { findDiamondConfigById } from '../repositories/diamondConfigs.repository.js';
 import { insertPriceHistory } from '../repositories/productPriceHistory.repository.js';
-import { findGoldProductsForRecalculation, findDiamondProductsForRecalculation, findProductById } from '../repositories/products.repository.js';
+import { findGoldProductsForRecalculation, findDiamondProductsForRecalculation } from '../repositories/products.repository.js';
 import { applyBaseProductPricing } from '../services/productsService.js';
 import { invalidateProductsPagesBatch } from '../services/pageCacheInvalidation.js';
+import { loadActiveRuleSet } from '../services/pricingRuleResolver.js';
 
 export const JOB_GOLD_RATE_SYNC = 'gold-rate-sync';
 export const JOB_RECALCULATE_GOLD = 'recalculate-gold-prices';
@@ -33,26 +34,45 @@ async function goldRateSyncHandler(jobs) {
 // configuration — applyBaseProductPricing already does exactly that, so this
 // handler's job is just: for every affected product, re-run it and log the
 // price-history delta.
+// Per-product try/catch (Pricing Rule Management, Phase 2) — this loop used
+// to have none, so a single product throwing (a missing gold rate for an
+// unusual purity, a data-integrity edge case) aborted recalculation for
+// every other product in the same pass. One bad product must not block a
+// gold-rate sync for the other ~2,000. The rule set is loaded once up front
+// (not once per product, which loadActiveRuleSet's own 30s cache would
+// mostly absorb anyway, but loading it once is still one query instead of
+// up to 2,000).
 async function recalculateGoldPricesHandler() {
   const products = await findGoldProductsForRecalculation();
-  for (const product of products) {
-    const oldSellingPrice = product.selling_price;
-    await applyBaseProductPricing(product.id, false);
-    const updated = await findProductById(product.id);
-    if (!updated || Number(updated.selling_price) === Number(oldSellingPrice)) continue;
+  const ruleSet = await loadActiveRuleSet();
+  const touched = [];
+  const failures = [];
 
-    await withTransaction((client) =>
-      insertPriceHistory(client, {
-        productId: product.id,
-        oldSellingPrice,
-        newSellingPrice: updated.selling_price,
-        goldRateId: null,
-        reason: 'RATE_SYNC',
-      }),
-    );
+  for (const product of products) {
+    try {
+      const result = await applyBaseProductPricing(product.id, false, ruleSet);
+      if (!result?.changed) continue;
+      touched.push(product);
+      await withTransaction((client) =>
+        insertPriceHistory(client, {
+          productId: product.id,
+          oldSellingPrice: result.oldSellingPrice,
+          newSellingPrice: result.newSellingPrice,
+          goldRateId: null,
+          reason: 'RATE_SYNC',
+        }),
+      );
+    } catch (err) {
+      failures.push(product.id);
+      console.error(`[GOLD_RATE_SYNC] product ${product.id} failed to reprice:`, err);
+    }
   }
-  await invalidateProductsPagesBatch(products);
-  console.log(`[GOLD_RATE_SYNC] Products recalculated: ${products.length}`);
+
+  await invalidateProductsPagesBatch(touched);
+  console.log(
+    `[GOLD_RATE_SYNC] Products recalculated: ${touched.length}/${products.length}` +
+      (failures.length ? `, ${failures.length} failed (see logs above)` : ''),
+  );
 }
 
 // pg-boss v10's work() callback receives an array of jobs, not a single job
@@ -65,23 +85,35 @@ async function recalculateDiamondPricesHandler(jobs) {
   if (!config) return;
 
   const products = await findDiamondProductsForRecalculation(diamondConfigId);
-  for (const product of products) {
-    const oldSellingPrice = product.selling_price;
-    await applyBaseProductPricing(product.id, false);
-    const updated = await findProductById(product.id);
-    if (!updated || Number(updated.selling_price) === Number(oldSellingPrice)) continue;
+  const ruleSet = await loadActiveRuleSet();
+  const touched = [];
+  const failures = [];
 
-    await withTransaction((client) =>
-      insertPriceHistory(client, {
-        productId: product.id,
-        oldSellingPrice,
-        newSellingPrice: updated.selling_price,
-        goldRateId: null,
-        reason: 'DIAMOND_RATE_CHANGE',
-      }),
-    );
+  for (const product of products) {
+    try {
+      const result = await applyBaseProductPricing(product.id, false, ruleSet);
+      if (!result?.changed) continue;
+      touched.push(product);
+      await withTransaction((client) =>
+        insertPriceHistory(client, {
+          productId: product.id,
+          oldSellingPrice: result.oldSellingPrice,
+          newSellingPrice: result.newSellingPrice,
+          goldRateId: null,
+          reason: 'DIAMOND_RATE_CHANGE',
+        }),
+      );
+    } catch (err) {
+      failures.push(product.id);
+      console.error(`[DIAMOND_RATE_CHANGE] product ${product.id} failed to reprice:`, err);
+    }
   }
-  await invalidateProductsPagesBatch(products);
+
+  await invalidateProductsPagesBatch(touched);
+  console.log(
+    `[DIAMOND_RATE_CHANGE] Products recalculated: ${touched.length}/${products.length}` +
+      (failures.length ? `, ${failures.length} failed (see logs above)` : ''),
+  );
 }
 
 export async function registerPricingWorkers() {

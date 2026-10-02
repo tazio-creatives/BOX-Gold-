@@ -127,6 +127,11 @@ const productObjectSchema = z.object({
   diamondWeightCarats: z.coerce.number().nonnegative().nullable().optional(),
   diamondConfigId: z.string().uuid().nullable().optional(),
   diamondCount: z.coerce.number().int().nonnegative().nullable().optional(),
+  // diamondType (free text) is no longer accepted directly from the form —
+  // it's derived server-side from diamondTypeId (productsService.js's
+  // syncDiamondTypeName) so the two can never drift apart. Still present on
+  // the read DTO (toDetailDto) for anything that hasn't migrated off it.
+  diamondTypeId: z.string().uuid().nullable().optional(),
   diamondType: z.string().trim().max(100).nullable().optional(),
   diamondColour: z.string().trim().max(50).nullable().optional(),
   diamondClarity: z.string().trim().max(50).nullable().optional(),

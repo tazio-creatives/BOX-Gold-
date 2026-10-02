@@ -1,5 +1,5 @@
 import { getEnabledSectionsWithItems } from '../repositories/homepage.repository.js';
-import { toListDto, rowOffer, discountPercent, offerLabel, strikePriceInfo } from './products.controller.js';
+import { toListDto, rowOffer, discountPercent, offerLabel, offerBadges, strikePriceInfo } from './products.controller.js';
 import { calculateDeliveryEstimate } from '../services/deliveryEstimateService.js';
 
 // Homepage's hand-curated queries (NEW_ARRIVALS/FEATURED_PRODUCT/the single
@@ -56,6 +56,10 @@ function toItemDto(row, deliveryEstimate) {
       hasDiscount: priceInfo.hasDiscount,
       effectiveDiscountPercent: priceInfo.effectiveDiscountPercent,
       offerLabel: offerLabel(offer.makingChargeDiscountPercent, offer.diamondDiscountPercent),
+      // No diamond-type name here — this hand-built row doesn't select
+      // product_diamond_type, unlike toListDto's LIST_COLUMNS — badge falls
+      // back to the generic "Diamond Value" wording.
+      offerBadges: offerBadges(offer.makingChargeDiscountPercent, offer.diamondDiscountPercent, null),
       imageUrl: row.product_image_url,
       metalType: row.product_metal_type,
       purity: row.product_purity,

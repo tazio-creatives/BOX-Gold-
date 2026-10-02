@@ -95,13 +95,23 @@ export function ProductCard({
           {formatPrice(product.sellingPrice)}
           {strikePrice > 0 && <span className={styles.mrp}>{formatPrice(strikePrice)}</span>}
         </p>
-        {product.offerLabel && (
+        {(product.offerBadges.length > 0 || product.offerLabel) && (
           <div className={styles.offerBanner}>
             <span className={styles.offerBannerLeft}>
               <span className={styles.offerBannerIcon}>
                 <TagIcon />
               </span>
-              <span className={styles.offerBannerHeadline}>{product.offerLabel}</span>
+              {product.offerBadges.length > 0 ? (
+                <span className={styles.offerBannerHeadlineGroup}>
+                  {product.offerBadges.map((badge) => (
+                    <span key={badge.type} className={styles.offerBannerHeadline}>
+                      {badge.label}
+                    </span>
+                  ))}
+                </span>
+              ) : (
+                <span className={styles.offerBannerHeadline}>{product.offerLabel}</span>
+              )}
             </span>
             <span className={styles.offerBannerNote}>Limited-period offer</span>
           </div>

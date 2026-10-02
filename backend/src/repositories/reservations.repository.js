@@ -56,6 +56,26 @@ export async function releaseReservationsForOrderTx(client, orderId) {
   );
 }
 
+// Cancellation of an already-PAID order — the inverse of
+// confirmReservationsForOrderTx: CONFIRMED reservations had their quantity
+// permanently decremented from the variant at payment, so it's added back
+// here before the reservation is released. ACTIVE ones (never decremented)
+// are just released.
+export async function restoreStockForOrderTx(client, orderId) {
+  const reservations = await findReservationsForOrderTx(client, orderId);
+  for (const reservation of reservations) {
+    if (reservation.status === 'CONFIRMED' && reservation.product_variant_id) {
+      await client.query(
+        `UPDATE product_variants SET stock_quantity = stock_quantity + $2 WHERE id = $1`,
+        [reservation.product_variant_id, reservation.quantity],
+      );
+    }
+    if (reservation.status !== 'RELEASED') {
+      await client.query(`UPDATE stock_reservations SET status = 'RELEASED' WHERE id = $1`, [reservation.id]);
+    }
+  }
+}
+
 export async function findExpiredActiveReservationOrderIds() {
   const { rows } = await query(
     `SELECT DISTINCT order_id FROM stock_reservations

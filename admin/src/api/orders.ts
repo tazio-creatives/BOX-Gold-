@@ -71,6 +71,15 @@ export function updateOrderStatus(id: string, status: OrderStatus, note?: string
   });
 }
 
+// Records a refund already issued manually from the Cashfree dashboard —
+// only valid for a cancelled/returned order whose payment is still PAID.
+export function markOrderRefunded(id: string, reference?: string) {
+  return apiFetch<{ order: OrderDetail }>(`/admin/orders/${id}/mark-refunded`, {
+    method: 'POST',
+    body: JSON.stringify({ reference }),
+  });
+}
+
 // Phase 2 — work order (job card). Gated server-side on the order having
 // reached Processing at least once (order.canPrintWorkOrder on the detail
 // response mirrors this for button enablement, without a second round trip).

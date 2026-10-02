@@ -26,6 +26,7 @@ const CSR_ONLY_SINGLE_SEGMENT = new Set([
   'account',
   'shipping-policy',
   'refund-policy',
+  'return-policy',
   'cancellation-policy',
   'privacy-policy',
   'terms',

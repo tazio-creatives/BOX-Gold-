@@ -49,6 +49,15 @@ export function fetchOrderById(id: string) {
   return apiFetch<{ order: Order }>(`/orders/${id}`);
 }
 
+export type CancelReason = 'ORDERED_BY_MISTAKE' | 'BETTER_PRICE' | 'DELIVERY_TOO_SLOW' | 'CHANGED_MIND' | 'OTHER';
+
+export function cancelOrder(orderId: string, input: { reason: CancelReason; note?: string }) {
+  return apiFetch<{ orderId: string; orderStatus: OrderStatus; refundDays: number }>(`/orders/${orderId}/cancel`, {
+    method: 'POST',
+    body: JSON.stringify(input),
+  });
+}
+
 export function fetchReturnRequest(orderId: string) {
   return apiFetch<{ returnRequest: ReturnRequest | null }>(`/orders/${orderId}/return-request`);
 }

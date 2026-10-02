@@ -26,6 +26,7 @@ import { OrderSummaryCard } from './OrderSummaryCard';
 import { ChangeStatusRow } from './ChangeStatusRow';
 import { OrderTimelineCard } from './OrderTimelineCard';
 import { ReturnRequestCard } from './ReturnRequestCard';
+import { RefundPendingCard, isRefundPending } from './RefundPendingCard';
 import { CopyIcon, BoxIcon, LocationIcon, HistoryIcon, TruckIcon } from './OrderHeroIcons';
 import sharedStyles from '../../styles/shared.module.css';
 import styles from './OrderDetailPage.module.css';
@@ -251,6 +252,12 @@ export function OrderDetailContent({ id, compact = false }: { id: string; compac
             statusMutation={statusMutation}
             startProcessingMutation={startProcessingMutation}
           />
+        </div>
+      )}
+
+      {isRefundPending(order) && (
+        <div style={{ marginBottom: 'var(--space-5)' }}>
+          <RefundPendingCard order={order} />
         </div>
       )}
 

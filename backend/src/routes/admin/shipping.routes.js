@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import {
+  listProviders,
   createShipment,
   cancelShipment,
   syncTracking,
@@ -14,6 +15,7 @@ import { requirePermission } from '../../middleware/adminAuth.js';
 export const adminShippingRouter = Router();
 
 adminShippingRouter.use(requirePermission('orders'));
+adminShippingRouter.get('/providers', listProviders);
 adminShippingRouter.post('/orders/:id/create-shipment', createShipment);
 adminShippingRouter.post('/orders/:id/cancel-shipment', cancelShipment);
 adminShippingRouter.post('/orders/:id/sync-tracking', syncTracking);

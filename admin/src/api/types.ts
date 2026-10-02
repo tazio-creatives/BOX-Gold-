@@ -74,6 +74,7 @@ export interface ProductDetail {
   diamondWeightCarats: number | null;
   diamondConfigId: string | null;
   diamondCount: number | null;
+  diamondTypeId: string | null;
   diamondType: string | null;
   diamondColour: string | null;
   diamondClarity: string | null;
@@ -154,6 +155,7 @@ export interface ProductInput {
   diamondWeightCarats?: number | null;
   diamondConfigId?: string | null;
   diamondCount?: number | null;
+  diamondTypeId?: string | null;
   diamondType?: string | null;
   diamondColour?: string | null;
   diamondClarity?: string | null;
@@ -354,6 +356,192 @@ export interface DiamondConfig {
   isActive: boolean;
   createdAt: string;
   updatedAt: string;
+}
+
+export interface DiamondType {
+  id: string;
+  name: string;
+  slug: string;
+  isActive: boolean;
+  sortOrder: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface DiamondTypeInput {
+  name: string;
+  sortOrder?: number;
+  isActive?: boolean;
+}
+
+// --- Pricing Rule Management ---
+
+export type PricingRuleType = 'MAKING_CHARGE' | 'DIAMOND';
+export type PricingRuleScope = 'GLOBAL' | 'CATEGORY' | 'PRODUCT';
+export type PricingDiscountType = 'PERCENT' | 'FIXED_AMOUNT' | 'FIXED_AMOUNT_PER_CARAT';
+export type PricingRuleStatus = 'DRAFT' | 'SCHEDULED' | 'ACTIVE' | 'EXPIRED' | 'DISABLED';
+export type PricingOverrideMode = 'PRESERVE' | 'SUPPRESS';
+export type PricingConditionType = 'DIAMOND_QUALITY' | 'DIAMOND_COLOUR' | 'DIAMOND_CLARITY' | 'CARAT_RANGE';
+
+export interface PricingRuleCondition {
+  conditionType: PricingConditionType;
+  stringValues: string[] | null;
+  minValue: number | null;
+  maxValue: number | null;
+}
+
+export interface PricingRule {
+  id: string;
+  ruleType: PricingRuleType;
+  name: string;
+  scope: PricingRuleScope;
+  discountType: PricingDiscountType;
+  discountValue: number;
+  purityScope: 'ALL' | 'SELECTED';
+  purityValueIds: string[];
+  overrideMode: PricingOverrideMode;
+  startsAt: string | null;
+  endsAt: string | null;
+  status: PricingRuleStatus;
+  priority: number;
+  notes: string | null;
+  createdAt: string;
+  updatedAt: string;
+  categoryIds: string[];
+  productIds: string[];
+  diamondTypeIds: string[];
+  conditions: PricingRuleCondition[];
+}
+
+// What create/update actually accept — a subset of PricingRule's fields,
+// all optional on update (matches pricingRules.validators.js exactly).
+export interface PricingRuleInput {
+  ruleType: PricingRuleType;
+  name: string;
+  scope: PricingRuleScope;
+  discountType: PricingDiscountType;
+  discountValue: number;
+  purityScope?: 'ALL' | 'SELECTED';
+  purityValueIds?: string[];
+  overrideMode?: PricingOverrideMode;
+  startsAt?: string | null;
+  endsAt?: string | null;
+  status?: PricingRuleStatus;
+  priority?: number;
+  notes?: string | null;
+  categoryIds?: string[];
+  productIds?: string[];
+  diamondTypeIds?: string[];
+  conditions?: PricingRuleCondition[];
+}
+
+export interface RulePreviewPriceBreakdown {
+  makingCharge: number;
+  diamondValue: number;
+  gst: number;
+  sellingPrice: number;
+}
+
+export interface RulePreviewSample {
+  productId: string;
+  sku: string;
+  name: string;
+  before: RulePreviewPriceBreakdown;
+  after: RulePreviewPriceBreakdown;
+}
+
+export interface RulePreviewResult {
+  totalProductsInScope: number;
+  eligibleCount: number;
+  matchingDiamondTypeCount: number | null;
+  withExistingOverrides: number;
+  willReceiveRule: number;
+  clampedCount: number;
+  suppressedCount: number;
+  excluded: { reason: string; count: number }[];
+  missingPricingData: { productId: string; sku: string; missing: string[] }[];
+  samples: RulePreviewSample[];
+}
+
+export type RepriceJobStatus = 'QUEUED' | 'RUNNING' | 'COMPLETED' | 'COMPLETED_WITH_ERRORS' | 'FAILED' | 'CANCELLED';
+
+export interface RepriceJob {
+  id: string;
+  ruleId: string | null;
+  ruleNameSnapshot: string | null;
+  trigger: string;
+  status: RepriceJobStatus;
+  totalCount: number;
+  processedCount: number;
+  changedCount: number;
+  failedCount: number;
+  failures: { productId: string; sku: string; message: string }[];
+  error: string | null;
+  startedAt: string | null;
+  finishedAt: string | null;
+  createdAt: string;
+}
+
+// --- Product Overrides (Phase 5) ---
+
+export interface ProductOverride {
+  id: string;
+  sku: string;
+  name: string;
+  slug: string;
+  categoryId: string | null;
+  categoryName: string | null;
+  diamondTypeId: string | null;
+  diamondTypeName: string | null;
+  flatMakingChargeDiscountPercent: number;
+  flatDiamondDiscountPercent: number;
+  effectiveMakingChargeDiscountPercent: number | null;
+  effectiveDiamondDiscountPercent: number | null;
+  effectiveMakingChargeRuleId: string | null;
+  effectiveDiamondRuleId: string | null;
+  hasMakingOverride: boolean;
+  hasDiamondOverride: boolean;
+  hasRestorableOverride: boolean;
+}
+
+export type ProductOverrideBulkAction =
+  | 'REMOVE_MAKING_OVERRIDE'
+  | 'REMOVE_DIAMOND_OVERRIDE'
+  | 'DISABLE_OVERRIDES'
+  | 'RESTORE_PREVIOUS_OVERRIDES';
+
+// --- Pricing Audit History (Phase 6) ---
+
+export type PricingAuditAction =
+  | 'CREATED'
+  | 'UPDATED'
+  | 'ACTIVATED'
+  | 'DEACTIVATED'
+  | 'SCHEDULED'
+  | 'EXPIRED'
+  | 'DELETED'
+  | 'REPRICE_STARTED'
+  | 'REPRICE_COMPLETED'
+  | 'REPRICE_FAILED'
+  | 'OVERRIDE_REMOVED'
+  | 'OVERRIDE_RESTORED'
+  | 'BULK_OVERRIDE_ACTION';
+
+export interface PricingAuditEntry {
+  id: string;
+  ruleId: string | null;
+  ruleNameSnapshot: string | null;
+  ruleType: PricingRuleType | null;
+  action: PricingAuditAction;
+  previousValue: Record<string, unknown> | null;
+  newValue: Record<string, unknown> | null;
+  affectedProductCount: number | null;
+  productId: string | null;
+  productName: string | null;
+  productSku: string | null;
+  adminUserId: string | null;
+  adminName: string | null;
+  createdAt: string;
 }
 
 export type PaymentStatus = 'PENDING' | 'PAID' | 'FAILED' | 'REFUNDED';
