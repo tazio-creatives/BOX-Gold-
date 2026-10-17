@@ -45,7 +45,9 @@ for (const p of products) {
   if (!numeric && !accentMangled) continue;
 
   const base = slugify(p.name);
-  if (!base) continue;
+  // A product *named* "119" has nothing better to offer — rename it in
+  // admin first; "119-2" would be no improvement.
+  if (!base || /^\d+$/.test(base)) continue;
   let candidate = base;
   for (let n = 2; taken.has(candidate); n += 1) candidate = `${base}-${n}`;
   taken.add(candidate);
