@@ -2,7 +2,7 @@ import { matchPath } from 'react-router-dom';
 import type { QueryClient, QueryKey } from '@tanstack/react-query';
 import { ApiError } from '../api/client';
 import { fetchHomepage } from '../api/homepage';
-import { fetchCategories } from '../api/categories';
+import { fetchCategories, fetchFilterOptions } from '../api/categories';
 import { fetchCollectionBySlug } from '../api/collections';
 import { fetchProductBySlug } from '../api/products';
 import { parsePlpFilters } from '../features/plp/parsePlpFilters';
@@ -138,6 +138,8 @@ async function safePrefetch<T>(
 // page 1 is fetched server-side (the `pages: 1` default) — scrolling further
 // is a client-only concern.
 async function safePrefetchProducts(queryClient: QueryClient, filters: ProductsQueryFilters): Promise<void> {
+  // Every product listing shows the filter sidebar — its options too.
+  await safePrefetch(queryClient, ['filter-options'], fetchFilterOptions);
   try {
     await queryClient.prefetchInfiniteQuery({
       queryKey: productsQueryKey(filters),

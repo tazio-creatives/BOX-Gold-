@@ -25,6 +25,7 @@ import { productsRouter } from './routes/products.routes.js';
 import { categoriesRouter } from './routes/categories.routes.js';
 import { collectionsRouter } from './routes/collections.routes.js';
 import { searchRouter } from './routes/search.routes.js';
+import { filterOptionsRouter } from './routes/filterOptions.routes.js';
 import { homepageRouter } from './routes/homepage.routes.js';
 import { adminProductsRouter } from './routes/admin/products.routes.js';
 import { adminAttributesRouter } from './routes/admin/attributes.routes.js';
@@ -109,6 +110,7 @@ export function createApp() {
   publicCatalogRouter.use('/categories', categoriesRouter);
   publicCatalogRouter.use('/collections', collectionsRouter);
   publicCatalogRouter.use('/search', searchRouter);
+  publicCatalogRouter.use('/filter-options', filterOptionsRouter);
   publicCatalogRouter.use('/homepage', homepageRouter);
   publicCatalogRouter.use('/blog', blogRouter);
   app.use('/api/v1', publicCatalogRouter);
