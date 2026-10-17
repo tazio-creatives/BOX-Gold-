@@ -23,12 +23,15 @@ import styles from './HomepageSection.module.css';
 interface Props {
   section: HomepageSectionData;
   alternate: boolean;
+  // Only the page's first HERO loads its image at high priority (it's the
+  // above-the-fold LCP image) — see HeroCarousel's `priority`.
+  isFirstHero?: boolean;
 }
 
 // Section "type" drives layout shape (grid size, card size) — content is
 // entirely admin-configurable via /api/v1/homepage (plan §3), nothing here
 // is hardcoded per-product/category.
-export function HomepageSection({ section, alternate }: Props) {
+export function HomepageSection({ section, alternate, isFirstHero = false }: Props) {
   if (section.items.length === 0 && section.type !== 'NEWSLETTER') return null;
 
   const sectionClass = `${styles.section} ${alternate ? styles.alt : ''}`;
@@ -37,7 +40,7 @@ export function HomepageSection({ section, alternate }: Props) {
     case 'HERO':
       return (
         <section className={`${styles.section} ${styles.hero}`}>
-          <HeroCarousel items={section.items} />
+          <HeroCarousel items={section.items} priority={isFirstHero} />
         </section>
       );
 

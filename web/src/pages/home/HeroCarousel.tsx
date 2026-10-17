@@ -18,7 +18,24 @@ function ariaLabelFor(item: HomepageItem): string {
   return item.name || item.category?.name || item.collection?.name || item.product?.name || 'Promotional banner';
 }
 
-export function HeroCarousel({ items }: { items: HomepageItem[] }) {
+// Downloads an image into the browser cache without showing it, so a later
+// <img> with the same URL paints immediately.
+function warmImage(url: string) {
+  const img = new Image();
+  img.decoding = 'async';
+  img.src = url;
+}
+
+interface HeroCarouselProps {
+  items: HomepageItem[];
+  // True for the page's first hero only — its first slide is the main
+  // above-the-fold image (LCP), so it's fetched eagerly at high priority.
+  // A hero further down the page (admin can add more than one) loads
+  // lazily instead of competing with it for bandwidth.
+  priority?: boolean;
+}
+
+export function HeroCarousel({ items, priority = true }: HeroCarouselProps) {
   const [active, setActive] = useState(0);
   const [isHovering, setIsHovering] = useState(false);
   const [isTouching, setIsTouching] = useState(false);
@@ -43,6 +60,28 @@ export function HeroCarousel({ items }: { items: HomepageItem[] }) {
     }, ROTATE_MS);
     return () => window.clearInterval(id);
   }, [items.length, hasMultiple, isPaused]);
+
+  // Once the page has finished loading, quietly fetch the NEXT slide's image
+  // (the one this screen size will actually use) so auto-rotation shows it
+  // instantly. Without this the next slide only started downloading when it
+  // became active — blank for a moment on slow phones, and that late paint
+  // was what Lighthouse measured as the page's LCP.
+  useEffect(() => {
+    if (!hasMultiple) return;
+    const upcoming = items[(active + 1) % items.length];
+    if (!upcoming?.imageUrl) return;
+    const url =
+      upcoming.imageUrlMobile && window.matchMedia(MOBILE_BREAKPOINT).matches
+        ? upcoming.imageUrlMobile
+        : upcoming.imageUrl;
+    if (document.readyState === 'complete') {
+      warmImage(url);
+      return;
+    }
+    const onLoad = () => warmImage(url);
+    window.addEventListener('load', onLoad, { once: true });
+    return () => window.removeEventListener('load', onLoad);
+  }, [active, items, hasMultiple]);
 
   // Pause while browser focus is anywhere inside the slider (keyboard users
   // tabbing to the prev/next buttons or the banner link itself).
@@ -96,8 +135,8 @@ export function HeroCarousel({ items }: { items: HomepageItem[] }) {
         src={item.imageUrl}
         alt={`${label} — BOX DIAMONDS`}
         className={styles.bgImg}
-        loading="eager"
-        fetchPriority="high"
+        loading={priority ? 'eager' : 'lazy'}
+        fetchPriority={priority && active === 0 ? 'high' : undefined}
         decoding="async"
       />
     </picture>

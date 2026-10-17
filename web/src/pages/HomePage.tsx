@@ -52,7 +52,7 @@ export function HomePage() {
       <h1 className={styles.visuallyHidden}>BOX DIAMONDS — Certified Natural Diamond Jewellery</h1>
       {data.sections.map((section, i) => (
         <Fragment key={section.id}>
-          <HomepageSection section={section} alternate={i % 2 === 1} />
+          <HomepageSection section={section} alternate={i % 2 === 1} isFirstHero={i === firstHeroIndex} />
           {/* Static, homepage-only strip — not a homepage_sections row, so
               it's placed here positionally right after HERO rather than in
               HomepageSection.tsx's data-driven switch (plan: "Add only the
