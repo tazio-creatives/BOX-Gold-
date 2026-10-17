@@ -14,6 +14,12 @@
 // these URLs will need invalidating after this runs (nothing in this repo
 // currently does that automatically).
 //
+// Also: S3 objects are served with a 1-year immutable Cache-Control
+// (storageProvider.s3.js), so browsers that already cached an AVIF keep
+// the old version after this rewrites it in place. Harmless here (same
+// image, different quality), but anything that must change visibly needs
+// a new key instead.
+//
 // Safe to re-run (idempotent — re-encoding the same source at the same
 // quality again is a no-op in effect). Run with no flags first to see what
 // it would touch; pass --apply to actually write.

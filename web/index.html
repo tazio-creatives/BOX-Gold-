@@ -45,6 +45,12 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <!-- Every banner and product photo (including the LCP image) comes from
+         this S3 bucket — open the connection while the HTML is still
+         parsing instead of when the first <img> is reached. No crossorigin:
+         plain <img> requests don't use CORS, so they'd skip a CORS-mode
+         connection. -->
+    <link rel="preconnect" href="https://boxgold.s3.ap-south-1.amazonaws.com" />
     <!-- Loaded non-render-blocking (media="print" until it arrives, then
          switched to all) — with display=swap the fallback font paints first
          anyway, so blocking first paint on this request bought nothing. -->

@@ -51,6 +51,14 @@ function contentTypeFor(key) {
   return CONTENT_TYPES[ext] ?? 'application/octet-stream';
 }
 
+// Every key the app saves has a fresh random UUID in it (see callers of
+// save()), so a stored file never changes — browsers can keep it for a
+// year. Without this S3 sends no Cache-Control at all and returning
+// visitors re-downloaded every banner and product photo. The one exception
+// is scripts/backfillAvifQuality.js, which rewrites AVIFs in place (see the
+// note there). Existing objects: scripts/setS3CacheControl.js.
+export const S3_CACHE_CONTROL = 'public, max-age=31536000, immutable';
+
 async function streamToBuffer(stream) {
   const chunks = [];
   for await (const chunk of stream) chunks.push(chunk);
@@ -64,7 +72,13 @@ export const s3StorageProvider = {
 
   async save(key, buffer) {
     await getClient().send(
-      new PutObjectCommand({ Bucket: env.s3Bucket, Key: key, Body: buffer, ContentType: contentTypeFor(key) }),
+      new PutObjectCommand({
+        Bucket: env.s3Bucket,
+        Key: key,
+        Body: buffer,
+        ContentType: contentTypeFor(key),
+        CacheControl: S3_CACHE_CONTROL,
+      }),
     );
     return { key, url: publicUrlFor(key) };
   },
