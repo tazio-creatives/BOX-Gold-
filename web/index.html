@@ -12,34 +12,75 @@
          including PageView on each route change, is sent from
          src/analytics/metaPixel.ts.
 
-         The gtag()/fbq() queues are defined immediately, so nothing the app
-         sends is lost — calls just wait in the queue. The ~550 KB of tag
-         scripts download only once the page has loaded (or on the first
-         tap/scroll/key press, if that comes sooner): on phones they were
-         downloading alongside the hero image and delaying it by seconds. -->
+         The Google scripts (GTM + gtag.js, ~300 KB) download only once the
+         page has loaded, or on the first tap/scroll/key press if that comes
+         sooner: on phones they were downloading alongside the hero image
+         and delaying it. The gtag() queue exists immediately, so nothing
+         the app sends is lost. The Meta Pixel loads straight away, as
+         before (see the note on it below). -->
     <script>
       window.dataLayer = window.dataLayer || [];
       function gtag(){dataLayer.push(arguments);}
       gtag('js', new Date());
-      gtag('config', 'G-YF4GE487RS');
+      // The landing page_view is sent explicitly, with the URL and title as
+      // they are NOW: gtag.js arrives later, and its automatic page_view
+      // would report whatever page the visitor is on by then. In-app
+      // navigations before it arrives are sent the same way (below); after
+      // that GA4's own history-change page views take over.
+      gtag('config', 'G-YF4GE487RS', { send_page_view: false });
+      gtag('event', 'page_view', { page_location: location.href, page_title: document.title });
 
-      // Stock Meta Pixel snippet minus its <script> tag (loaded below).
-      !function(f){if(f.fbq)return;var n=f.fbq=function(){n.callMethod?
+      // Meta Pixel: stock snippet, loaded straight away as before — NOT
+      // deferred. Loaded late, the pixel reports every queued event with
+      // whatever page the visitor has moved on to, drops repeated
+      // PageViews, and can miss the fbclid of an ad click if the visitor
+      // taps away from the landing URL first (that cookie also feeds the
+      // server-side Conversions API purchase).
+      !function(f,b,e,v,n,t,s)
+      {if(f.fbq)return;n=f.fbq=function(){n.callMethod?
       n.callMethod.apply(n,arguments):n.queue.push(arguments)};
       if(!f._fbq)f._fbq=n;n.push=n;n.loaded=!0;n.version='2.0';
-      n.queue=[]}(window);
+      n.queue=[];t=b.createElement(e);t.async=!0;
+      t.src=v;s=b.getElementsByTagName(e)[0];
+      s.parentNode.insertBefore(t,s)}(window, document,'script',
+      'https://connect.facebook.net/en_US/fbevents.js');
       fbq('init', '1119380757335568');
 
       (function () {
         var started = false;
         var triggers = ['pointerdown', 'keydown', 'scroll', 'touchstart'];
         var opts = { passive: true, capture: true };
-        function load(src) {
+        function load(src, onload) {
           var s = document.createElement('script');
           s.async = true;
           s.src = src;
+          if (onload) s.onload = onload;
           document.head.appendChild(s);
         }
+
+        // Until gtag.js has loaded, record in-app page changes ourselves.
+        var gaReady = false;
+        var lastUrl = location.href;
+        function onUrlChange() {
+          if (gaReady || location.href === lastUrl) return;
+          lastUrl = location.href;
+          var url = lastUrl;
+          // GA4 wasn't listening when this URL change happened, so it's ours
+          // to send even if gtag.js arrives in the meantime. The 300 ms wait
+          // is only for the title, which the app sets just after the URL.
+          setTimeout(function () {
+            gtag('event', 'page_view', { page_location: url, page_title: document.title });
+          }, 300);
+        }
+        ['pushState', 'replaceState'].forEach(function (name) {
+          var original = history[name];
+          history[name] = function () {
+            var result = original.apply(this, arguments);
+            onUrlChange();
+            return result;
+          };
+        });
+        window.addEventListener('popstate', onUrlChange);
         function start() {
           if (started) return;
           started = true;
@@ -47,8 +88,7 @@
           window.removeEventListener('load', start);
           dataLayer.push({ 'gtm.start': new Date().getTime(), event: 'gtm.js' });
           load('https://www.googletagmanager.com/gtm.js?id=GTM-TS9FR3PF');
-          load('https://www.googletagmanager.com/gtag/js?id=G-YF4GE487RS');
-          load('https://connect.facebook.net/en_US/fbevents.js');
+          load('https://www.googletagmanager.com/gtag/js?id=G-YF4GE487RS', function () { gaReady = true; });
         }
         triggers.forEach(function (t) { window.addEventListener(t, start, opts); });
         if (document.readyState === 'complete') start();
