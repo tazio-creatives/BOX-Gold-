@@ -36,7 +36,7 @@ const COLUMNS: { title: string; links: { label: string; to: string }[] }[] = [
       { label: 'Bangles', to: '/bangles' },
       { label: 'Bracelets', to: '/bracelets' },
       { label: 'Pendants', to: '/pendants' },
-      { label: 'Gifts', to: '/gifts' },
+      { label: 'Gifts', to: '/collections/diamond-gifts' },
     ],
   },
   {

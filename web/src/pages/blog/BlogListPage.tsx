@@ -16,7 +16,10 @@ export function BlogListPage() {
   });
 
   useHead({
-    title: page > 1 ? `Blog — Page ${page} | BOX DIAMONDS` : 'Blog | BOX DIAMONDS',
+    title:
+      page > 1
+        ? `Diamond Jewellery Blog — Page ${page} | BOX DIAMONDS`
+        : 'Diamond Jewellery Blog & Guides | BOX DIAMONDS',
     description:
       'Diamond and jewellery guides, styling ideas, care tips and stories from Box Diamonds — natural diamonds, lightweight gold and everyday luxury.',
     canonicalPath: page > 1 ? `/blog?page=${page}` : '/blog',

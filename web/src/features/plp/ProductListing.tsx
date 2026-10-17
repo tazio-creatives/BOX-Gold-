@@ -39,6 +39,15 @@ interface ProductListingProps {
   banner?: CategoryBannerData | null;
 }
 
+// Collection/category names like "For Him" or "Gents" made 20-character
+// titles ("Gents | BOX DIAMONDS") that say nothing about what's sold — SEO
+// audits flag anything under ~30 characters. Short names get the product
+// type spelled out; longer ones are left as they are.
+function listingTitle(h1: string): string {
+  const plain = `${h1} | BOX DIAMONDS`;
+  return plain.length >= 30 || /diamond/i.test(h1) ? plain : `${h1} | Natural Diamond Jewellery | BOX DIAMONDS`;
+}
+
 export function ProductListing({
   categorySlug,
   collectionSlug,
@@ -62,7 +71,7 @@ export function ProductListing({
   const activeFilterCount = [metal, purity, goldColor, priceMin, priceMax].filter((v) => v != null).length;
 
   useHead({
-    title: seoTitle || `${h1} | BOX DIAMONDS`,
+    title: seoTitle || listingTitle(h1),
     description: seoDescription || description || `Shop ${heading} at BOX DIAMONDS — certified, live-priced jewellery.`,
     canonicalPath,
     jsonLd: [

@@ -181,9 +181,7 @@ export function PDPPage() {
       ? {
           title: product.metaTitle || productSeoTitle(product, type),
           description:
-            product.metaDescription ||
-            product.shortDescription ||
-            productSeoDescription(product, type),
+            product.metaDescription || productSeoDescription(product, type, product.shortDescription),
           canonicalPath,
           image: product.images.find((img) => img.variant === 'large')?.url,
           jsonLd: [

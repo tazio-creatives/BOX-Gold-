@@ -45,18 +45,45 @@ export function metalLabel(p: ProductAttrs): string | null {
   return p.purity || colour ? parts.join(' ') : null;
 }
 
-// "Teresa Diamond Oval Bangle | Natural Diamond Bangle | BOX DIAMONDS"
+const MAX_TITLE = 60; // roughly what Google shows before cutting a title off
+
+// "Aurora Ring | Natural Diamond Ring | BOX DIAMONDS" — the middle part is
+// added only when it fits in 60 characters and isn't a repeat of the name
+// ("Nerina Diamond Pendant | Natural Diamond Pendant | …" said it twice and
+// ran long on most products); otherwise just "Name | BOX DIAMONDS".
 export function productSeoTitle(p: ProductAttrs, type: string | null): string {
-  return type && hasDiamonds(p) ? `${p.name} | Natural Diamond ${type} | BOX DIAMONDS` : `${p.name} | BOX DIAMONDS`;
+  const short = `${p.name} | BOX DIAMONDS`;
+  if (!type || !hasDiamonds(p)) return short;
+  const nameSaysIt = /diamond/i.test(p.name) && new RegExp(`\\b${type}`, 'i').test(p.name);
+  const full = `${p.name} | Natural Diamond ${type} | BOX DIAMONDS`;
+  return nameSaysIt || full.length > MAX_TITLE ? short : full;
 }
 
-// Only used when the product has no meta description or short description.
-export function productSeoDescription(p: ProductAttrs, type: string | null): string {
+const MAX_DESCRIPTION = 160;
+
+// "Nerina Diamond Pendant — a natural diamond pendant in 9K yellow gold."
+function productSummary(p: ProductAttrs, type: string | null): string {
   const metal = metalLabel(p);
   const what = [hasDiamonds(p) ? 'natural diamond' : null, type ? type.toLowerCase() : 'jewellery']
     .filter(Boolean)
     .join(' ');
-  return `${p.name} — a ${what}${metal ? ` in ${metal}` : ''}. Shop certified diamond jewellery online at BOX DIAMONDS.`;
+  return `${p.name} — a ${what}${metal ? ` in ${metal}` : ''}.`;
+}
+
+// Used when the product has no admin-written meta description. Always leads
+// with the product's own name and attributes: short descriptions alone were
+// shared across many products (97 necklaces had just "9K 16-Inch Classic
+// Chain"), which made duplicate meta descriptions. The short description
+// is kept after the summary when there's room, then the shop line.
+export function productSeoDescription(p: ProductAttrs, type: string | null, shortDescription?: string | null): string {
+  let text = productSummary(p, type);
+  const extra = shortDescription?.trim().replace(/\s+/g, ' ');
+  if (extra) {
+    const sentence = /[.!?]$/.test(extra) ? extra : `${extra}.`;
+    if (text.length + 1 + sentence.length <= MAX_DESCRIPTION) text += ` ${sentence}`;
+  }
+  const shop = ' Shop certified diamond jewellery online at BOX DIAMONDS.';
+  return text.length + shop.length <= MAX_DESCRIPTION ? text + shop : text;
 }
 
 // "Teresa Diamond Oval Bangle, natural diamond bangle in 9K yellow gold"

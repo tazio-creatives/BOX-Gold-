@@ -92,6 +92,17 @@ async function createServer() {
     return res.redirect(301, `/${renamed}${match[2] ?? ''}${query}`);
   });
 
+  // URLs with no page of their own that were linked from the site (footer
+  // "Gifts", the homepage "Crafted in Our Studio" button) and 404'd — SEO
+  // crawlers counted every page as having a broken link. Permanent so any
+  // copies already crawled or shared land somewhere useful.
+  const PAGE_REDIRECTS = { '/gifts': '/collections/diamond-gifts', '/collections': '/jewellery' };
+  app.use((req, res, next) => {
+    const target = PAGE_REDIRECTS[req.path.replace(/\/+$/, '') || '/'];
+    if (!target) return next();
+    return res.redirect(301, target + req.originalUrl.slice(req.path.length));
+  });
+
   let vite;
   if (!isProd) {
     const { createServer: createViteServer } = await import('vite');
