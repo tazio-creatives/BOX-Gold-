@@ -12,10 +12,16 @@ import { NewArrivalsPage } from './pages/NewArrivalsPage';
 import { AllJewelleryPage } from './pages/AllJewelleryPage';
 import { RetailPartnerPage } from './pages/RetailPartnerPage';
 import { FranchisePage } from './pages/FranchisePage';
+// Blog pages are server-rendered too (web/server classifyRoute 'blog'), so
+// they must not be lazy: the first render in each server process got the
+// Suspense fallback — an empty page with the homepage's <title> and
+// canonical — and that HTML was then saved to page_cache.
+import { BlogListPage } from './pages/blog/BlogListPage';
+import { BlogPostPage } from './pages/blog/BlogPostPage';
 import { CollectionPage } from './pages/CollectionPage';
 import { PDPPage } from './pages/PDPPage';
 
-// Only the four public SSR route types (Home/PLP/Collection/PDP, plan §1a)
+// Only the public SSR route types (Home/PLP/Collection/PDP/Blog, plan §1a)
 // are ever rendered server-side via renderToString — everything below
 // always hits the CSR-only shell path (see web/server/index.js's
 // classifyRoute + entry-server.tsx's render()/renderShellHead() split), so
@@ -45,8 +51,6 @@ const RefundPolicyPage = lazy(() =>
   import('./pages/policies/RefundPolicyPage').then((m) => ({ default: m.RefundPolicyPage })),
 );
 const OurStoryPage = lazy(() => import('./pages/OurStoryPage').then((m) => ({ default: m.OurStoryPage })));
-const BlogListPage = lazy(() => import('./pages/blog/BlogListPage').then((m) => ({ default: m.BlogListPage })));
-const BlogPostPage = lazy(() => import('./pages/blog/BlogPostPage').then((m) => ({ default: m.BlogPostPage })));
 const ContactPage = lazy(() => import('./pages/ContactPage').then((m) => ({ default: m.ContactPage })));
 const WhyBoxDiamondsPage = lazy(() =>
   import('./pages/WhyBoxDiamondsPage').then((m) => ({ default: m.WhyBoxDiamondsPage })),
