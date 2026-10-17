@@ -9,6 +9,8 @@ import {
   createProduct as createProductRow,
   updateProduct as updateProductRow,
   deleteProduct as deleteProductRow,
+  recordProductSlugChange,
+  findProductSlugRedirect,
 } from '../repositories/products.repository.js';
 import {
   findVariantsByProductId,
@@ -481,6 +483,21 @@ export async function getPublicProductBySlug(slug) {
   return { ...product, images, attributes, variants, diamondConfigName, productSizeMeasurements };
 }
 
+// Where an old product slug now lives — the storefront 301s there instead
+// of showing a 404 (see web/server). NotFound when it isn't a known old slug.
+export async function getProductSlugRedirect(oldSlug) {
+  const target = await findProductSlugRedirect(oldSlug);
+  if (!target) throw new NotFoundError('No redirect for this slug');
+  return { slug: target.slug, categorySlug: target.category_slug ?? null };
+}
+
+// A slug that's only digits ("666") makes a URL that says nothing about the
+// product — 84 pendants ended up like that. Fall back to the product name.
+function productSlug(requested, name) {
+  const fromRequest = requested ? slugify(requested) : '';
+  return fromRequest && !/^\d+$/.test(fromRequest) ? fromRequest : slugify(name);
+}
+
 export async function getRelatedProducts(slug, limit = 4) {
   const product = await findProductBySlug(slug);
   if (!product || product.status !== 'PUBLISHED') return [];
@@ -521,7 +538,7 @@ export async function adminGetProduct(id) {
 }
 
 export async function adminCreateProduct(input) {
-  const slug = input.slug ? slugify(input.slug) : slugify(input.name);
+  const slug = productSlug(input.slug, input.name);
   const {
     sizes: sizesInput,
     goldColors,
@@ -615,8 +632,9 @@ export async function adminUpdateProduct(id, input) {
     ...fields
   } = input;
   if (Object.hasOwn(fields, 'slug') && fields.slug) {
-    fields.slug = slugify(fields.slug);
+    fields.slug = productSlug(fields.slug, fields.name ?? existing.name);
   }
+  const slugChanged = Object.hasOwn(fields, 'slug') && !!fields.slug && fields.slug !== existing.slug;
   if (Object.hasOwn(fields, 'goldWeightGrams') || Object.hasOwn(fields, 'diamondWeightGrams')) {
     const goldWeightGrams = Object.hasOwn(fields, 'goldWeightGrams')
       ? fields.goldWeightGrams
@@ -644,6 +662,7 @@ export async function adminUpdateProduct(id, input) {
   // refresh either all land or none do.
   const product = await withTransaction(async () => {
     await updateProductRow(id, fields);
+    if (slugChanged) await recordProductSlugChange(id, existing.slug, fields.slug);
     if (axesChanged) {
       // A PATCH-style update that only touches one axis (e.g. just Purity)
       // shouldn't wipe out the others — fall back to what's currently

@@ -253,6 +253,31 @@ export async function findProductBySlug(slug) {
   return rows[0] ?? null;
 }
 
+// Records a product's previous slug so its old URL can 301 to the new one.
+// The new slug is also cleared from the table, in case it was itself an
+// old slug of some product — a live slug must never also redirect.
+export async function recordProductSlugChange(productId, oldSlug, newSlug) {
+  await query('DELETE FROM product_slug_redirects WHERE old_slug = $1', [newSlug]);
+  await query(
+    `INSERT INTO product_slug_redirects (old_slug, product_id) VALUES ($1, $2)
+     ON CONFLICT (old_slug) DO UPDATE SET product_id = EXCLUDED.product_id, created_at = now()`,
+    [oldSlug, productId],
+  );
+}
+
+// Current slug + category slug for a published product's old slug, or null.
+export async function findProductSlugRedirect(oldSlug) {
+  const { rows } = await query(
+    `SELECT p.slug, cat.slug AS category_slug
+     FROM product_slug_redirects r
+     JOIN products p ON p.id = r.product_id
+     LEFT JOIN categories cat ON cat.id = p.category_id
+     WHERE r.old_slug = $1 AND p.status = 'PUBLISHED'`,
+    [oldSlug],
+  );
+  return rows[0] ?? null;
+}
+
 // Used by cart/wishlist (plan §11/§27) to hydrate item rows (which only
 // store product_id) with current name/price/stock in one round trip.
 export async function findProductsByIds(ids) {

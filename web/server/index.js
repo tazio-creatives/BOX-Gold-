@@ -55,6 +55,22 @@ function classifyRoute(pathname) {
   return null;
 }
 
+// Same backend the SSR render talks to (SSR_API_BASE_URL — see
+// src/api/client.ts). Any failure just means "no redirect": the 404 stands.
+const API_BASE_URL = process.env.SSR_API_BASE_URL ?? process.env.VITE_API_BASE_URL ?? 'http://localhost:4000/api/v1';
+
+async function findProductRedirect(oldSlug) {
+  if (!oldSlug) return null;
+  try {
+    const res = await fetch(`${API_BASE_URL}/products/slug-redirects/${encodeURIComponent(oldSlug)}`);
+    if (!res.ok) return null;
+    const { slug, categorySlug } = await res.json();
+    return categorySlug ? `/${categorySlug}/${slug}` : null;
+  } catch {
+    return null;
+  }
+}
+
 async function createServer() {
   const app = express();
 
@@ -210,6 +226,17 @@ async function createServer() {
 
       const { render } = await loadSsrModule('/src/entry-server.tsx');
       const { html: appHtml, headHtml, dehydratedStateJson, notFound } = await render(url);
+
+      // A product whose slug was changed (renamed, or number-only /
+      // accent-mangled slugs cleaned up) — 301 its old URL to the current
+      // one rather than 404ing links already shared or indexed.
+      if (notFound && routeType === 'pdp') {
+        const target = await findProductRedirect(pathname.split('/').filter(Boolean)[1]);
+        if (target) {
+          res.redirect(301, target + url.slice(url.indexOf('?') === -1 ? url.length : url.indexOf('?')));
+          return;
+        }
+      }
       const template = await getTemplate(url);
       const html = injectTemplate(template, { headHtml, appHtml, stateJson: dehydratedStateJson });
 

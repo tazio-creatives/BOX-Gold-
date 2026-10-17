@@ -492,6 +492,14 @@ export async function getBySlug(req, res, next) {
   }
 }
 
+export async function getSlugRedirect(req, res, next) {
+  try {
+    res.json(await productsService.getProductSlugRedirect(req.params.slug));
+  } catch (err) {
+    next(err);
+  }
+}
+
 export async function pricePreview(req, res, next) {
   try {
     const { variantId } = variantPricePreviewQuerySchema.parse(req.query);

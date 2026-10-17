@@ -16,8 +16,11 @@ export async function buildSitemapXml(): Promise<string> {
   while (true) {
     const res = await fetchProducts({ page, limit: 100, sort: 'newest' });
     for (const product of res.products) {
-      const categorySlug = product.categorySlug ?? product.slug;
-      productUrls.push(`${SITE_URL}/${categorySlug}/${product.slug}`);
+      // A product with no category has no real /<category>/<slug> URL — the
+      // old fallback listed /<slug>/<slug>, whose canonical then pointed at
+      // a 404. It's left out until a category is assigned in admin.
+      if (!product.categorySlug) continue;
+      productUrls.push(`${SITE_URL}/${product.categorySlug}/${product.slug}`);
     }
     if (page >= res.totalPages) break;
     page += 1;
