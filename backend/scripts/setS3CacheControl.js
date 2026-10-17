@@ -59,11 +59,10 @@ const policyStatus = await describe(new GetBucketPolicyStatusCommand({ Bucket })
 const objectOwnership = ownership.OwnershipControls?.Rules?.[0]?.ObjectOwnership ?? ownership.error;
 const policyIsPublic = policyStatus.PolicyStatus?.IsPublic ?? policyStatus.error;
 console.log(`Bucket ${Bucket}: ObjectOwnership=${objectOwnership}, bucket policy public=${policyIsPublic}`);
-const aclsDisabled = objectOwnership === 'BucketOwnerEnforced';
-if (apply && !aclsDisabled && policyIsPublic !== true) {
-  console.error('Refusing to --apply: public access is not confirmed to come from the bucket policy.');
-  process.exit(1);
-}
+// The app's own IAM user may not be allowed to read these settings
+// (AccessDenied), so --apply doesn't rely on them: it updates one image
+// first and checks it anonymously at its public URL before touching the
+// rest (see canary below).
 
 const keys = [];
 let continuationToken;
@@ -122,6 +121,24 @@ async function processKey(key) {
     }),
   );
   updated++;
+}
+
+// Canary: update one image, then fetch it anonymously the way a shopper's
+// browser does. If it isn't still public with the new header, stop before
+// touching anything else.
+const publicBase = (env.s3PublicBaseUrl || `https://${Bucket}.s3.${env.s3Region}.amazonaws.com`).replace(/\/$/, '');
+const canaryKey = keys.find((k) => /^(categories|homepage)\/.+\.webp$/.test(k));
+if (!canaryKey) {
+  console.error('No categories/ or homepage/ .webp found to use as a canary — stopping.');
+  process.exit(1);
+}
+await processKey(canaryKey);
+const canaryRes = await fetch(`${publicBase}/${canaryKey.split('/').map(encodeURIComponent).join('/')}`);
+const canaryCc = canaryRes.headers.get('cache-control');
+console.log(`Canary ${canaryKey}: HTTP ${canaryRes.status}, Cache-Control=${canaryCc}`);
+if (canaryRes.status !== 200 || canaryCc !== S3_CACHE_CONTROL) {
+  console.error('Canary failed — the copied image is not publicly readable with the new header. Stopping.');
+  process.exit(1);
 }
 
 let next = 0;
