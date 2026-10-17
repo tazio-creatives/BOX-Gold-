@@ -4,39 +4,58 @@
     <meta charset="UTF-8" />
     <!-- Meta (Facebook) Business domain verification for boxdiamonds.com -->
     <meta name="facebook-domain-verification" content="nuwphkxdeniom77dget1w54abv72bq" />
-    <!-- Google Tag Manager -->
-    <script>(function(w,d,s,l,i){w[l]=w[l]||[];w[l].push({'gtm.start':
-    new Date().getTime(),event:'gtm.js'});var f=d.getElementsByTagName(s)[0],
-    j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
-    'https://www.googletagmanager.com/gtm.js?id='+i+dl;f.parentNode.insertBefore(j,f);
-    })(window,document,'script','dataLayer','GTM-TS9FR3PF');</script>
-    <!-- End Google Tag Manager -->
-    <!-- Google tag (gtag.js) — GA4. Added directly (not via the GTM
-         container above, which has no tags configured) — don't also add
-         this GA4 ID inside GTM, or every visit is counted twice. -->
-    <script async src="https://www.googletagmanager.com/gtag/js?id=G-YF4GE487RS"></script>
+    <!-- Tracking: Google Tag Manager (GTM-TS9FR3PF), GA4 via gtag.js
+         (G-YF4GE487RS) and the Meta Pixel (1119380757335568).
+         GA4 is added directly, not through the GTM container (which has no
+         tags configured) — don't also add this GA4 ID inside GTM, or every
+         visit is counted twice. Meta: fbq('init') only here; every event,
+         including PageView on each route change, is sent from
+         src/analytics/metaPixel.ts.
+
+         The gtag()/fbq() queues are defined immediately, so nothing the app
+         sends is lost — calls just wait in the queue. The ~550 KB of tag
+         scripts download only once the page has loaded (or on the first
+         tap/scroll/key press, if that comes sooner): on phones they were
+         downloading alongside the hero image and delaying it by seconds. -->
     <script>
       window.dataLayer = window.dataLayer || [];
       function gtag(){dataLayer.push(arguments);}
       gtag('js', new Date());
-
       gtag('config', 'G-YF4GE487RS');
-    </script>
-    <!-- Meta Pixel (1119380757335568). Base code only: fbq('init') here; every
-         event, including PageView on each route change, is sent from
-         src/analytics/metaPixel.ts. -->
-    <script>
-      !function(f,b,e,v,n,t,s)
-      {if(f.fbq)return;n=f.fbq=function(){n.callMethod?
+
+      // Stock Meta Pixel snippet minus its <script> tag (loaded below).
+      !function(f){if(f.fbq)return;var n=f.fbq=function(){n.callMethod?
       n.callMethod.apply(n,arguments):n.queue.push(arguments)};
       if(!f._fbq)f._fbq=n;n.push=n;n.loaded=!0;n.version='2.0';
-      n.queue=[];t=b.createElement(e);t.async=!0;
-      t.src=v;s=b.getElementsByTagName(e)[0];
-      s.parentNode.insertBefore(t,s)}(window, document,'script',
-      'https://connect.facebook.net/en_US/fbevents.js');
+      n.queue=[]}(window);
       fbq('init', '1119380757335568');
+
+      (function () {
+        var started = false;
+        var triggers = ['pointerdown', 'keydown', 'scroll', 'touchstart'];
+        var opts = { passive: true, capture: true };
+        function load(src) {
+          var s = document.createElement('script');
+          s.async = true;
+          s.src = src;
+          document.head.appendChild(s);
+        }
+        function start() {
+          if (started) return;
+          started = true;
+          triggers.forEach(function (t) { window.removeEventListener(t, start, opts); });
+          window.removeEventListener('load', start);
+          dataLayer.push({ 'gtm.start': new Date().getTime(), event: 'gtm.js' });
+          load('https://www.googletagmanager.com/gtm.js?id=GTM-TS9FR3PF');
+          load('https://www.googletagmanager.com/gtag/js?id=G-YF4GE487RS');
+          load('https://connect.facebook.net/en_US/fbevents.js');
+        }
+        triggers.forEach(function (t) { window.addEventListener(t, start, opts); });
+        if (document.readyState === 'complete') start();
+        else window.addEventListener('load', start);
+      })();
     </script>
-    <!-- End Meta Pixel -->
+    <!-- End tracking -->
     <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png" />
     <link rel="icon" type="image/png" sizes="16x16" href="/favicon-16x16.png" />
     <link rel="icon" type="image/png" sizes="192x192" href="/favicon-192x192.png" />
