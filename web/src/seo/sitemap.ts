@@ -34,6 +34,7 @@ export async function buildSitemapXml(): Promise<string> {
 
   const urls = [
     `${SITE_URL}/`,
+    `${SITE_URL}/faqs`,
     ...categoriesRes.categories.map((c) => `${SITE_URL}/${c.slug}`),
     ...collectionsRes.collections.map((c) => `${SITE_URL}/collections/${c.slug}`),
     ...productUrls,

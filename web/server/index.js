@@ -31,7 +31,6 @@ const CSR_ONLY_SINGLE_SEGMENT = new Set([
   'privacy-policy',
   'terms',
   'contact',
-  'faqs',
   'size-guide',
   'care-guide',
   'our-story',

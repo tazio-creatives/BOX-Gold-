@@ -1,5 +1,5 @@
-import type { ReactNode } from 'react';
-import { Link } from 'react-router-dom';
+import { useEffect, type ReactNode } from 'react';
+import { Link, useLocation } from 'react-router-dom';
 import { useDocumentTitle } from '../utils/useDocumentTitle';
 import { POLICY_ICONS, type PolicyIconName } from './policies/PolicyIcons';
 import { StoryImage, Eyebrow } from './OurStoryPage';
@@ -107,6 +107,15 @@ const QUALITY_CHECKS = [
 
 export function WhyBoxDiamondsPage() {
   useDocumentTitle('Why Box Diamonds');
+
+  // Deep links such as /why-box-diamonds#exchange-buyback (homepage "Need
+  // Help?" panel): the page renders after navigation, so the browser's own
+  // hash jump has nothing to land on — same approach as PolicyDocLayout.
+  const { hash } = useLocation();
+  useEffect(() => {
+    const el = hash ? document.getElementById(hash.slice(1)) : null;
+    if (el) requestAnimationFrame(() => el.scrollIntoView({ block: 'start' }));
+  }, [hash]);
 
   return (
     <div className={story.page}>
@@ -650,7 +659,8 @@ export function WhyBoxDiamondsPage() {
       </section>
 
       {/* ---------- Returns + exchange ---------- */}
-      <section className={styles.band}>
+      {/* id: deep-link target of the homepage "Buyback & Exchange" link. */}
+      <section id="exchange-buyback" className={`${styles.band} ${styles.anchorTarget}`}>
         <div className={story.container}>
           <Eyebrow>Peace of Mind</Eyebrow>
           <h2 className={story.sectionTitle}>Reassurance Beyond the Purchase</h2>

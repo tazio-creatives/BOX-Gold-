@@ -15,6 +15,11 @@
   background: var(--color-bg);
 }
 
+/* Deep-linked section: stop clear of the sticky header. */
+.anchorTarget {
+  scroll-margin-top: 96px;
+}
+
 .split {
   display: grid;
   grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);

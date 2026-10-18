@@ -3,9 +3,9 @@ import { useQuery } from '@tanstack/react-query';
 import { fetchHomepage } from '../api/homepage';
 import { AssuranceStrip } from './home/AssuranceStrip';
 import { HomepageSection } from './home/HomepageSection';
-import { HomeFaq, HOME_FAQ } from './home/HomeFaq';
+import { HomeAboutHelp } from './home/HomeAboutHelp';
 import { useHead, defaultHead } from '../seo/head';
-import { breadcrumbJsonLd, faqPageJsonLd, organizationJsonLd, websiteJsonLd } from '../seo/jsonLd';
+import { breadcrumbJsonLd, organizationJsonLd, websiteJsonLd } from '../seo/jsonLd';
 import styles from './HomePage.module.css';
 
 export function HomePage() {
@@ -15,7 +15,6 @@ export function HomePage() {
       organizationJsonLd(),
       websiteJsonLd(),
       breadcrumbJsonLd([{ name: 'Home', path: '/' }]),
-      faqPageJsonLd(HOME_FAQ),
     ],
   });
 
@@ -60,7 +59,7 @@ export function HomePage() {
           {i === firstHeroIndex && <AssuranceStrip />}
         </Fragment>
       ))}
-      <HomeFaq />
+      <HomeAboutHelp />
     </div>
   );
 }

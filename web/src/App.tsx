@@ -17,6 +17,8 @@ import { FranchisePage } from './pages/FranchisePage';
 // Suspense fallback — an empty page with the homepage's <title> and
 // canonical — and that HTML was then saved to page_cache.
 import { BlogListPage } from './pages/blog/BlogListPage';
+// Server-rendered as well (prefetch.ts static pages), so not lazy either.
+import { FaqPage } from './pages/faq/FaqPage';
 import { BlogPostPage } from './pages/blog/BlogPostPage';
 import { CollectionPage } from './pages/CollectionPage';
 import { PDPPage } from './pages/PDPPage';
@@ -120,7 +122,7 @@ export function App() {
           <Route path="/contact" element={<ContactPage />} />
           {/* FAQs / Size Guide / Careers / Press were removed from the site —
               old links go home instead of falling through to /:categorySlug. */}
-          <Route path="/faqs" element={<Navigate to="/" replace />} />
+          <Route path="/faqs" element={<FaqPage />} />
           <Route path="/size-guide" element={<Navigate to="/" replace />} />
           <Route path="/care-guide" element={<CareGuidePage />} />
           <Route path="/our-story" element={<OurStoryPage />} />
