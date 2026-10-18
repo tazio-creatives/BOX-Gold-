@@ -44,6 +44,19 @@ export function ExchangeIcon() {
   );
 }
 
+// Same truck outline as DeliveryEstimate.tsx's own 14px icon, sized by the
+// caller's CSS like the rest of this set.
+export function DeliveryTruckIcon() {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" aria-hidden="true">
+      <path d="M2 7h11v10H2z" strokeLinejoin="round" />
+      <path d="M13 10h4l4 3v4h-8z" strokeLinejoin="round" />
+      <circle cx="6" cy="19" r="1.7" />
+      <circle cx="17" cy="19" r="1.7" />
+    </svg>
+  );
+}
+
 export function ShieldCheckIcon() {
   return (
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" aria-hidden="true">
