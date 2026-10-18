@@ -15,9 +15,16 @@
   background: var(--color-bg);
 }
 
-/* Deep-linked section: stop clear of the sticky header. */
+/* Deep-linked section: stop clear of the sticky header (two rows, about
+   135px, on desktop; one slim row on phones). */
 .anchorTarget {
-  scroll-margin-top: 96px;
+  scroll-margin-top: 150px;
+}
+
+@media (max-width: 767px) {
+  .anchorTarget {
+    scroll-margin-top: 80px;
+  }
 }
 
 .split {
