@@ -197,6 +197,11 @@ export function PrivacyPolicyPage() {
   return (
     <PolicyDocLayout
       title="Privacy Policy"
+      seo={{
+        title: 'Privacy Policy | How We Protect Your Data | BOX DIAMONDS',
+        description:
+          'How BOX DIAMONDS, operated by Goldbox Diamonds Private Limited, collects, uses and protects your personal information when you shop at boxdiamonds.com.',
+      }}
       lastUpdated="16 September 2026"
       subtitle={
         <>

@@ -25,13 +25,9 @@ const CSR_ONLY_SINGLE_SEGMENT = new Set([
   'search',
   'account',
   'cancellation-policy',
-  'privacy-policy',
-  'terms',
   'size-guide',
-  'care-guide',
   'careers',
   'press',
-  'sustainability',
 ]);
 const CSR_ONLY_PREFIXES = ['account', 'order-confirmation'];
 
@@ -77,6 +73,10 @@ const STATIC_PAGE_MODULES = {
   '/contact': 'src/pages/ContactPage.tsx',
   '/our-story': 'src/pages/OurStoryPage.tsx',
   '/why-box-diamonds': 'src/pages/WhyBoxDiamondsPage.tsx',
+  '/privacy-policy': 'src/pages/policies/PrivacyPolicyPage.tsx',
+  '/terms': 'src/pages/policies/TermsPage.tsx',
+  '/care-guide': 'src/pages/CareGuidePage.tsx',
+  '/sustainability': 'src/pages/SustainabilityPage.tsx',
 };
 
 let clientManifest = null;

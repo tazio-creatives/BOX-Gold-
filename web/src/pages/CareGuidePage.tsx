@@ -458,6 +458,11 @@ export function CareGuidePage() {
   return (
     <PolicyDocLayout
       title="Jewellery Care Guide"
+      seo={{
+        title: 'Jewellery Care Guide | Diamond & Gold Care | BOX DIAMONDS',
+        description:
+          'How to clean, store and care for your BOX DIAMONDS diamond and gold jewellery, so it keeps its shine and brilliance for years.',
+      }}
       breadcrumbSection="Customer Care"
       lastUpdated="2 October 2026"
       subtitle={

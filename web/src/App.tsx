@@ -48,14 +48,6 @@ const AccountAddressesPage = lazy(() =>
 const AccountProfilePage = lazy(() =>
   import('./pages/account/AccountProfilePage').then((m) => ({ default: m.AccountProfilePage })),
 );
-const SustainabilityPage = lazy(() =>
-  import('./pages/SustainabilityPage').then((m) => ({ default: m.SustainabilityPage })),
-);
-const CareGuidePage = lazy(() => import('./pages/CareGuidePage').then((m) => ({ default: m.CareGuidePage })));
-const PrivacyPolicyPage = lazy(() =>
-  import('./pages/policies/PrivacyPolicyPage').then((m) => ({ default: m.PrivacyPolicyPage })),
-);
-const TermsPage = lazy(() => import('./pages/policies/TermsPage').then((m) => ({ default: m.TermsPage })));
 
 // Login is a modal (AuthModal), not a page — a stray /login link (an old
 // bookmark, a shared URL) just opens that same modal over the homepage
@@ -104,8 +96,8 @@ export function App() {
               the Return and Refund Policy's "Cancellation Before Dispatch"
               section; old links land there instead of a dead page. */}
           <Route path="/cancellation-policy" element={<Navigate to="/refund-policy#cancellation" replace />} />
-          <Route path="/privacy-policy" element={<PrivacyPolicyPage />} />
-          <Route path="/terms" element={<TermsPage />} />
+          <Route path="/privacy-policy" element={<StaticPage name="privacyPolicy" />} />
+          <Route path="/terms" element={<StaticPage name="terms" />} />
           {/* Not built yet — a real page here still needs an explicit route
               (even just this placeholder), or the single-segment path falls
               through to /:categorySlug below and renders a confusing
@@ -115,14 +107,14 @@ export function App() {
               old links go home instead of falling through to /:categorySlug. */}
           <Route path="/faqs" element={<FaqPage />} />
           <Route path="/size-guide" element={<Navigate to="/" replace />} />
-          <Route path="/care-guide" element={<CareGuidePage />} />
+          <Route path="/care-guide" element={<StaticPage name="careGuide" />} />
           <Route path="/our-story" element={<StaticPage name="ourStory" />} />
           <Route path="/why-box-diamonds" element={<StaticPage name="whyBoxDiamonds" />} />
           <Route path="/blog" element={<BlogListPage />} />
           <Route path="/blog/:slug" element={<BlogPostPage />} />
           <Route path="/careers" element={<Navigate to="/" replace />} />
           <Route path="/press" element={<Navigate to="/" replace />} />
-          <Route path="/sustainability" element={<SustainabilityPage />} />
+          <Route path="/sustainability" element={<StaticPage name="sustainability" />} />
           <Route path="/:categorySlug" element={<PLPPage />} />
           <Route path="/:categorySlug/:productSlug" element={<PDPPage />} />
           <Route path="*" element={<PlaceholderPage title="Coming Soon" />} />

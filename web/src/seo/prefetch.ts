@@ -29,6 +29,10 @@ const STATIC_PAGE_PATHS = new Set([
   '/contact',
   '/our-story',
   '/why-box-diamonds',
+  '/privacy-policy',
+  '/terms',
+  '/care-guide',
+  '/sustainability',
 ]);
 
 export async function prefetchForRoute(

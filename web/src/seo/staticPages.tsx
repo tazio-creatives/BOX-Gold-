@@ -11,7 +11,16 @@ import { createContext, lazy, useContext, type ComponentType } from 'react';
 // lazy by default (browser), direct imports provided by entry-server.tsx via
 // staticPages.server.ts. While a lazy chunk loads during hydration, React
 // keeps the server's HTML on screen, so there's no flash.
-export type StaticPageName = 'shippingPolicy' | 'refundPolicy' | 'contact' | 'ourStory' | 'whyBoxDiamonds';
+export type StaticPageName =
+  | 'shippingPolicy'
+  | 'refundPolicy'
+  | 'contact'
+  | 'ourStory'
+  | 'whyBoxDiamonds'
+  | 'privacyPolicy'
+  | 'terms'
+  | 'careGuide'
+  | 'sustainability';
 
 export type StaticPageMap = Record<StaticPageName, ComponentType>;
 
@@ -25,6 +34,12 @@ const lazyPages: StaticPageMap = {
   whyBoxDiamonds: lazy(() =>
     import('../pages/WhyBoxDiamondsPage').then((m) => ({ default: m.WhyBoxDiamondsPage })),
   ),
+  privacyPolicy: lazy(() =>
+    import('../pages/policies/PrivacyPolicyPage').then((m) => ({ default: m.PrivacyPolicyPage })),
+  ),
+  terms: lazy(() => import('../pages/policies/TermsPage').then((m) => ({ default: m.TermsPage }))),
+  careGuide: lazy(() => import('../pages/CareGuidePage').then((m) => ({ default: m.CareGuidePage }))),
+  sustainability: lazy(() => import('../pages/SustainabilityPage').then((m) => ({ default: m.SustainabilityPage }))),
 };
 
 export const StaticPagesContext = createContext<StaticPageMap>(lazyPages);
