@@ -19,6 +19,8 @@ import { FranchisePage } from './pages/FranchisePage';
 import { BlogListPage } from './pages/blog/BlogListPage';
 // Server-rendered as well (prefetch.ts static pages), so not lazy either.
 import { FaqPage } from './pages/faq/FaqPage';
+// Server-rendered content pages that stay code-split in the browser.
+import { StaticPage } from './seo/staticPages';
 import { BlogPostPage } from './pages/blog/BlogPostPage';
 import { CollectionPage } from './pages/CollectionPage';
 import { PDPPage } from './pages/PDPPage';
@@ -45,17 +47,6 @@ const AccountAddressesPage = lazy(() =>
 );
 const AccountProfilePage = lazy(() =>
   import('./pages/account/AccountProfilePage').then((m) => ({ default: m.AccountProfilePage })),
-);
-const ShippingPolicyPage = lazy(() =>
-  import('./pages/policies/ShippingPolicyPage').then((m) => ({ default: m.ShippingPolicyPage })),
-);
-const RefundPolicyPage = lazy(() =>
-  import('./pages/policies/RefundPolicyPage').then((m) => ({ default: m.RefundPolicyPage })),
-);
-const OurStoryPage = lazy(() => import('./pages/OurStoryPage').then((m) => ({ default: m.OurStoryPage })));
-const ContactPage = lazy(() => import('./pages/ContactPage').then((m) => ({ default: m.ContactPage })));
-const WhyBoxDiamondsPage = lazy(() =>
-  import('./pages/WhyBoxDiamondsPage').then((m) => ({ default: m.WhyBoxDiamondsPage })),
 );
 const SustainabilityPage = lazy(() =>
   import('./pages/SustainabilityPage').then((m) => ({ default: m.SustainabilityPage })),
@@ -105,10 +96,10 @@ export function App() {
           <Route path="/jewellery" element={<AllJewelleryPage />} />
           <Route path="/retail-partner" element={<RetailPartnerPage />} />
           <Route path="/franchise" element={<FranchisePage />} />
-          <Route path="/shipping-policy" element={<ShippingPolicyPage />} />
-          <Route path="/refund-policy" element={<RefundPolicyPage />} />
+          <Route path="/shipping-policy" element={<StaticPage name="shippingPolicy" />} />
+          <Route path="/refund-policy" element={<StaticPage name="refundPolicy" />} />
           {/* Same combined Return and Refund Policy page under its other name. */}
-          <Route path="/return-policy" element={<RefundPolicyPage />} />
+          <Route path="/return-policy" element={<StaticPage name="refundPolicy" />} />
           {/* The standalone Cancellation Policy was retired — its terms live in
               the Return and Refund Policy's "Cancellation Before Dispatch"
               section; old links land there instead of a dead page. */}
@@ -119,14 +110,14 @@ export function App() {
               (even just this placeholder), or the single-segment path falls
               through to /:categorySlug below and renders a confusing
               "category not found" instead of "coming soon". */}
-          <Route path="/contact" element={<ContactPage />} />
+          <Route path="/contact" element={<StaticPage name="contact" />} />
           {/* FAQs / Size Guide / Careers / Press were removed from the site —
               old links go home instead of falling through to /:categorySlug. */}
           <Route path="/faqs" element={<FaqPage />} />
           <Route path="/size-guide" element={<Navigate to="/" replace />} />
           <Route path="/care-guide" element={<CareGuidePage />} />
-          <Route path="/our-story" element={<OurStoryPage />} />
-          <Route path="/why-box-diamonds" element={<WhyBoxDiamondsPage />} />
+          <Route path="/our-story" element={<StaticPage name="ourStory" />} />
+          <Route path="/why-box-diamonds" element={<StaticPage name="whyBoxDiamonds" />} />
           <Route path="/blog" element={<BlogListPage />} />
           <Route path="/blog/:slug" element={<BlogPostPage />} />
           <Route path="/careers" element={<Navigate to="/" replace />} />

@@ -35,6 +35,11 @@ export async function buildSitemapXml(): Promise<string> {
   const urls = [
     `${SITE_URL}/`,
     `${SITE_URL}/faqs`,
+    `${SITE_URL}/our-story`,
+    `${SITE_URL}/why-box-diamonds`,
+    `${SITE_URL}/shipping-policy`,
+    `${SITE_URL}/refund-policy`,
+    `${SITE_URL}/contact`,
     ...categoriesRes.categories.map((c) => `${SITE_URL}/${c.slug}`),
     ...collectionsRes.collections.map((c) => `${SITE_URL}/collections/${c.slug}`),
     ...productUrls,

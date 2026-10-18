@@ -1,7 +1,8 @@
 import { useState, type FormEvent } from 'react';
 import { Link } from 'react-router-dom';
 import { useMutation } from '@tanstack/react-query';
-import { useDocumentTitle } from '../utils/useDocumentTitle';
+import { useHead } from '../seo/head';
+import { breadcrumbJsonLd, organizationJsonLd } from '../seo/jsonLd';
 import { sendContactMessage, type ContactMessageInput } from '../api/contact';
 import { ApiError } from '../api/client';
 import { POLICY_ICONS } from './policies/PolicyIcons';
@@ -10,7 +11,19 @@ import styles from './ContactPage.module.css';
 const EMPTY: ContactMessageInput = { name: '', email: '', phone: '', orderNumber: '', message: '', website: '' };
 
 export function ContactPage() {
-  useDocumentTitle('Contact Us');
+  useHead({
+    title: 'Contact Us | BOX DIAMONDS Customer Care',
+    description:
+      'Contact BOX DIAMONDS customer care by email or our contact form for orders, returns and product questions. Goldbox Diamonds Private Limited, Princess Dock, Mumbai.',
+    canonicalPath: '/contact',
+    jsonLd: [
+      organizationJsonLd(),
+      breadcrumbJsonLd([
+        { name: 'Home', path: '/' },
+        { name: 'Contact Us', path: '/contact' },
+      ]),
+    ],
+  });
   const [form, setForm] = useState<ContactMessageInput>(EMPTY);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
 

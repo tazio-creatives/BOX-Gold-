@@ -121,6 +121,11 @@ export function ShippingPolicyPage() {
   return (
     <PolicyDocLayout
       title="Shipping Policy"
+      seo={{
+        title: 'Shipping Policy | Delivery Across India | BOX DIAMONDS',
+        description:
+          'BOX DIAMONDS shipping policy: free, insured and tracked delivery to serviceable PIN codes across India, delivery timelines, tracking and order verification.',
+      }}
       lastUpdated="15 September 2026"
       subtitle={
         <>

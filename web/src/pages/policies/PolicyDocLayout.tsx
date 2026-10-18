@@ -1,6 +1,7 @@
 import { useEffect, useState, type ReactNode } from 'react';
 import { Link, useLocation } from 'react-router-dom';
-import { useDocumentTitle } from '../../utils/useDocumentTitle';
+import { useHead } from '../../seo/head';
+import { breadcrumbJsonLd, organizationJsonLd } from '../../seo/jsonLd';
 import { POLICY_ICONS, type PolicyIconName } from './PolicyIcons';
 import styles from './PolicyDocLayout.module.css';
 
@@ -22,6 +23,7 @@ export function PolicyDocLayout({
   lastUpdated,
   glance,
   sections,
+  seo,
 }: {
   title: string;
   // Middle breadcrumb crumb (Home › <this> › title).
@@ -30,8 +32,26 @@ export function PolicyDocLayout({
   lastUpdated: string;
   glance?: { heading: string; content: ReactNode };
   sections: PolicySection[];
+  // Server-rendered policy pages pass their own SEO title/description;
+  // without it the tab title is "<title> | BOX DIAMONDS" as before.
+  seo?: { title: string; description: string };
 }) {
-  useDocumentTitle(title);
+  const { pathname } = useLocation();
+  // /return-policy is an alias of /refund-policy — one canonical URL.
+  const canonicalPath = pathname === '/return-policy' ? '/refund-policy' : pathname;
+  useHead({
+    title: seo?.title ?? `${title} | BOX DIAMONDS`,
+    description:
+      seo?.description ?? `${title} for BOX DIAMONDS — certified natural diamond jewellery delivered across India.`,
+    canonicalPath,
+    jsonLd: [
+      organizationJsonLd(),
+      breadcrumbJsonLd([
+        { name: 'Home', path: '/' },
+        { name: title, path: canonicalPath },
+      ]),
+    ],
+  });
   const [activeId, setActiveId] = useState(sections[0]?.id ?? '');
 
   // Scroll-spy: the active index entry is the section crossing a thin band

@@ -19,6 +19,18 @@ import { fetchBlogPosts, fetchBlogPost, blogListQueryKey, blogPostQueryKey } fro
 // page components fetches client-side (plan §1a) — the query key has to
 // match exactly (see parsePlpFilters) for dehydrate/hydrate to actually
 // avoid a client refetch, not just look similar.
+const STATIC_PAGE_PATHS = new Set([
+  '/retail-partner',
+  '/franchise',
+  '/faqs',
+  '/shipping-policy',
+  '/refund-policy',
+  '/return-policy',
+  '/contact',
+  '/our-story',
+  '/why-box-diamonds',
+]);
+
 export async function prefetchForRoute(
   queryClient: QueryClient,
   url: string,
@@ -67,9 +79,9 @@ export async function prefetchForRoute(
     return { notFound: false };
   }
 
-  // Static landing pages that share the one-segment URL shape with
+  // Static landing/content pages that share the one-segment URL shape with
   // categories — server-rendered, nothing to prefetch, never a 404.
-  if (pathname === '/retail-partner' || pathname === '/franchise' || pathname === '/faqs') return { notFound: false };
+  if (STATIC_PAGE_PATHS.has(pathname)) return { notFound: false };
 
   const pdpMatch = matchPath('/:categorySlug/:productSlug', pathname);
   if (pdpMatch) {

@@ -638,6 +638,11 @@ export function RefundPolicyPage() {
   return (
     <PolicyDocLayout
       title="Return and Refund Policy"
+      seo={{
+        title: 'Return & Refund Policy | 7-Day Returns | BOX DIAMONDS',
+        description:
+          'Return eligible BOX DIAMONDS jewellery within seven days of delivery, with free pickup across India. Conditions, non-returnable items, inspection and refund timelines.',
+      }}
       lastUpdated="2 October 2026"
       subtitle={
         <>

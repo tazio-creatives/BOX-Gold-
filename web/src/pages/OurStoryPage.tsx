@@ -1,5 +1,6 @@
 import { useState, type ReactNode } from 'react';
-import { useDocumentTitle } from '../utils/useDocumentTitle';
+import { useHead } from '../seo/head';
+import { breadcrumbJsonLd, organizationJsonLd } from '../seo/jsonLd';
 import { POLICY_ICONS, type PolicyIconName } from './policies/PolicyIcons';
 import styles from './OurStoryPage.module.css';
 
@@ -323,7 +324,19 @@ function MilestoneItem({ milestone, side }: { milestone: Milestone; side: 'left'
 }
 
 export function OurStoryPage() {
-  useDocumentTitle('Our Story');
+  useHead({
+    title: 'Our Story | Diamond Jewellery Since 2013 | BOX DIAMONDS',
+    description:
+      'The BOX DIAMONDS story: from a small diamond jewellery workshop started in 2013 to manufacturing for established brands and lightweight natural diamond jewellery today.',
+    canonicalPath: '/our-story',
+    jsonLd: [
+      organizationJsonLd(),
+      breadcrumbJsonLd([
+        { name: 'Home', path: '/' },
+        { name: 'Our Story', path: '/our-story' },
+      ]),
+    ],
+  });
 
   return (
     <div className={styles.page}>

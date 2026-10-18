@@ -6,6 +6,8 @@ import { App } from './App';
 import { HeadContext, defaultHead, type HeadData } from './seo/head';
 import { prefetchForRoute } from './seo/prefetch';
 import { renderHeadHtml } from './seo/renderHeadHtml';
+import { StaticPagesContext } from './seo/staticPages';
+import { serverStaticPages } from './seo/staticPages.server';
 
 export interface RenderResult {
   html: string;
@@ -30,7 +32,9 @@ export async function render(url: string): Promise<RenderResult> {
       <HeadContext.Provider value={{ set: (data) => (head = data) }}>
         <QueryClientProvider client={queryClient}>
           <StaticRouter location={url}>
-            <App />
+            <StaticPagesContext.Provider value={serverStaticPages}>
+              <App />
+            </StaticPagesContext.Provider>
           </StaticRouter>
         </QueryClientProvider>
       </HeadContext.Provider>

@@ -1,6 +1,7 @@
 import { useEffect, type ReactNode } from 'react';
 import { Link, useLocation } from 'react-router-dom';
-import { useDocumentTitle } from '../utils/useDocumentTitle';
+import { useHead } from '../seo/head';
+import { breadcrumbJsonLd, organizationJsonLd } from '../seo/jsonLd';
 import { POLICY_ICONS, type PolicyIconName } from './policies/PolicyIcons';
 import { StoryImage, Eyebrow } from './OurStoryPage';
 import story from './OurStoryPage.module.css';
@@ -106,7 +107,19 @@ const QUALITY_CHECKS = [
 ];
 
 export function WhyBoxDiamondsPage() {
-  useDocumentTitle('Why Box Diamonds');
+  useHead({
+    title: 'Why BOX DIAMONDS | Certified Diamonds, BIS Gold & Buyback',
+    description:
+      'Why choose BOX DIAMONDS: IGI/GIA-certified natural diamonds, BIS-hallmarked 9K and 18K gold, lightweight designs, transparent pricing, exchange and buyback options.',
+    canonicalPath: '/why-box-diamonds',
+    jsonLd: [
+      organizationJsonLd(),
+      breadcrumbJsonLd([
+        { name: 'Home', path: '/' },
+        { name: 'Why BOX DIAMONDS', path: '/why-box-diamonds' },
+      ]),
+    ],
+  });
 
   // Deep links such as /why-box-diamonds#exchange-buyback (homepage "Need
   // Help?" panel): the page renders after navigation, so the browser's own
