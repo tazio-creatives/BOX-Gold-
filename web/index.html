@@ -30,6 +30,26 @@
       gtag('config', 'G-YF4GE487RS', { send_page_view: false });
       gtag('event', 'page_view', { page_location: location.href, page_title: document.title });
 
+      // Meta ad clicks: store the click id the moment the page opens, in
+      // the _fbc cookie the Meta Pixel itself would write (format
+      // fb.1.<ms timestamp>.<fbclid>, on .boxdiamonds.com, 90 days). The
+      // pixel needs ~1 s to start; a visitor who taps to another page
+      // before that takes the ?fbclid= URL with them, and the click was
+      // never recorded — the backend also reads this cookie at checkout
+      // for the server-side Purchase event. The pixel reads the cookie
+      // and keeps managing it once it loads.
+      (function () {
+        try {
+          var fbclid = new URLSearchParams(location.search).get('fbclid');
+          if (!fbclid) return;
+          var existing = (document.cookie.match(/(?:^|; )_fbc=([^;]*)/) || [])[1];
+          if (existing && decodeURIComponent(existing).split('.').slice(3).join('.') === fbclid) return;
+          var domain = /(^|\.)boxdiamonds\.com$/.test(location.hostname) ? '; domain=.boxdiamonds.com' : '';
+          document.cookie = '_fbc=' + encodeURIComponent('fb.1.' + Date.now() + '.' + fbclid) +
+            '; max-age=7776000; path=/' + domain + '; SameSite=Lax';
+        } catch (e) {}
+      })();
+
       // Meta Pixel: stock snippet, loaded straight away as before — NOT
       // deferred. Loaded late, the pixel reports every queued event with
       // whatever page the visitor has moved on to, drops repeated
