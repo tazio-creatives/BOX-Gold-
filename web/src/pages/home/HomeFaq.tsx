@@ -1,5 +1,15 @@
 import { Link } from 'react-router-dom';
+import { DeliveryTruckIcon, DiamondIcon, ShieldCheckIcon } from '../../components/assuranceIcons';
 import styles from './HomeFaq.module.css';
+
+// Each claim is backed elsewhere on the site: IGI/GIA-certified natural
+// diamonds and BIS-hallmarked gold (Why BOX DIAMONDS, FAQ below), delivery
+// to serviceable PIN codes across India (Shipping Policy).
+const ABOUT_HIGHLIGHTS = [
+  { Icon: DiamondIcon, label: 'Natural Diamonds' },
+  { Icon: ShieldCheckIcon, label: 'Trusted Quality' },
+  { Icon: DeliveryTruckIcon, label: 'Pan-India Delivery' },
+] as const;
 
 // Static, homepage-only "about + FAQ" block (like AssuranceStrip, not a
 // homepage_sections row). It gives search engines and AI assistants real,
@@ -49,19 +59,29 @@ export function HomeFaq() {
   return (
     <section className={styles.wrap} aria-labelledby="home-about-heading">
       <div className={styles.about}>
-        <h2 id="home-about-heading" className={styles.heading}>
-          About BOX DIAMONDS
-        </h2>
-        <p>
-          BOX DIAMONDS is an Indian fine jewellery brand that sells certified natural diamond jewellery online at
-          boxdiamonds.com, with delivery across India. It is operated by Goldbox Diamonds Private Limited, Mumbai.
-        </p>
-        <p>
-          Our rings, earrings, necklaces, pendants, bangles and bracelets are crafted by our own artisans in
-          BIS-hallmarked 9K and 18K gold and set with IGI- or GIA-certified natural diamonds. We keep the designs
-          lightweight and the pricing transparent, so real diamond jewellery is something you can wear every day, not
-          only on special occasions.
-        </p>
+        <div className={styles.aboutText}>
+          <h2 id="home-about-heading" className={styles.aboutHeading}>
+            About BOX DIAMONDS
+          </h2>
+          <p className={styles.aboutBody}>
+            BOX DIAMONDS is an online jewellery destination offering natural diamond and gold jewellery crafted for
+            every occasion. From timeless classics to modern designs, our collections are made to bring a little more
+            brilliance to your everyday moments.
+          </p>
+          <Link to="/our-story" className={styles.aboutLink}>
+            Learn More About Us <span aria-hidden="true">→</span>
+          </Link>
+        </div>
+        <ul className={styles.highlights} aria-label="Why shop with BOX DIAMONDS">
+          {ABOUT_HIGHLIGHTS.map(({ Icon, label }) => (
+            <li key={label} className={styles.highlight}>
+              <span className={styles.highlightIcon}>
+                <Icon />
+              </span>
+              <span className={styles.highlightLabel}>{label}</span>
+            </li>
+          ))}
+        </ul>
       </div>
 
       <div className={styles.faq}>
