@@ -30,9 +30,30 @@ function pickUrl(rows: ProductImage[], preferredVariant: string): string | undef
 interface GalleryPhoto {
   id: string;
   mainUrl: string;
+  // 800w + 1600w of the main photo in one format, so phones can take the
+  // 800 px file (see MAIN_IMAGE_SIZES). Undefined when either size is
+  // missing — the <img> then just uses mainUrl, as before.
+  mainSrcSet?: string;
   thumbUrl: string;
   type: ProductImage['type'];
 }
+
+// Same format preference as pickUrl (AVIF, then WebP); both sizes must
+// exist in that format, otherwise no srcset at all.
+function mainSrcSet(rows: ProductImage[]): string | undefined {
+  for (const format of ['avif', 'webp'] as const) {
+    const medium = rows.find((r) => r.variant === 'medium' && r.format === format)?.url;
+    const large = rows.find((r) => r.variant === 'large' && r.format === format)?.url;
+    if (medium && large) return `${medium} 800w, ${large} 1600w`;
+  }
+  return undefined;
+}
+
+// Phones (the main photo is full width there) choose by screen density:
+// the 800 px file on typical 1.5-2x screens, 1600 px on 3x screens. From
+// 768 px up the "1600px" slot keeps tablets and desktops on the 1600 px
+// image exactly as before; hover-zoom and the lightbox always use it too.
+const MAIN_IMAGE_SIZES = '(max-width: 767px) 100vw, 1600px';
 
 function groupPhotos(images: ProductImage[]): GalleryPhoto[] {
   const groups = new Map<number, ProductImage[]>();
@@ -45,6 +66,7 @@ function groupPhotos(images: ProductImage[]): GalleryPhoto[] {
     .map(([, rows]) => ({
       id: rows[0].id,
       mainUrl: pickUrl(rows, 'large') as string,
+      mainSrcSet: mainSrcSet(rows),
       thumbUrl: pickUrl(rows, 'small') as string,
       type: rows[0].type,
     }))
@@ -180,6 +202,8 @@ export function ImageGallery({
       >
         <img
           src={activeUrl}
+          srcSet={activePhoto.mainSrcSet}
+          sizes={activePhoto.mainSrcSet ? MAIN_IMAGE_SIZES : undefined}
           alt={isSizeGuide ? `${productName} size guide` : imageAlt}
           className={
             isSizeGuide ? `${styles.mainImage} ${styles.productSizeImage}` : styles.mainImage
