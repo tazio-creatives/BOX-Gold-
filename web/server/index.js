@@ -64,6 +64,62 @@ async function findProductRedirect(oldSlug) {
   }
 }
 
+// Server-rendered content pages that stay code-split in the browser
+// (src/seo/staticPages.tsx): their CSS normally arrives only with their
+// lazy JS chunk, so the server HTML would show unstyled until then. For
+// these routes the page's stylesheets (and a modulepreload of its JS) are
+// added to <head>, found via Vite's build manifest. Vite's lazy loader
+// skips a stylesheet that's already on the page, so nothing loads twice.
+const STATIC_PAGE_MODULES = {
+  '/shipping-policy': 'src/pages/policies/ShippingPolicyPage.tsx',
+  '/refund-policy': 'src/pages/policies/RefundPolicyPage.tsx',
+  '/return-policy': 'src/pages/policies/RefundPolicyPage.tsx',
+  '/contact': 'src/pages/ContactPage.tsx',
+  '/our-story': 'src/pages/OurStoryPage.tsx',
+  '/why-box-diamonds': 'src/pages/WhyBoxDiamondsPage.tsx',
+};
+
+let clientManifest = null;
+async function staticPageAssetTags(pathname) {
+  const moduleKey = STATIC_PAGE_MODULES[pathname];
+  if (!moduleKey) return '';
+  try {
+    if (!clientManifest) {
+      clientManifest = JSON.parse(await fs.readFile(path.join(root, 'dist/client/.vite/manifest.json'), 'utf-8'));
+    }
+    const manifest = clientManifest;
+    // Everything the main entry already loads is in the page anyway.
+    const alreadyLoaded = new Set();
+    (function markEntry(key) {
+      const chunk = manifest[key];
+      if (!chunk || alreadyLoaded.has(chunk.file)) return;
+      alreadyLoaded.add(chunk.file);
+      (chunk.css ?? []).forEach((css) => alreadyLoaded.add(css));
+      (chunk.imports ?? []).forEach(markEntry);
+    })('index.html');
+
+    const css = new Set();
+    const js = new Set();
+    const seen = new Set();
+    (function collect(key) {
+      const chunk = manifest[key];
+      if (!chunk || seen.has(key)) return;
+      seen.add(key);
+      if (!alreadyLoaded.has(chunk.file)) js.add(chunk.file);
+      (chunk.css ?? []).forEach((file) => alreadyLoaded.has(file) || css.add(file));
+      (chunk.imports ?? []).forEach(collect);
+    })(moduleKey);
+
+    return [
+      ...[...css].map((file) => `<link rel="stylesheet" href="/${file}" />`),
+      ...[...js].map((file) => `<link rel="modulepreload" crossorigin href="/${file}" />`),
+    ].join('\n    ');
+  } catch (err) {
+    console.error('static page asset tags failed:', err);
+    return '';
+  }
+}
+
 async function createServer() {
   const app = express();
 
@@ -218,7 +274,10 @@ async function createServer() {
       }
 
       const { render } = await loadSsrModule('/src/entry-server.tsx');
-      const { html: appHtml, headHtml, dehydratedStateJson, notFound } = await render(url);
+      const rendered = await render(url);
+      const { html: appHtml, dehydratedStateJson, notFound } = rendered;
+      const pageAssets = isProd ? await staticPageAssetTags(pathname) : '';
+      const headHtml = pageAssets ? `${rendered.headHtml}\n    ${pageAssets}` : rendered.headHtml;
 
       // A product whose slug was changed (renamed, or number-only /
       // accent-mangled slugs cleaned up) — 301 its old URL to the current
