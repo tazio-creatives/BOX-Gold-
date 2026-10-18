@@ -3,6 +3,10 @@ import { RefundPolicyPage } from '../pages/policies/RefundPolicyPage';
 import { ContactPage } from '../pages/ContactPage';
 import { OurStoryPage } from '../pages/OurStoryPage';
 import { WhyBoxDiamondsPage } from '../pages/WhyBoxDiamondsPage';
+import { PrivacyPolicyPage } from '../pages/policies/PrivacyPolicyPage';
+import { TermsPage } from '../pages/policies/TermsPage';
+import { CareGuidePage } from '../pages/CareGuidePage';
+import { SustainabilityPage } from '../pages/SustainabilityPage';
 import type { StaticPageMap } from './staticPages';
 
 // Server only (imported by entry-server.tsx): the same pages as direct
@@ -14,4 +18,8 @@ export const serverStaticPages: StaticPageMap = {
   contact: ContactPage,
   ourStory: OurStoryPage,
   whyBoxDiamonds: WhyBoxDiamondsPage,
+  privacyPolicy: PrivacyPolicyPage,
+  terms: TermsPage,
+  careGuide: CareGuidePage,
+  sustainability: SustainabilityPage,
 };

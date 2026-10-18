@@ -407,6 +407,11 @@ export function SustainabilityPage() {
   return (
     <PolicyDocLayout
       title="Sustainability at Box Diamonds"
+      seo={{
+        title: 'Sustainability at BOX DIAMONDS | Jewellery Made to Last',
+        description:
+          'How BOX DIAMONDS approaches sustainability: jewellery designed with purpose, manufactured responsibly, worn for years and valued across generations.',
+      }}
       breadcrumbSection="About Us"
       lastUpdated="2 October 2026"
       subtitle={

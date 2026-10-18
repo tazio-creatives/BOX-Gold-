@@ -185,6 +185,11 @@ export function TermsPage() {
   return (
     <PolicyDocLayout
       title="Terms & Conditions"
+      seo={{
+        title: 'Terms & Conditions of Use and Sale | BOX DIAMONDS',
+        description:
+          'The terms that govern your use of boxdiamonds.com and your purchases from BOX DIAMONDS, operated by Goldbox Diamonds Private Limited.',
+      }}
       lastUpdated="2 October 2026"
       subtitle={
         <>
