@@ -144,6 +144,10 @@ async function createServer() {
   // as-is at /index.html, a crawlable titleless duplicate of the homepage.
   app.get('/index.html', (req, res) => res.redirect(301, '/'));
 
+  // Vite's build manifest (dist/client/.vite/) is read by this server only —
+  // don't serve it to the public.
+  app.use('/.vite', (req, res) => res.status(404).end());
+
   // Category URLs renamed to match their names (Bangle was /nose-pin, Pendant
   // was /diamond-rings) — old category and product links, already shared or
   // indexed, move permanently to the new ones, query string kept. Don't
