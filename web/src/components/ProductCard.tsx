@@ -4,7 +4,6 @@ import type { ProductCard as ProductCardType } from '../api/types';
 import { productUrl } from '../utils/productUrl';
 import { formatPrice } from '../utils/formatPrice';
 import { placeholderGradient } from '../utils/placeholderGradient';
-import { getStockStatus } from '../utils/stockStatus';
 import { WishlistButton } from './WishlistButton';
 import styles from './ProductCard.module.css';
 
@@ -50,10 +49,9 @@ export function ProductCard({
   // Hides the "New" tag — the homepage Shop by Category grid turns it off.
   showNewBadge?: boolean;
 }) {
-  // Zero stock is still orderable (made to order), so the badge uses the
-  // same wording as the PDP and listing cards (utils/stockStatus).
-  const stock = getStockStatus(product.availableStock);
-  const isOutOfStock = stock.state === 'out';
+  // Zero stock is still orderable (made to order), so it gets no badge;
+  // only genuinely low stock is flagged.
+  const isOutOfStock = product.availableStock <= 0;
   const isLowStock = !isOutOfStock && product.availableStock <= LOW_STOCK_THRESHOLD;
   const strikePrice = product.strikePrice;
 
@@ -80,7 +78,6 @@ export function ProductCard({
         )}
         <div className={styles.badges}>
           {showNewBadge && product.isNew && <span className={styles.badgeNew}>New</span>}
-          {isOutOfStock && <span className={styles.badgeOut}>{stock.label}</span>}
           {isLowStock && <span className={styles.badgeLow}>Only {product.availableStock} left</span>}
         </div>
         <WishlistButton productId={product.id} className={styles.wishlistButton} />
