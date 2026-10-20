@@ -129,6 +129,21 @@
     min-width: 0;
   }
 
+  /* Long category names: full row, name on one line (see isWideTile). */
+  .tileWrapWide {
+    grid-column: 1 / -1;
+  }
+
+  .tileWrapWide .tileName {
+    flex: 1 1 auto;
+    max-width: none;
+  }
+
+  .tileWrapWide .tileImageWrap {
+    flex: 0 0 40%;
+    max-width: 40%;
+  }
+
   .tile {
     position: relative;
     height: 79px;

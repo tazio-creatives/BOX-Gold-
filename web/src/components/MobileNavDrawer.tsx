@@ -62,18 +62,27 @@ interface MobileNavDrawerProps {
 // Category" tile grid — the only content, since every other nav link
 // (New Arrivals, Best Sellers, Collections, Gifting, etc.) is deliberately
 // left off per this redesign.
+// Half-width tiles give the name about 13 characters per line at 13px;
+// longer names get the full row.
+const WIDE_TILE_MIN_CHARS = 15;
+function isWideTile(name: string): boolean {
+  return name.length >= WIDE_TILE_MIN_CHARS;
+}
+
 export function MobileNavDrawer({ categories, wishlistCount, isLoggedIn, onClose, onOpenLogin }: MobileNavDrawerProps) {
   // Top-level categories only, in admin-configured order — same set the
   // homepage's own "Shop by Category" section shows, so this drawer and
   // the homepage never disagree about what "every category" means.
-  const topLevelCategories = useMemo(
-    () =>
-      categories
-        .filter((c) => c.parentId === null && c.isActive)
-        .slice()
-        .sort((a, b) => a.sortOrder - b.sortOrder),
-    [categories],
-  );
+  // A name too long for a half-width tile (e.g. "Mangalsutra/Tanmaniya",
+  // one unbreakable word) was cut off mid-word. Those categories go last,
+  // as full-width tiles; everything else keeps the admin order.
+  const topLevelCategories = useMemo(() => {
+    const sorted = categories
+      .filter((c) => c.parentId === null && c.isActive)
+      .slice()
+      .sort((a, b) => a.sortOrder - b.sortOrder);
+    return [...sorted.filter((c) => !isWideTile(c.name)), ...sorted.filter((c) => isWideTile(c.name))];
+  }, [categories]);
 
   // Active subcategories grouped by their parent's id, admin-ordered — a
   // tile only gets an expand chevron when this map has a non-empty entry
@@ -164,7 +173,10 @@ export function MobileNavDrawer({ categories, wishlistCount, isLoggedIn, onClose
               const hasChildren = children.length > 0;
               const isExpanded = expandedIds.has(category.id);
               return (
-                <div key={category.id} className={styles.tileWrap}>
+                <div
+                  key={category.id}
+                  className={isWideTile(category.name) ? `${styles.tileWrap} ${styles.tileWrapWide}` : styles.tileWrap}
+                >
                   <div className={styles.tile}>
                     <Link
                       to={`/${category.slug}`}
