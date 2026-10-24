@@ -38,12 +38,16 @@ export async function clearOrderedItemsFromCartTx(client, cartId, orderId) {
   );
 }
 
+// Two first requests for the same owner can race here (e.g. two quick
+// "Add to Cart" taps from a new guest). carts has one-per-owner unique
+// indexes, so the loser does nothing and reads the winner's cart instead of
+// failing with a unique violation.
 export async function createCart({ userId, guestSessionId }) {
   const { rows } = await query(
-    `INSERT INTO carts (user_id, guest_session_id) VALUES ($1, $2) RETURNING *`,
+    `INSERT INTO carts (user_id, guest_session_id) VALUES ($1, $2) ON CONFLICT DO NOTHING RETURNING *`,
     [userId ?? null, userId ? null : guestSessionId],
   );
-  return rows[0];
+  return rows[0] ?? findCartByOwner({ userId, guestSessionId });
 }
 
 export async function findCartItems(cartId) {
