@@ -101,8 +101,9 @@ export async function insertOrderItemTx(client, fields) {
         product_name, product_sku, quantity,
         gold_value, diamond_value, making_charge, gst_amount, unit_price, line_total, gold_rate_id,
         is_backordered, gold_weight_grams_snapshot, diamond_weight_carats_snapshot,
-        diamond_count_snapshot, diamond_colour_snapshot, diamond_clarity_snapshot, customization_note)
-     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21)
+        diamond_count_snapshot, diamond_colour_snapshot, diamond_clarity_snapshot, customization_note,
+        image_url, image_large_url)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23)
      RETURNING *`,
     [
       fields.orderId,
@@ -126,6 +127,8 @@ export async function insertOrderItemTx(client, fields) {
       fields.diamondColourSnapshot ?? null,
       fields.diamondClaritySnapshot ?? null,
       fields.customizationNote ?? null,
+      fields.imageUrl ?? null,
+      fields.imageLargeUrl ?? null,
     ],
   );
   return rows[0];
@@ -343,7 +346,7 @@ export async function findOrderListExtras(orderIds) {
       orderIds,
     ]),
     query(
-      `SELECT DISTINCT ON (oi.order_id) oi.order_id, oi.product_name, pi.url AS preview_image_url
+      `SELECT DISTINCT ON (oi.order_id) oi.order_id, oi.product_name, COALESCE(oi.image_url, pi.url) AS preview_image_url
        FROM order_items oi
        LEFT JOIN LATERAL (
          SELECT url FROM product_images
@@ -404,11 +407,11 @@ export async function getOrderSummaryStats({ status } = {}) {
   return rows[0];
 }
 
-// Order detail page/panel item rows (admin + customer). Joins today's
-// primary product image (thumbnail + a larger size for the hover preview) —
-// a deliberate live lookup, since there's no requirement the thumbnail stay
-// pinned to whatever existed at order time, and it can be null (no photo
-// uploaded). diamond_count/colour/clarity are ALSO joined live here, but
+// Order detail page/panel item rows (admin + customer). The item's photo is
+// its checkout snapshot (image_url/image_large_url — the photo for the gold
+// colour actually ordered); orders placed before that snapshot existed fall
+// back to today's primary product image, a live lookup that can be null (no
+// photo uploaded). diamond_count/colour/clarity are ALSO joined live here, but
 // only as a fallback for orders placed before the 20260918000000 migration
 // added *_snapshot columns to order_items — orderDto.js prefers the
 // snapshot when present, exactly like it already does for
@@ -425,7 +428,8 @@ export async function findOrderItems(orderId) {
   const { rows } = await query(
     `SELECT oi.*, p.diamond_count, p.diamond_colour, p.diamond_clarity, c.name AS category_name,
             p.metal_type, p.net_weight_grams, p.gross_weight_grams, p.diamond_weight_grams, p.gemstone,
-            thumb.url AS product_image_url, large.url AS product_image_large_url
+            COALESCE(oi.image_url, thumb.url) AS product_image_url,
+            COALESCE(oi.image_large_url, large.url) AS product_image_large_url
      FROM order_items oi
      LEFT JOIN products p ON p.id = oi.product_id
      LEFT JOIN categories c ON c.id = p.category_id

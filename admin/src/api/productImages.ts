@@ -6,23 +6,43 @@ export interface ImageVariant {
   url: string;
 }
 
+export type ImageGoldColour = 'YELLOW' | 'ROSE' | 'WHITE' | 'ANY';
+export type ImageShotType = 'FRONT' | 'ANGLE' | 'SIDE' | 'MACRO' | 'MODEL' | 'SIZE_GUIDE' | 'OTHER';
+
+// Which gold colour a photo shows ('ANY' = colour-neutral) and what kind of
+// shot it is — drives which photo the cart/orders show for each colour.
+export interface ImageLabels {
+  goldColour: ImageGoldColour;
+  shotType: ImageShotType;
+}
+
 export interface ImageGroup {
   sortOrder: number;
-  type: 'ORIGINAL' | 'AI_GENERATED';
+  type: 'ORIGINAL' | 'AI_GENERATED' | 'PRODUCT_SIZE';
   isPrimary: boolean;
+  goldColour: ImageGoldColour;
+  shotType: ImageShotType;
   variants: ImageVariant[];
 }
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? 'http://localhost:4000/api/v1';
 
 export function fetchProductImages(productId: string) {
-  return apiFetch<{ images: ImageGroup[] }>(`/admin/products/${productId}/images`);
+  // offeredGoldColours: the gold colours this product is sold in — more than
+  // one means a manual photo must be given a colour before it's added.
+  return apiFetch<{ images: ImageGroup[]; offeredGoldColours: Array<'YELLOW' | 'ROSE' | 'WHITE'> }>(
+    `/admin/products/${productId}/images`,
+  );
 }
 
 // Multipart upload — can't go through the JSON-only apiFetch helper (the
 // browser needs to set its own multipart boundary in Content-Type).
-export async function uploadProductImage(productId: string, file: File) {
+export async function uploadProductImage(productId: string, file: File, labels?: ImageLabels) {
   const formData = new FormData();
+  if (labels) {
+    formData.append('goldColour', labels.goldColour);
+    formData.append('shotType', labels.shotType);
+  }
   formData.append('image', file);
 
   const response = await fetch(`${API_BASE_URL}/admin/products/${productId}/images`, {
@@ -74,9 +94,20 @@ export function fetchImageLibrary(params: { search?: string; excludeProductId?: 
   return apiFetch<{ images: LibraryImage[] }>(`/admin/products/images/library${suffix}`);
 }
 
-export function attachExistingImage(productId: string, source: { sourceProductId: string; sourceSortOrder: number }) {
+export function attachExistingImage(
+  productId: string,
+  source: { sourceProductId: string; sourceSortOrder: number },
+  labels?: ImageLabels,
+) {
   return apiFetch<{ images: ImageGroup[] }>(`/admin/products/${productId}/images/attach`, {
     method: 'POST',
-    body: JSON.stringify(source),
+    body: JSON.stringify({ ...source, ...labels }),
+  });
+}
+
+export function updateImageLabels(productId: string, sortOrder: number, labels: ImageLabels) {
+  return apiFetch<{ images: ImageGroup[] }>(`/admin/products/${productId}/images/${sortOrder}/labels`, {
+    method: 'PATCH',
+    body: JSON.stringify(labels),
   });
 }

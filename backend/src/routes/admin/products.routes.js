@@ -28,6 +28,7 @@ import {
   remove as removeImage,
   listAllImages,
   attachExisting,
+  updateLabels as updateImageLabels,
 } from '../../controllers/productImages.controller.js';
 import { getStatus, approve, reject, regenerate } from '../../controllers/aiImages.controller.js';
 import {
@@ -97,6 +98,7 @@ adminProductsRouter.post('/:id/images', upload.single('image'), uploadOriginal);
 adminProductsRouter.post('/:id/images/attach', attachExisting);
 adminProductsRouter.patch('/:id/images/reorder', reorder);
 adminProductsRouter.patch('/:id/images/:sortOrder/primary', setPrimary);
+adminProductsRouter.patch('/:id/images/:sortOrder/labels', updateImageLabels);
 adminProductsRouter.delete('/:id/images/:sortOrder', removeImage);
 
 // AI image job workflow (plan §10).

@@ -8,13 +8,84 @@ export async function countProductImages(productId, type) {
   return rows[0].count;
 }
 
-export async function insertProductImage({ productId, type, variant, format, url, isPrimary, sortOrder }) {
+// goldColour/shotType label the whole photo — callers pass the same values
+// for every one of a group's size/format rows (see the migration
+// 20261024000000_product_image_gold_colour.js).
+export async function insertProductImage({
+  productId,
+  type,
+  variant,
+  format,
+  url,
+  isPrimary,
+  sortOrder,
+  goldColour,
+  shotType,
+}) {
   const { rows } = await query(
-    `INSERT INTO product_images (product_id, type, variant, format, url, is_primary, sort_order)
-     VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING *`,
-    [productId, type, variant, format, url, isPrimary ?? false, sortOrder ?? 0],
+    `INSERT INTO product_images (product_id, type, variant, format, url, is_primary, sort_order, gold_colour, shot_type)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING *`,
+    [productId, type, variant, format, url, isPrimary ?? false, sortOrder ?? 0, goldColour ?? 'ANY', shotType ?? 'OTHER'],
   );
   return rows[0];
+}
+
+// Relabels one photo — all of its size/format rows at once.
+export async function updateImageGroupLabels(productId, sortOrder, { goldColour, shotType }) {
+  const { rowCount } = await query(
+    'UPDATE product_images SET gold_colour = $3, shot_type = $4 WHERE product_id = $1 AND sort_order = $2',
+    [productId, sortOrder, goldColour, shotType],
+  );
+  return rowCount;
+}
+
+// One query for every product in a cart/order — only the two sizes the
+// image resolver can return, to keep the payload small.
+export async function findResolvableImagesForProducts(productIds) {
+  const { rows } = await query(
+    `SELECT product_id, sort_order, type, variant, format, url, is_primary, gold_colour, shot_type
+     FROM product_images
+     WHERE product_id = ANY($1) AND variant IN ('small', 'large', 'original')`,
+    [productIds],
+  );
+  const byProduct = new Map();
+  for (const row of rows) {
+    if (!byProduct.has(row.product_id)) byProduct.set(row.product_id, []);
+    byProduct.get(row.product_id).push(row);
+  }
+  return byProduct;
+}
+
+// Gold colours a product is actually sold in — from its available variants'
+// gold_color attribute, falling back to products.gold_color for products
+// with no colour axis (same fallback pricing uses).
+export async function findOfferedGoldColours(productId) {
+  const { rows } = await query(
+    `SELECT DISTINCT av.value
+     FROM product_variants pv
+     JOIN variant_attribute_values vav ON vav.variant_id = pv.id
+     JOIN attribute_values av ON av.id = vav.attribute_value_id
+     JOIN attributes a ON a.id = av.attribute_id AND a.code = 'gold_color'
+     WHERE pv.product_id = $1 AND pv.is_available = true
+     ORDER BY av.value`,
+    [productId],
+  );
+  if (rows.length > 0) return rows.map((r) => r.value);
+  const { rows: productRows } = await query('SELECT gold_color FROM products WHERE id = $1', [productId]);
+  return productRows[0]?.gold_color ? [productRows[0].gold_color] : [];
+}
+
+// URLs an order item still shows (checkout snapshot) — their files must
+// survive a gallery delete, or order history and sent emails break.
+export async function findUrlsReferencedByOrders(urls) {
+  if (urls.length === 0) return new Set();
+  const { rows } = await query(
+    `SELECT image_url AS url FROM order_items WHERE image_url = ANY($1)
+     UNION
+     SELECT image_large_url FROM order_items WHERE image_large_url = ANY($1)`,
+    [urls],
+  );
+  return new Set(rows.map((r) => r.url));
 }
 
 export async function findProductImageById(id) {

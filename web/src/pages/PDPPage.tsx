@@ -20,6 +20,7 @@ import {
   productSeoTitle,
 } from '../seo/productSeo';
 import { ImageGallery } from '../features/pdp/ImageGallery';
+import { resolveSmallImageForColour } from '../utils/resolveImageForColour';
 import { ProductInfo } from '../features/pdp/ProductInfo';
 import { ProductTabs } from '../features/pdp/ProductTabs';
 import { RelatedProducts } from '../features/pdp/RelatedProducts';
@@ -309,9 +310,8 @@ export function PDPPage() {
                       categorySlug: category?.slug ?? null,
                       sellingPrice: displayPrice,
                       gstAmount: displayGstAmount,
-                      primaryImageUrl:
-                        product.images.find((img) => img.isPrimary && img.variant === 'small')
-                          ?.url ?? null,
+                      // Photo for the selected gold colour (same rule as the cart).
+                      primaryImageUrl: resolveSmallImageForColour(product.images, selectedGoldColor ?? null),
                       availableStock: product.availableStock,
                       sizeLabel: selectedSize?.label ?? null,
                       goldColor: selectedGoldColor ?? null,

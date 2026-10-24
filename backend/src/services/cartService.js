@@ -4,6 +4,8 @@ import { findVariantById, findVariantsByProductId, resolvedSizeLabel } from '../
 import { computeVariantPricing } from './pricingService.js';
 import { loadActiveRuleSet } from './pricingRuleResolver.js';
 import { calculateDeliveryEstimate } from './deliveryEstimateService.js';
+import { resolveImageForColour } from './productImageResolver.js';
+import { findResolvableImagesForProducts } from '../repositories/productImages.repository.js';
 import {
   findCartByOwner,
   createCart,
@@ -30,7 +32,7 @@ async function findOrCreateCart(owner) {
   return createCart(owner);
 }
 
-function toItemDto(item, product, variant, pricing) {
+function toItemDto(item, product, variant, pricing, image) {
   const sellingPrice = pricing.sellingPrice;
   const lineTotal = round2(sellingPrice * item.quantity);
   // Same split used at checkout (checkoutService.js) — the tax portion
@@ -54,7 +56,9 @@ function toItemDto(item, product, variant, pricing) {
     sku: product.sku ?? null,
     categorySlug: product.category_slug,
     categoryName: product.category_name ?? null,
-    primaryImageUrl: product.primary_image_url,
+    // The photo matching this line's gold colour (productImageResolver.js);
+    // field name kept so the cart/checkout screens need no change.
+    primaryImageUrl: image?.smallUrl ?? product.primary_image_url,
     metalType: product.metal_type,
     purity: pricing.purity,
     goldColor: pricing.goldColor,
@@ -89,7 +93,12 @@ export async function getCart(owner) {
   const deliveryEstimate = calculateDeliveryEstimate();
   if (items.length === 0) return { items: [], subtotal: 0, gstAmount: 0, itemCount: 0, deliveryEstimate };
 
-  const products = await findProductsByIds(items.map((i) => i.product_id));
+  const productIds = items.map((i) => i.product_id);
+  const [products, imagesByProduct] = await Promise.all([
+    findProductsByIds(productIds),
+    // One query for every line's photos, not one per line.
+    findResolvableImagesForProducts(productIds),
+  ]);
   const productMap = new Map(products.map((p) => [p.id, p]));
   // Loaded once for the whole cart (cached 30s inside loadActiveRuleSet
   // itself, so this is cheap even so) — every line must resolve through the
@@ -104,7 +113,8 @@ export async function getCart(owner) {
         const variant = await findVariantById(item.product_variant_id);
         if (!product || !variant) return null; // stale line (product/variant since removed) — quietly dropped from display
         const pricing = await computeVariantPricing(product, variant.combination_key === '' ? null : variant, null, null, ruleSet);
-        return toItemDto(item, product, variant, pricing);
+        const image = resolveImageForColour(imagesByProduct.get(product.id), pricing.goldColor);
+        return toItemDto(item, product, variant, pricing, image);
       }),
     )
   ).filter(Boolean);

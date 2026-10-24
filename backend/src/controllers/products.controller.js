@@ -386,6 +386,8 @@ function toDetailDto(row, deliveryEstimate = calculateDeliveryEstimate()) {
       url: img.url,
       isPrimary: img.is_primary,
       sortOrder: img.sort_order,
+      goldColour: img.gold_colour,
+      shotType: img.shot_type,
     })),
 
     // Only present when the admin has saved Product Size Image measurements

@@ -303,7 +303,7 @@ export async function findProductById(id) {
 
 export async function findProductImages(productId) {
   const { rows } = await query(
-    `SELECT id, type, variant, format, url, is_primary, sort_order
+    `SELECT id, type, variant, format, url, is_primary, sort_order, gold_colour, shot_type
      FROM product_images WHERE product_id = $1 ORDER BY sort_order`,
     [productId],
   );

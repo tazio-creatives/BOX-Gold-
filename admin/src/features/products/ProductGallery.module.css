@@ -96,3 +96,52 @@
   font-size: var(--text-sm);
   margin: 0 0 var(--space-3);
 }
+
+.colourBadge {
+  position: absolute;
+  bottom: var(--space-1);
+  left: var(--space-1);
+  right: var(--space-1);
+  background: rgba(255, 255, 255, 0.9);
+  color: #1d2329;
+  font-size: var(--text-xs);
+  padding: 2px var(--space-2);
+  border-radius: var(--radius-sm);
+  text-align: center;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.labelFields {
+  display: flex;
+  gap: 4px;
+  padding: var(--space-2) var(--space-2) 0;
+}
+
+.labelFields select {
+  flex: 1;
+  min-width: 0;
+  font-size: var(--text-xs);
+  padding: 2px;
+}
+
+.pendingPanel {
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  padding: var(--space-3);
+  margin-bottom: var(--space-4);
+  background: var(--color-surface);
+}
+
+.pendingTitle {
+  margin: 0 0 var(--space-3);
+  font-size: var(--text-xs);
+}
+
+.pendingFields {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+  margin-bottom: var(--space-3);
+}

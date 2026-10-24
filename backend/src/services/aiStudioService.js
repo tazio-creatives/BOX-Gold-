@@ -230,6 +230,31 @@ export function metalColorForAssetType(assetType, generateRoseGold = true) {
   return assetType.startsWith('ROSE_') || assetType === 'PRESENTER_ROSE' ? 'ROSE' : 'YELLOW';
 }
 
+// product_images labels for an imported asset (gold_colour/shot_type — see
+// productImageResolver.js). Colour comes from metalColorForAssetType above,
+// so RING_HAND_2 follows the job's Rose Gold toggle the same way.
+const SHOT_TYPE_BY_ASSET_TYPE = {
+  YELLOW_FRONT: 'FRONT',
+  ROSE_FRONT: 'FRONT',
+  RING_GOLD_FRONT: 'FRONT',
+  RING_ROSE_FRONT: 'FRONT',
+  YELLOW_HERO_45: 'ANGLE',
+  ROSE_HERO_45: 'ANGLE',
+  RING_GOLD_SIDE: 'SIDE',
+  RING_ROSE_SIDE: 'SIDE',
+  PRESENTER_YELLOW_1: 'MODEL',
+  PRESENTER_YELLOW_2: 'MODEL',
+  PRESENTER_ROSE: 'MODEL',
+  RING_HAND_1: 'MODEL',
+  RING_HAND_2: 'MODEL',
+};
+
+export function imageLabelsForAssetType(assetType, generateRoseGold = true) {
+  const shotType = SHOT_TYPE_BY_ASSET_TYPE[assetType];
+  if (!shotType) throw new Error(`Unknown asset type "${assetType}"`);
+  return { goldColour: metalColorForAssetType(assetType, generateRoseGold), shotType };
+}
+
 // Which of a presenter's 4 reference photos to use as the second input image
 // for a given presenter asset type — PRESENTER_YELLOW_1/PRESENTER_ROSE share
 // a pose (the matched comparison pair), PRESENTER_YELLOW_2 uses a different

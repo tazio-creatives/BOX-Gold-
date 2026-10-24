@@ -53,8 +53,8 @@ async function generateHandler(jobs) {
 
     for (const v of variants) {
       await client.query(
-        `INSERT INTO product_images (product_id, type, variant, format, url, is_primary, sort_order)
-         VALUES ($1, 'PRODUCT_SIZE', $2, $3, $4, false, $5)`,
+        `INSERT INTO product_images (product_id, type, variant, format, url, is_primary, sort_order, gold_colour, shot_type)
+         VALUES ($1, 'PRODUCT_SIZE', $2, $3, $4, false, $5, 'ANY', 'SIZE_GUIDE')`,
         [productId, v.variant, v.format, v.url, nextSortOrder],
       );
     }

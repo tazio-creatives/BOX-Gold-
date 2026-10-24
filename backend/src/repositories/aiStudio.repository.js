@@ -187,11 +187,14 @@ export async function clearPrimaryForProductTx(client, productId) {
   await client.query('UPDATE product_images SET is_primary = false WHERE product_id = $1', [productId]);
 }
 
-export async function insertProductImageTx(client, { productId, type, variant, format, url, isPrimary, sortOrder }) {
+export async function insertProductImageTx(
+  client,
+  { productId, type, variant, format, url, isPrimary, sortOrder, goldColour, shotType },
+) {
   const { rows } = await client.query(
-    `INSERT INTO product_images (product_id, type, variant, format, url, is_primary, sort_order)
-     VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING *`,
-    [productId, type, variant, format, url, isPrimary ?? false, sortOrder ?? 0],
+    `INSERT INTO product_images (product_id, type, variant, format, url, is_primary, sort_order, gold_colour, shot_type)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING *`,
+    [productId, type, variant, format, url, isPrimary ?? false, sortOrder ?? 0, goldColour ?? 'ANY', shotType ?? 'OTHER'],
   );
   return rows[0];
 }

@@ -199,6 +199,10 @@ export interface ProductImage {
   url: string;
   isPrimary: boolean;
   sortOrder: number;
+  // Which gold colour the photo shows ('ANY' = colour-neutral) and what kind
+  // of shot it is — used to pick the matching thumbnail (resolveImageForColour).
+  goldColour?: GoldColor | 'ANY';
+  shotType?: 'FRONT' | 'ANGLE' | 'SIDE' | 'MACRO' | 'MODEL' | 'SIZE_GUIDE' | 'OTHER';
 }
 
 // Only ever present when the backend has an eligible (currently passed,

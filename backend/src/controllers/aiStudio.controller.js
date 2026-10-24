@@ -12,6 +12,7 @@ import {
   previewPromptsForJob,
   CUSTOMER_CATEGORIES,
   DEFAULT_CUSTOMER_CATEGORY,
+  imageLabelsForAssetType,
 } from '../services/aiStudioService.js';
 import { findPresenterById } from '../repositories/presenters.repository.js';
 import { findCategoryById } from '../repositories/categories.repository.js';
@@ -635,6 +636,8 @@ export async function importAsset(req, res, next) {
       const nextSortOrder = (await findMaxSortOrderTx(client, productId)) + 1;
       const raw = await storageProvider.read(asset.image_key);
       const variants = await processAndStoreImage(productId, raw);
+      // Same labels on all of this photo's size/format rows.
+      const { goldColour, shotType } = imageLabelsForAssetType(asset.asset_type, job.generate_rose_gold);
 
       for (const v of variants) {
         await insertProductImageTx(client, {
@@ -645,6 +648,8 @@ export async function importAsset(req, res, next) {
           url: v.url,
           isPrimary: asset.is_featured,
           sortOrder: nextSortOrder,
+          goldColour,
+          shotType,
         });
       }
       const updated = await updateAssetTx(client, asset.id, { imported: true });

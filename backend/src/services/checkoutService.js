@@ -17,6 +17,8 @@ import { loadActiveRuleSet } from './pricingRuleResolver.js';
 import { validateCoupon } from './couponService.js';
 import { calculateDeliveryEstimate } from './deliveryEstimateService.js';
 import { checkDeliveryPincode } from './deliveryCheckService.js';
+import { resolveImageForColour } from './productImageResolver.js';
+import { findResolvableImagesForProducts } from '../repositories/productImages.repository.js';
 
 function round2(n) {
   return Math.round(n * 100) / 100;
@@ -66,6 +68,10 @@ export async function createOrder({ userId, contact, addressId, items, couponCod
   const sortedItems = [...items].sort(
     (a, b) => a.productId.localeCompare(b.productId) || (a.variantId ?? '').localeCompare(b.variantId ?? ''),
   );
+
+  // Photos for every line in one query, read before the locking transaction
+  // (display data only — it never affects price, stock or validation).
+  const imagesByProduct = await findResolvableImagesForProducts([...new Set(sortedItems.map((i) => i.productId))]);
 
   const order = await withTransaction(async (client) => {
     const lineData = [];
@@ -146,9 +152,15 @@ export async function createOrder({ userId, contact, addressId, items, couponCod
         goldRateId = rate?.id ?? null;
       }
 
+      // Snapshot of the photo for the colour actually ordered, so order
+      // pages and emails keep showing it even if the gallery changes later.
+      const image = resolveImageForColour(imagesByProduct.get(product.id), pricing.goldColor);
+
       lineData.push({
         product,
         variant,
+        imageUrl: image?.smallUrl ?? null,
+        imageLargeUrl: image?.largeUrl ?? null,
         quantity,
         lineGoldValue,
         lineDiamondValue,
@@ -234,6 +246,8 @@ export async function createOrder({ userId, contact, addressId, items, couponCod
         diamondColourSnapshot: line.product.diamond_colour,
         diamondClaritySnapshot: line.product.diamond_clarity,
         customizationNote: line.customizationNote,
+        imageUrl: line.imageUrl,
+        imageLargeUrl: line.imageLargeUrl,
       });
 
       // A backordered line has nothing physical to hold — skip the
