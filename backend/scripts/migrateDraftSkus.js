@@ -267,9 +267,17 @@ export async function restoreMigration(logPath) {
     await client.query('BEGIN');
     const ordersBefore = await orderItemsFingerprint(client);
     for (const e of log.products) {
+      // SKU and legacy_sku must still be exactly what the migration wrote
+      // (both are permanent, so anything else means the log doesn't match
+      // this database). The jewellery type is only put back when it is still
+      // the migrated value — an admin may have corrected it since, and that
+      // later edit is kept rather than blocking the rollback.
       const { rowCount } = await client.query(
-        `UPDATE products SET sku = $2, legacy_sku = $3, jewellery_type = $4, updated_at = now()
-         WHERE id = $1 AND sku = $5 AND legacy_sku IS NOT DISTINCT FROM $6 AND jewellery_type IS NOT DISTINCT FROM $7`,
+        `UPDATE products
+            SET sku = $2, legacy_sku = $3,
+                jewellery_type = CASE WHEN jewellery_type IS NOT DISTINCT FROM $7 THEN $4 ELSE jewellery_type END,
+                updated_at = now()
+          WHERE id = $1 AND sku = $5 AND legacy_sku IS NOT DISTINCT FROM $6`,
         [e.id, e.before.sku, e.before.legacySku, e.before.jewelleryType, e.after.sku, e.after.legacySku, e.after.jewelleryType],
       );
       if (rowCount !== 1) throw new MigrationAbort(`${e.slug}: not in the state the change log recorded — nothing restored`);
@@ -321,7 +329,7 @@ async function main(args) {
   const stamp = new Date().toISOString().replace(/[:.]/g, '-');
   if (arg('restore')) {
     const r = await restoreMigration(arg('restore'));
-    console.log(`Restored ${r.restored} products to their logged SKU / legacy_sku / jewellery_type.`);
+    console.log(`Restored ${r.restored} products to their logged SKU / legacy_sku (jewellery_type too, unless an admin changed it since).`);
     return;
   }
   if (args.includes('--apply')) {

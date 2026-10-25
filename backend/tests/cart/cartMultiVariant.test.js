@@ -1,10 +1,11 @@
-import { test, describe, before, after } from 'node:test';
+import { test, describe, before, after, mock } from 'node:test';
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
 import { query } from '../../src/config/db.js';
 import { addItem, getCart, updateItemQuantity, removeItem, mergeCartsOnLogin } from '../../src/services/cartService.js';
 import { createOrder } from '../../src/services/checkoutService.js';
 import { insertProductImage } from '../../src/repositories/productImages.repository.js';
+import { shippingProviders } from '../../src/providers/shipping/index.js';
 
 // Integration tests (dev/test DB, migrations incl. 20261025000000 applied).
 // One product sold as several real variants — Yellow/Rose, 9K/18K, size
@@ -66,7 +67,12 @@ async function newUser() {
 const line = (cart, variantId) => cart.items.find((i) => i.variantId === variantId);
 const small = (productId, sortOrder) => `https://test.local/${productId}/${sortOrder}-small.webp`;
 
+// Checkout asks the courier whether the pincode is serviceable — stubbed so
+// these tests don't depend on Delhivery's staging data.
+let serviceabilityStub;
+
 before(async () => {
+  serviceabilityStub = mock.method(shippingProviders.delhivery, 'checkServiceability', async () => ({ serviceable: true }));
   const productId = await product('ring');
   const Y = await attrValue(productId, 'gold_color', 'YELLOW', 'Yellow Gold');
   const R = await attrValue(productId, 'gold_color', 'ROSE', 'Rose Gold');
@@ -93,6 +99,7 @@ before(async () => {
 });
 
 after(async () => {
+  serviceabilityStub.mock.restore();
   for (const userId of created.users) {
     for (const t of ['stock_reservations', 'order_status_history', 'order_items']) {
       await query(`DELETE FROM ${t} WHERE order_id IN (SELECT id FROM orders WHERE user_id = $1)`, [userId]).catch(() => {});

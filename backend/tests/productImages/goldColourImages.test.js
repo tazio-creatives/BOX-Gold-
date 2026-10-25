@@ -1,4 +1,4 @@
-import { test, describe, before, after } from 'node:test';
+import { test, describe, before, after, mock } from 'node:test';
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
 import { query, withTransaction } from '../../src/config/db.js';
@@ -15,6 +15,7 @@ import {
 } from '../../src/repositories/productImages.repository.js';
 import { uploadOriginal, attachExisting, remove } from '../../src/controllers/productImages.controller.js';
 import { addItem } from '../../src/services/cartService.js';
+import { shippingProviders } from '../../src/providers/shipping/index.js';
 
 // Integration tests against a dev/test DB with migrations applied (incl.
 // 20261024000000_product_image_gold_colour). Fixture mirrors the Isolanza
@@ -75,7 +76,12 @@ async function callController(handler, req) {
 
 let isolanza;
 
+// Checkout asks the courier whether the pincode is serviceable — stubbed so
+// these tests don't depend on Delhivery's staging data.
+let serviceabilityStub;
+
 before(async () => {
+  serviceabilityStub = mock.method(shippingProviders.delhivery, 'checkServiceability', async () => ({ serviceable: true }));
   isolanza = await createProduct('isolanza', ['YELLOW', 'ROSE']);
   await insertPhoto(isolanza.productId, 0, { goldColour: 'YELLOW', shotType: 'FRONT' });
   await insertPhoto(isolanza.productId, 1, { goldColour: 'YELLOW', shotType: 'SIDE' });
@@ -84,6 +90,7 @@ before(async () => {
 });
 
 after(async () => {
+  serviceabilityStub.mock.restore();
   // Orders/carts/users first (FKs), then products (cascades images/variants).
   for (const userId of created.users) {
     await query('DELETE FROM stock_reservations WHERE order_id IN (SELECT id FROM orders WHERE user_id = $1)', [userId]).catch(() => {});

@@ -221,6 +221,25 @@ describe('DRAFT SKU migration', () => {
     assert.deepEqual(await snapshot(f.productIds), before);
   });
 
+  test('restore after go-live: keeps an admin type correction and orders placed since; refuses a mismatched log', async () => {
+    const f = await fixture();
+    const res = await apply(f, await dryRun({ productIds: f.productIds }));
+    // after deployment: the admin corrects the ring's type, a customer orders it
+    await query("UPDATE products SET jewellery_type = 'BANGLE' WHERE id = $1", [f.ids.ring]);
+    const later = await orderFor(f.ids.ring);
+    const { rows: [beforeRestore] } = await query('SELECT legacy_sku FROM products WHERE id = $1', [f.ids.ring]);
+    assert.deepEqual(await restoreMigration(res.changeLog), { restored: 3 });
+    const { rows: [ring] } = await query('SELECT sku, legacy_sku, jewellery_type FROM products WHERE id = $1', [f.ids.ring]);
+    assert.deepEqual([ring.sku, ring.legacy_sku, ring.jewellery_type], [beforeRestore.legacy_sku, null, 'BANGLE']);
+    const { rows: oi } = await query('SELECT product_sku FROM order_items WHERE order_id = $1', [later.orderId]);
+    assert.equal(oi[0].product_sku, later.frozenSku); // the post-go-live order keeps its BD code
+    assert.match(later.frozenSku, /^BD-RNG-\d{6}$/);
+    // a second restore (SKUs no longer match the log) changes nothing
+    const snap = await snapshot(f.productIds);
+    await assert.rejects(restoreMigration(res.changeLog), MigrationAbort);
+    assert.deepEqual(await snapshot(f.productIds), snap);
+  });
+
   test('wrong reviewed counts, a product changed after review, or a mid-apply failure → full rollback', async () => {
     const f = await fixture();
     const before = await snapshot(f.productIds);
@@ -265,8 +284,14 @@ describe('DRAFT SKU migration', () => {
     const write = (o) => { const p = path.join(dir, `${randomUUID()}.json`); fs.writeFileSync(p, JSON.stringify(o)); return p; };
     assert.throws(() => loadDecisions(write({ decisions: { a: { type: 'TIARA' } } })), /unsupported type/);
     assert.throws(() => loadDecisions(write({ decisions: { a: { type: 'RING' } }, hold: { a: {} } })), /both decided and held/);
+    // the approved file: Serenevia → BRACELET, Dolores + 52 Free Size Bangles
+    // → BANGLE, nothing on hold, only payment-test-live excluded
     const real = loadDecisions();
-    assert.ok(Object.keys(real.hold).length > 0 && Object.keys(real.exclude).length > 0);
+    const byType = Object.values(real.decisions).reduce((a, d) => ({ ...a, [d.type]: (a[d.type] ?? 0) + 1 }), {});
+    assert.deepEqual(byType, { BANGLE: 53, BRACELET: 1 });
+    assert.equal(real.decisions['a1364c6d-1bad-4352-ae5c-f7773de44c20'].type, 'BRACELET');
+    assert.deepEqual(Object.keys(real.hold), []);
+    assert.deepEqual(Object.keys(real.exclude), ['945ffeb6-1f5e-4b24-8329-0af40fbeb368']);
   });
 
   test('a second run finds nothing left to do and changes nothing', async () => {

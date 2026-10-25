@@ -1,6 +1,7 @@
-import { test, describe, after } from 'node:test';
+import { test, describe, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import { query } from '../../src/config/db.js';
+import { globalPurityValueId } from '../helpers/globalPurityValues.js';
 import { adminCreateProduct, adminUpdateProduct, adminDeleteProduct } from '../../src/services/productsService.js';
 import { createProductSchema, updateProductSchema } from '../../src/validators/products.validators.js';
 
@@ -30,6 +31,13 @@ function basePayload(overrides = {}) {
     ...overrides,
   };
 }
+
+// Purity codes resolve against the global 'purity' values — make sure the
+// two used here exist (a fresh test database has none).
+before(async () => {
+  await globalPurityValueId('9K');
+  await globalPurityValueId('18K');
+});
 
 const createdProductIds = [];
 after(async () => {

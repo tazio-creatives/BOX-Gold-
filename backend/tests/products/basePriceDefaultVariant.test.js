@@ -2,6 +2,7 @@ import { test, describe, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
 import { query } from '../../src/config/db.js';
+import { globalPurityValueId } from '../helpers/globalPurityValues.js';
 import {
   adminReplaceWeightRules,
   previewProductVariantPricing,
@@ -14,7 +15,12 @@ import { findGoldProductsForRecalculation } from '../../src/repositories/product
 // excluding weight-rules-only products) are actually fixed, not just the
 // cache-invalidation *timing* those existing tests already cover.
 
-const PURITY_9K_ID = '2e59ee22-f988-40d5-9875-7c1b8b59ab02'; // global 'purity' value, seeded in every env
+// Global 'purity' value for 9K — resolved by code, since its id differs per
+// environment.
+let PURITY_9K_ID;
+before(async () => {
+  PURITY_9K_ID = await globalPurityValueId('9K');
+});
 
 async function createTestFixture(labelSuffix, { flatGoldWeightGrams } = {}) {
   const { rows: categoryRows } = await query('SELECT id, slug FROM categories LIMIT 1');

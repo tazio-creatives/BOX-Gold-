@@ -491,6 +491,21 @@ export function ProductFormPage() {
     setForm((f) => (f.makingCharge === computed ? f : { ...f, makingCharge: computed }));
   }, [makingChargePercent, form.goldValue]);
 
+  // One product request at a time across Save, Start AI Generation and
+  // Start Manual Upload: a second click on any of them while one is in
+  // flight would create a second product (with its own SKU). The ref is set
+  // synchronously on click, so even two clicks inside the same render can't
+  // both get through; `isRequestPending` (below) disables the buttons.
+  const requestLockRef = useRef(false);
+  function acquireRequestLock() {
+    if (requestLockRef.current) return false;
+    requestLockRef.current = true;
+    return true;
+  }
+  function releaseRequestLock() {
+    requestLockRef.current = false;
+  }
+
   // Early-create path for "Generate with AI" clicked on an unsaved product
   // (plan §3 correction) — ai_studio_jobs.product_id is NOT NULL, so a real
   // product must exist before the Studio route can create a job. Reuses the
@@ -508,6 +523,7 @@ export function ProductFormPage() {
     // it looking like their just-entered details vanished.
     onSuccess: (result) => navigate(`/products/${result.product.id}/ai-image-studio`, { replace: true }),
     onError: (err) => setImageSourceError(describeError(err, 'Could not create product.')),
+    onSettled: releaseRequestLock,
   });
 
   function handleGenerateWithAI() {
@@ -523,6 +539,7 @@ export function ProductFormPage() {
       setImageSourceError('Select the jewellery type before generating images with AI — it decides the product code.');
       return;
     }
+    if (!acquireRequestLock()) return;
     setImageSourceError(null);
     const name = form.name.trim();
     setForm((f) => ({ ...f, name }));
@@ -539,6 +556,7 @@ export function ProductFormPage() {
     // Same reasoning as the AI-studio create path above.
     onSuccess: (result) => navigate(`/products/${result.product.id}/edit`, { replace: true }),
     onError: (err) => setImageSourceError(describeError(err, 'Could not create product.')),
+    onSettled: releaseRequestLock,
   });
 
   function handleManualUpload() {
@@ -551,6 +569,7 @@ export function ProductFormPage() {
       setImageSourceError('Select the jewellery type before uploading images — it decides the product code.');
       return;
     }
+    if (!acquireRequestLock()) return;
     setImageSourceError(null);
     const name = form.name.trim();
     setForm((f) => ({ ...f, name }));
@@ -598,7 +617,11 @@ export function ProductFormPage() {
         });
       });
     },
+    onSettled: releaseRequestLock,
   });
+
+  const isRequestPending =
+    saveMutation.isPending || createForStudioMutation.isPending || createForManualUploadMutation.isPending;
 
   const priceLockMutation = useMutation({
     mutationFn: (locked: boolean) => setPriceLock(id as string, locked),
@@ -696,7 +719,7 @@ export function ProductFormPage() {
           type="submit"
           form="product-form"
           className={sharedStyles.buttonPrimary}
-          disabled={saveMutation.isPending}
+          disabled={isRequestPending}
         >
           {saveMutation.isPending ? 'Saving Product…' : 'Save Product'}
         </button>
@@ -711,9 +734,10 @@ export function ProductFormPage() {
           e.preventDefault();
           // Guards against a double-fire (e.g. Enter pressed while the
           // first submit's request is still in flight) — both Save Product
-          // buttons are already `disabled` while pending, but the submit
+          // buttons (and the two image-source create buttons) are already
+          // `disabled` while any product request is pending, but the submit
           // event itself is a second line of defense.
-          if (saveMutation.isPending) return;
+          if (isRequestPending || requestLockRef.current) return;
           setError(null);
           setSuccessMessage(null);
           // Only name and at least one image are required to save — every
@@ -734,6 +758,7 @@ export function ProductFormPage() {
             requestAnimationFrame(() => errorRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }));
             return;
           }
+          if (!acquireRequestLock()) return;
           saveMutation.mutate(isEditing);
         }}
       >
@@ -879,7 +904,7 @@ export function ProductFormPage() {
                   <button
                     type="button"
                     className={sharedStyles.button}
-                    disabled={createForManualUploadMutation.isPending}
+                    disabled={isRequestPending}
                     onClick={handleManualUpload}
                   >
                     {createForManualUploadMutation.isPending ? 'Creating…' : 'Start Manual Upload'}
@@ -896,7 +921,7 @@ export function ProductFormPage() {
               <button
                 type="button"
                 className={sharedStyles.buttonPrimary}
-                disabled={createForStudioMutation.isPending}
+                disabled={isRequestPending}
                 onClick={handleGenerateWithAI}
               >
                 {createForStudioMutation.isPending ? 'Creating…' : 'Start AI Generation'}
@@ -1465,7 +1490,7 @@ export function ProductFormPage() {
         )}
 
         <div className={sharedStyles.formActions}>
-          <button type="submit" className={sharedStyles.buttonPrimary} disabled={saveMutation.isPending}>
+          <button type="submit" className={sharedStyles.buttonPrimary} disabled={isRequestPending}>
             {saveMutation.isPending ? 'Saving Product…' : 'Save Product'}
           </button>
           <button type="button" className={sharedStyles.button} onClick={() => navigate('/products')}>
