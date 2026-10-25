@@ -16,7 +16,6 @@ import { ProductAssuranceGrid } from '../components/ProductAssuranceGrid';
 import { RelatedProducts } from '../features/pdp/RelatedProducts';
 import { OrderSummary } from '../features/checkout/OrderSummary';
 import styles from './CartPage.module.css';
-import placeholderStyles from './PlaceholderPage.module.css';
 
 // Size is shown as its own dedicated line on the cart card (matches the
 // approved reference design) — everything else (metal, diamond config)
@@ -190,7 +189,7 @@ export function CartPage() {
           <div className={styles.emptyIcon}>
             <EmptyBagIllustration />
           </div>
-          <h1 className={placeholderStyles.heading}>Your shopping bag is empty</h1>
+          <h1 className={styles.emptyHeading}>Your shopping bag is empty</h1>
           <p className={styles.emptyBody}>Discover jewellery made for every moment.</p>
           <div className={styles.emptyActions}>
             <Link to="/" className={styles.emptyPrimaryButton}>
