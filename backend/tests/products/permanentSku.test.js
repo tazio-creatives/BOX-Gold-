@@ -58,9 +58,12 @@ describe('server-side generation', () => {
     assert.equal(p.legacy_sku, null);
   });
 
-  test('no jewellery type and no SKU → clear 400, nothing created, no DRAFT code', async () => {
+  test('no jewellery type and no SKU → clear 400, nothing created, no DRAFT code, no number used', async () => {
     const name = `SKU Test notype ${randomUUID().slice(0, 8)}`;
+    const seqBefore = (await query('SELECT last_value FROM product_sku_seq')).rows[0].last_value;
     await assert.rejects(adminCreateProduct({ name, metalType: 'GOLD' }), (e) => e.status === 400 && /jewellery type/.test(e.message));
+    const seqAfter = (await query('SELECT last_value FROM product_sku_seq')).rows[0].last_value;
+    assert.equal(seqAfter, seqBefore, 'the type check runs before a number is taken');
     const { rows } = await query('SELECT COUNT(*)::int AS n FROM products WHERE name = $1', [name]);
     assert.equal(rows[0].n, 0);
   });
@@ -233,6 +236,37 @@ describe('DRAFT SKU migration', () => {
     // changed after review: an admin gives the no-type product a type → plan differs
     await query("UPDATE products SET jewellery_type = 'RING' WHERE id = $1", [f.ids.noType]);
     await assert.rejects(apply(f, r), MigrationAbort);
+  });
+
+  test('reviewed decisions: a decided type is used; held and excluded products stay exactly as they are', async () => {
+    const f = await fixture();
+    const before = await snapshot(f.productIds);
+    const decisions = {
+      decisions: { [f.ids.conflicting]: { type: 'BANGLE', note: 'test decision' } },
+      hold: { [f.ids.ring]: { note: 'test hold' } },
+      exclude: { [f.ids.pendantDraft]: { note: 'test exclude' } },
+    };
+    const r = await dryRun({ productIds: f.productIds, decisions });
+    assert.deepEqual(r.mapping.map((m) => [m.id, m.jewelleryType]), [[f.ids.conflicting, 'BANGLE']]);
+    assert.equal(r.totals.onHold, 1);
+    assert.ok(r.excluded.some((e) => e.id === f.ids.pendantDraft && /^excluded: test exclude/.test(e.reason)));
+    await applyMigration({ expectSkus: r.totals.toMigrate, expectTypes: r.totals.typesToSet, logDir: f.logDir, stamp: randomUUID(), productIds: f.productIds, decisions });
+    const after = Object.fromEntries((await snapshot(f.productIds)).products.map((x) => [x.id, x]));
+    const prev = Object.fromEntries(before.products.map((x) => [x.id, x]));
+    assert.match(after[f.ids.conflicting].sku, /^BD-BNG-\d{6}$/);
+    assert.deepEqual(after[f.ids.ring], prev[f.ids.ring]); // held: no SKU, no type
+    assert.deepEqual(after[f.ids.pendantDraft], prev[f.ids.pendantDraft]); // excluded
+  });
+
+  test('the decisions file is validated (unsupported type, decided-and-held conflict)', async () => {
+    const { loadDecisions } = await import('../../scripts/migrateDraftSkus.js');
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'skudec-'));
+    created.dirs.push(dir);
+    const write = (o) => { const p = path.join(dir, `${randomUUID()}.json`); fs.writeFileSync(p, JSON.stringify(o)); return p; };
+    assert.throws(() => loadDecisions(write({ decisions: { a: { type: 'TIARA' } } })), /unsupported type/);
+    assert.throws(() => loadDecisions(write({ decisions: { a: { type: 'RING' } }, hold: { a: {} } })), /both decided and held/);
+    const real = loadDecisions();
+    assert.ok(Object.keys(real.hold).length > 0 && Object.keys(real.exclude).length > 0);
   });
 
   test('a second run finds nothing left to do and changes nothing', async () => {

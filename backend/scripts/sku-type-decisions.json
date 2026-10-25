@@ -1,0 +1,230 @@
+{
+ "_about": "Reviewed jewellery-type decisions for scripts/migrateDraftSkus.js, keyed by product id (not slug, which can change). 'decisions' set the type used for the SKU prefix; 'hold' and 'exclude' keep a product's current SKU until a later decision. Reviewed 25 Oct 2026.",
+ "decisions": {
+  "c795d69e-0e8e-4e6b-bf9e-74df11f4d986": {
+   "type": "BANGLE",
+   "slug": "dolores-diamond-oval-bangle",
+   "note": "Business decision 25 Oct; photos confirm a rigid hinged oval bangle"
+  }
+ },
+ "hold": {
+  "a1364c6d-1bad-4352-ae5c-f7773de44c20": {
+   "slug": "serenevia-diamond-ring",
+   "note": "Decision was RING, but this product is 'Sole Diamond Chain Bracelet' (Bracelets category; photos show a chain bracelet). Awaiting re-confirmation; recommended BRACELET"
+  },
+  "a1faee98-3dff-4e5f-aa59-71086ffe8dff": {
+   "slug": "alba-diamond-bracelet",
+   "note": "'Alba Diamond Free size Bangle' is typed BRACELET in AI Studio; photos show a rigid wire bangle. Proposed BANGLE - awaiting approval"
+  },
+  "ae0f4eb3-98dd-4701-a59f-60203fdef6ca": {
+   "slug": "amore-diamond-bracele",
+   "note": "'Amore Diamond Free size Bangle' is typed BRACELET in AI Studio; photos show a rigid wire bangle. Proposed BANGLE - awaiting approval"
+  },
+  "edb73709-2542-4bba-8e76-ec96cb189fdd": {
+   "slug": "anima-diamond-bracelet",
+   "note": "'Anima Diamond Free size Bangle' is typed BRACELET in AI Studio; photos show a rigid wire bangle. Proposed BANGLE - awaiting approval"
+  },
+  "3db13c62-51dc-4bd0-a4fb-fe34f1cfa7e5": {
+   "slug": "aria-diamond-bracelet",
+   "note": "'Aria Diamond Free size Bangle' is typed BRACELET in AI Studio; photos show a rigid wire bangle. Proposed BANGLE - awaiting approval"
+  },
+  "f1d5bbf9-aa12-44c2-867e-573639e00608": {
+   "slug": "aurora-diamond-bracelet",
+   "note": "'Aurora Diamond Free size Bangle' is typed BRACELET in AI Studio; photos show a rigid wire bangle. Proposed BANGLE - awaiting approval"
+  },
+  "b410331d-48d6-4608-8454-0105efd26f4d": {
+   "slug": "tesoro-diamond-bracelet",
+   "note": "'Ayn Diamond Free size Bangle' is typed BRACELET in AI Studio; photos show a rigid wire bangle. Proposed BANGLE - awaiting approval"
+  },
+  "eca1f4a9-bc1f-41ed-802c-1b455c138d1d": {
+   "slug": "bella-diamond-bracelet",
+   "note": "'Bella Diamond Free size Bangle' is typed BRACELET in AI Studio; photos show a rigid wire bangle. Proposed BANGLE - awaiting approval"
+  },
+  "8beb1a2e-49bd-4cef-b913-6f55c863f1af": {
+   "slug": "bellissima-diamond-bracelet",
+   "note": "'Bellissima Diamond Free size Bangle' is typed BRACELET in AI Studio; photos show a rigid wire bangle. Proposed BANGLE - awaiting approval"
+  },
+  "c607405a-637f-4da2-904a-eb29315731c9": {
+   "slug": "brezza-diamond-bracelet",
+   "note": "'Brezza Diamond Free size Bangle' is typed BRACELET in AI Studio; photos show a rigid wire bangle. Proposed BANGLE - awaiting approval"
+  },
+  "d55dc624-245c-4f30-82f5-98aabe6a2b21": {
+   "slug": "capri-diamond-bracelet",
+   "note": "'Capri Diamond Free size Bangle' is typed BRACELET in AI Studio; photos show a rigid wire bangle. Proposed BANGLE - awaiting approval"
+  },
+  "395e663e-c9c2-43b7-a6f7-c2e5f644c1fc": {
+   "slug": "cara-diamond-bracele",
+   "note": "'Cara Diamond Free size Bangle' is typed BRACELET in AI Studio; photos show a rigid wire bangle. Proposed BANGLE - awaiting approval"
+  },
+  "e86fbf90-67ff-4752-8264-272dfafd5814": {
+   "slug": "carina-diamond-bracelet",
+   "note": "'Carina Diamond Free size Bangle' is typed BRACELET in AI Studio; photos show a rigid wire bangle. Proposed BANGLE - awaiting approval"
+  },
+  "9f602a71-823c-47d5-b0c5-daae8aafc490": {
+   "slug": "celeste-diamond-bracelet",
+   "note": "'Celeste Diamond Free size Bangle' is typed BRACELET in AI Studio; photos show a rigid wire bangle. Proposed BANGLE - awaiting approval"
+  },
+  "a310dcef-5758-49f8-9d9b-607a3d6cfcea": {
+   "slug": "cielo-diamond-bracelet",
+   "note": "'Cielo Diamond Free size Bangle' is typed BRACELET in AI Studio; photos show a rigid wire bangle. Proposed BANGLE - awaiting approval"
+  },
+  "6a2695f1-4b17-42d6-a396-3420e06253af": {
+   "slug": "cuore-diamond-bracelet",
+   "note": "'Cuore Diamond Free size Bangle' is typed BRACELET in AI Studio; photos show a rigid wire bangle. Proposed BANGLE - awaiting approval"
+  },
+  "ce54f35b-e88f-4017-8237-74e443af0634": {
+   "slug": "desiderio-diamond-bracelet",
+   "note": "'Desiderio Diamond Free size Bangle' is typed BRACELET in AI Studio; photos show a rigid wire bangle. Proposed BANGLE - awaiting approval"
+  },
+  "e2bb3bee-0d72-44f5-a28c-d8084c25931a": {
+   "slug": "divina-diamond-bracelet",
+   "note": "'Divina Diamond Free size Bangle' is typed BRACELET in AI Studio; photos show a rigid wire bangle. Proposed BANGLE - awaiting approval"
+  },
+  "4006af4a-d01d-45a7-b26b-770a8e6658b0": {
+   "slug": "dolce-diamond-bracelet",
+   "note": "'Dolce Diamond Free size Bangle' is typed BRACELET in AI Studio; photos show a rigid wire bangle. Proposed BANGLE - awaiting approval"
+  },
+  "0b19f428-72e7-490b-b176-8a5d2d00ac53": {
+   "slug": "eleganza-diamond-bracelet",
+   "note": "'Eleganza Diamond Free size Bangle' is typed BRACELET in AI Studio; photos show a rigid wire bangle. Proposed BANGLE - awaiting approval"
+  },
+  "79220b3e-7215-4294-9f4d-4af17e7cbb6b": {
+   "slug": "eterna-diamond-bracelet",
+   "note": "'Eterna Diamond Free size Bangle' is typed BRACELET in AI Studio; photos show a rigid wire bangle. Proposed BANGLE - awaiting approval"
+  },
+  "0eea7592-7a0e-40e4-9c5b-62ceea5801e1": {
+   "slug": "favola-diamond-bracelet",
+   "note": "'Favola Diamond Free size Bangle' is typed BRACELET in AI Studio; photos show a rigid wire bangle. Proposed BANGLE - awaiting approval"
+  },
+  "1a5cc00c-b655-4804-b8cf-ad1eb96b7793": {
+   "slug": "felice-diamond-bracelet",
+   "note": "'Felice Diamond Free size Bangle' is typed BRACELET in AI Studio; photos show a rigid wire bangle. Proposed BANGLE - awaiting approval"
+  },
+  "81ec52c1-cb96-4ba9-8a26-2c524db8b503": {
+   "slug": "fiamma-diamond-bracelet",
+   "note": "'Fiamma Diamond Free size Bangle' is typed BRACELET in AI Studio; photos show a rigid wire bangle. Proposed BANGLE - awaiting approval"
+  },
+  "fc61d3d9-303e-47c4-8a5c-fee26b54ddbe": {
+   "slug": "fiore-diamond-bracelet",
+   "note": "'Fiore Diamond Free size Bangle' is typed BRACELET in AI Studio; photos show a rigid wire bangle. Proposed BANGLE - awaiting approval"
+  },
+  "3fa13c1c-0c40-4c57-aa0a-e52751d195a4": {
+   "slug": "gioia-diamond-bracelet",
+   "note": "'Gioia Diamond Free size Bangle' is typed BRACELET in AI Studio; photos show a rigid wire bangle. Proposed BANGLE - awaiting approval"
+  },
+  "f60ca279-0144-4502-8190-5946ff8b47ea": {
+   "slug": "grazia-diamond-bracelet",
+   "note": "'Grazia Diamond Free size Bangle' is typed BRACELET in AI Studio; photos show a rigid wire bangle. Proposed BANGLE - awaiting approval"
+  },
+  "7fa4c652-cb69-4213-b053-a1a62c92ee43": {
+   "slug": "incanto-diamond-bracelet",
+   "note": "'Incanto Diamond Free size Bangle' is typed BRACELET in AI Studio; photos show a rigid wire bangle. Proposed BANGLE - awaiting approval"
+  },
+  "97476859-2ca9-4e6d-af4f-ba4c81ae7865": {
+   "slug": "infinita-diamond-bracele",
+   "note": "'Infinita Diamond Free size Bangle' is typed BRACELET in AI Studio; photos show a rigid wire bangle. Proposed BANGLE - awaiting approval"
+  },
+  "4b2a7625-4989-402a-92b6-645d59d3b9d7": {
+   "slug": "luce-diamond-bracelet",
+   "note": "'Luce Diamond Free size Bangle' is typed BRACELET in AI Studio; photos show a rigid wire bangle. Proposed BANGLE - awaiting approval"
+  },
+  "61e136dd-3304-4d3a-8d66-fd2359d9b837": {
+   "slug": "lumina-diamond-bracele",
+   "note": "'Lumina Diamond Free size Bangle' is typed BRACELET in AI Studio; photos show a rigid wire bangle. Proposed BANGLE - awaiting approval"
+  },
+  "c7ba6a30-2506-4fe4-9031-fe862d77e474": {
+   "slug": "luna-diamond-bracelet",
+   "note": "'Luna Diamond Free size Bangle' is typed BRACELET in AI Studio; photos show a rigid wire bangle. Proposed BANGLE - awaiting approval"
+  },
+  "991648ec-166e-44a9-8b39-4500e3a74a83": {
+   "slug": "magia-diamond-bracelet",
+   "note": "'Magia Diamond Free size Bangle' is typed BRACELET in AI Studio; photos show a rigid wire bangle. Proposed BANGLE - awaiting approval"
+  },
+  "fd41f9d6-f9b1-4681-a2b9-705f210e7a81": {
+   "slug": "mare-diamond-bracelet",
+   "note": "'Mare Diamond Free size Bangle' is typed BRACELET in AI Studio; photos show a rigid wire bangle. Proposed BANGLE - awaiting approval"
+  },
+  "60ae35d1-5a47-4838-83f7-2405e22fc1eb": {
+   "slug": "milano-diamond-bracelet",
+   "note": "'Milano Diamond Free size Bangle' is typed BRACELET in AI Studio; photos show a rigid wire bangle. Proposed BANGLE - awaiting approval"
+  },
+  "ecaea05b-6e75-4679-a0b9-e6b64c2809ed": {
+   "slug": "verona-diamond-bracelet",
+   "note": "'Nahar Diamond Free size Bangle' is typed BRACELET in AI Studio; photos show a rigid wire bangle. Proposed BANGLE - awaiting approval"
+  },
+  "72e4699a-059f-4919-a2b9-8c5f265e4ee7": {
+   "slug": "nuvola-diamond-bracelet",
+   "note": "'Nuvola Diamond Free size Bangle' is typed BRACELET in AI Studio; photos show a rigid wire bangle. Proposed BANGLE - awaiting approval"
+  },
+  "76eb6c5f-97d0-4f71-83d4-f529b705b7f5": {
+   "slug": "perla-diamond-bracelet",
+   "note": "'Perla Diamond Free size Bangle' is typed BRACELET in AI Studio; photos show a rigid wire bangle. Proposed BANGLE - awaiting approval"
+  },
+  "97b5f4a0-e420-4098-8a12-aacd0a2748fa": {
+   "slug": "amore-diamond-bracelet",
+   "note": "'Raggio Diamond Free size Bangle' is typed BRACELET in AI Studio; photos show a rigid wire bangle. Proposed BANGLE - awaiting approval"
+  },
+  "a7452664-066a-4809-8d7d-20dcf57dd436": {
+   "slug": "ravello-diamond-bracelet",
+   "note": "'Ravello Diamond Free size Bangle' is typed BRACELET in AI Studio; photos show a rigid wire bangle. Proposed BANGLE - awaiting approval"
+  },
+  "9fbc39fa-d22b-4f43-b123-502cd37702cb": {
+   "slug": "rosa-diamond-bracelet",
+   "note": "'Rosa Diamond Free size Bangle' is typed BRACELET in AI Studio; photos show a rigid wire bangle. Proposed BANGLE - awaiting approval"
+  },
+  "29d72843-5dc6-494b-999e-ee33ac0c2ed5": {
+   "slug": "sarah-diamond-bracelate",
+   "note": "'Sarah Diamond Free size Bangle' is typed BRACELET in AI Studio; photos show a rigid wire bangle. Proposed BANGLE - awaiting approval"
+  },
+  "d0e5c754-0967-4385-a315-b7eafe112b07": {
+   "slug": "serena-diamond-bracelet",
+   "note": "'Serena Diamond Free size Bangle' is typed BRACELET in AI Studio; photos show a rigid wire bangle. Proposed BANGLE - awaiting approval"
+  },
+  "2a8484f2-15b1-46b4-addc-6887803bcc6f": {
+   "slug": "siena-diamond-bracelet",
+   "note": "'Siena Diamond Free size Bangle' is typed BRACELET in AI Studio; photos show a rigid wire bangle. Proposed BANGLE - awaiting approval"
+  },
+  "e55c60fc-3049-4bd5-a682-58b856c96513": {
+   "slug": "sogno-diamond-bracelet",
+   "note": "'Sogno Diamond Free size Bangle' is typed BRACELET in AI Studio; photos show a rigid wire bangle. Proposed BANGLE - awaiting approval"
+  },
+  "2db1d219-f7f0-4339-9d73-940e79dbe324": {
+   "slug": "sole-diamond-bracelet",
+   "note": "'Sole Diamond Free size Bangle' is typed BRACELET in AI Studio; photos show a rigid wire bangle. Proposed BANGLE - awaiting approval"
+  },
+  "e6152ec2-2afc-45de-897a-0d4edcb5fdd7": {
+   "slug": "splendore-diamond-bracelet",
+   "note": "'Splendore Diamond Free size Bangle' is typed BRACELET in AI Studio; photos show a rigid wire bangle. Proposed BANGLE - awaiting approval"
+  },
+  "6013d1da-acb4-45a9-8485-41f8c4ea437f": {
+   "slug": "stella-diamond-bracelet",
+   "note": "'Stella Diamond Free size Bangle' is typed BRACELET in AI Studio; photos show a rigid wire bangle. Proposed BANGLE - awaiting approval"
+  },
+  "2acfc1e8-71ce-47f6-a8dd-1d7d9f947a1f": {
+   "slug": "lumina-diamond-bracelet",
+   "note": "'Tesoro Diamond Free size Bangle' is typed BRACELET in AI Studio; photos show a rigid wire bangle. Proposed BANGLE - awaiting approval"
+  },
+  "32d21087-144b-49ab-b055-0b6b59f91743": {
+   "slug": "toscana-diamond-bracelet",
+   "note": "'Toscana Diamond Free size Bangle' is typed BRACELET in AI Studio; photos show a rigid wire bangle. Proposed BANGLE - awaiting approval"
+  },
+  "3aac18ed-1963-4972-b76d-34b30b7e76e0": {
+   "slug": "venezia-diamond-bracelet",
+   "note": "'Venezia Diamond Free size Bangle' is typed BRACELET in AI Studio; photos show a rigid wire bangle. Proposed BANGLE - awaiting approval"
+  },
+  "a6eda644-12a0-4456-bdba-b5a768fc66ac": {
+   "slug": "vita-diamond-bracelet",
+   "note": "'Vita Diamond Free size Bangle' is typed BRACELET in AI Studio; photos show a rigid wire bangle. Proposed BANGLE - awaiting approval"
+  },
+  "cf09f1be-f63e-4bc3-881b-3217c637cdfd": {
+   "slug": "venezia-diamond-bracele",
+   "note": "'Zenevia Diamond Free size Bangle' is typed BRACELET in AI Studio; photos show a rigid wire bangle. Proposed BANGLE - awaiting approval"
+  }
+ },
+ "exclude": {
+  "945ffeb6-1f5e-4b24-8329-0af40fbeb368": {
+   "slug": "payment-test-live",
+   "note": "Test product ('Baby Sample ring') - excluded by business decision 25 Oct"
+  }
+ }
+}

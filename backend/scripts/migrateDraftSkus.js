@@ -5,7 +5,8 @@
 // - Jewellery type: products.jewellery_type if set, otherwise the type the
 //   admin confirmed in AI Studio (ai_studio_jobs.jewellery_type). Products
 //   whose jobs disagree, or with no type at all, are NOT migrated until a
-//   type is confirmed (TYPE_DECISIONS below).
+//   type is confirmed in sku-type-decisions.json (which can also hold or
+//   exclude specific products).
 // - Only DRAFT-… codes are replaced. Hand-entered codes (SKU3450, bx234,
 //   BD-NECK-0001, …) are preserved.
 // - order_items.product_sku (the code frozen on each order line, used by
@@ -14,8 +15,9 @@
 // - Products that only lack a jewellery type also get it stored (no SKU
 //   change) — needed for anything created from them later.
 //
-//   node scripts/migrateDraftSkus.js [--out=DIR]
+//   node scripts/migrateDraftSkus.js [--out=DIR] [--decisions=FILE]
 //       Dry run (default). READ ONLY transaction; report + old→new CSV.
+//       Reviewed per-product decisions come from sku-type-decisions.json.
 //   node scripts/migrateDraftSkus.js --apply --expect-skus=N --expect-types=M [--out=DIR]
 //       One transaction: re-plan, lock target rows, check each still has the
 //       code the plan saw, apply, verify exact counts and that order lines are
@@ -29,9 +31,21 @@ import { pathToFileURL } from 'node:url';
 import { pool } from '../src/config/db.js';
 import { formatSku, SKU_TYPE_CODES } from '../src/services/productSkuService.js';
 
-// Business-confirmed types for products the data can't decide on its own,
-// keyed by slug. Empty until confirmed — those products are excluded.
-const TYPE_DECISIONS = {};
+// Reviewed per-product decisions (sku-type-decisions.json, keyed by product
+// id): 'decisions' fix a product's type; 'hold' and 'exclude' leave it
+// exactly as it is (no SKU, no type) until a later decision.
+const DEFAULT_DECISIONS_FILE = new URL('./sku-type-decisions.json', import.meta.url);
+const EMPTY_DECISIONS = { decisions: {}, hold: {}, exclude: {} };
+
+export function loadDecisions(file = DEFAULT_DECISIONS_FILE) {
+  const d = JSON.parse(fs.readFileSync(file, 'utf8'));
+  for (const [id, v] of Object.entries(d.decisions ?? {})) {
+    if (!SKU_TYPE_CODES[v.type]) throw new Error(`decision for ${id}: unsupported type ${v.type}`);
+  }
+  const overlap = Object.keys(d.decisions ?? {}).filter((id) => d.hold?.[id] || d.exclude?.[id]);
+  if (overlap.length) throw new Error(`products both decided and held/excluded: ${overlap.join(', ')}`);
+  return { decisions: d.decisions ?? {}, hold: d.hold ?? {}, exclude: d.exclude ?? {} };
+}
 
 export class MigrationAbort extends Error {}
 
@@ -48,7 +62,7 @@ async function orderItemsFingerprint(client) {
   return rows[0];
 }
 
-export async function buildPlan(client, { productIds } = {}) {
+export async function buildPlan(client, { productIds, decisions = EMPTY_DECISIONS } = {}) {
   const params = [];
   const { rows: products } = await client.query(
     `SELECT p.id, p.slug, p.name, p.status, p.sku, p.legacy_sku, p.jewellery_type, p.created_at,
@@ -62,12 +76,18 @@ export async function buildPlan(client, { productIds } = {}) {
 
   const plan = products.map((p) => {
     const studio = p.studio_types ?? [];
+    const isDraft = /^DRAFT-/.test(p.sku);
+    const held = decisions.exclude[p.id] ?? decisions.hold[p.id];
+    if (held) {
+      const kind = decisions.exclude[p.id] ? 'exclude' : 'hold';
+      return { ...p, type: null, typeSource: null, action: kind, reason: `${kind === 'exclude' ? 'excluded' : 'on hold'}: ${held.note}`, setType: null };
+    }
+
     let type = p.jewellery_type;
     let typeSource = type ? 'product' : null;
-    if (!type && TYPE_DECISIONS[p.slug]) [type, typeSource] = [TYPE_DECISIONS[p.slug], 'business decision'];
+    if (!type && decisions.decisions[p.id]) [type, typeSource] = [decisions.decisions[p.id].type, 'business decision'];
     if (!type && studio.length === 1 && SKU_TYPE_CODES[studio[0]]) [type, typeSource] = [studio[0], 'AI Studio'];
 
-    const isDraft = /^DRAFT-/.test(p.sku);
     let action;
     let reason;
     if (!isDraft) {
@@ -112,20 +132,25 @@ export function summarise(plan, existingGeneratedCodes) {
       typeOnly: plan.filter((p) => p.setType && p.action !== 'migrate').length,
       typesToSet: plan.filter((p) => p.setType).length,
       excluded: plan.filter((p) => p.action === 'exclude').length,
+      onHold: plan.filter((p) => p.action === 'hold').length,
+      draftCodesByStatus: plan.filter((p) => /^DRAFT-/.test(p.sku)).reduce((a, p) => ((a[p.status] = (a[p.status] ?? 0) + 1), a), {}),
+      notMigratedDraftByReason: plan
+        .filter((p) => /^DRAFT-/.test(p.sku) && p.action !== 'migrate')
+        .reduce((a, p) => ((a[`${p.status}: ${p.action}`] = (a[`${p.status}: ${p.action}`] ?? 0) + 1), a), {}),
       preservedManual: plan.filter((p) => p.action === 'keep').length,
       existingGeneratedCodes,
     },
-    excluded: plan.filter((p) => p.action === 'exclude').map((p) => ({ id: p.id, slug: p.slug, status: p.status, sku: p.sku, reason: p.reason })),
+    excluded: plan.filter((p) => p.action === 'exclude' || p.action === 'hold').map((p) => ({ id: p.id, slug: p.slug, status: p.status, sku: p.sku, action: p.action, reason: p.reason })),
     preserved: plan.filter((p) => p.action === 'keep').map((p) => ({ slug: p.slug, status: p.status, sku: p.sku, reason: p.reason })),
     mapping: migrate.map((p) => ({ id: p.id, slug: p.slug, status: p.status, jewelleryType: p.type, oldSku: p.sku, proposedSku: p.proposedSku })),
   };
 }
 
-export async function dryRun({ productIds } = {}) {
+export async function dryRun({ productIds, decisions } = {}) {
   const client = await pool.connect();
   try {
     await client.query('BEGIN READ ONLY');
-    const { plan, existingGeneratedCodes } = await buildPlan(client, { productIds });
+    const { plan, existingGeneratedCodes } = await buildPlan(client, { productIds, decisions });
     return summarise(plan, existingGeneratedCodes);
   } finally {
     await client.query('ROLLBACK').catch(() => {});
@@ -133,7 +158,7 @@ export async function dryRun({ productIds } = {}) {
   }
 }
 
-export async function applyMigration({ expectSkus, expectTypes, logDir, stamp, productIds, hooks = {} }) {
+export async function applyMigration({ expectSkus, expectTypes, logDir, stamp, productIds, decisions, hooks = {} }) {
   if (!Number.isInteger(expectSkus) || !Number.isInteger(expectTypes)) {
     throw new MigrationAbort('--apply needs --expect-skus and --expect-types from the reviewed dry run');
   }
@@ -144,7 +169,7 @@ export async function applyMigration({ expectSkus, expectTypes, logDir, stamp, p
   try {
     await client.query('BEGIN');
     const ordersBefore = await orderItemsFingerprint(client);
-    const { plan } = await buildPlan(client, { productIds });
+    const { plan } = await buildPlan(client, { productIds, decisions });
     const targets = plan.filter((p) => p.action === 'migrate');
     const typeTargets = plan.filter((p) => p.setType);
     if (targets.length !== expectSkus) throw new MigrationAbort(`plan has ${targets.length} SKUs to migrate, reviewed dry run had ${expectSkus}`);
@@ -274,10 +299,12 @@ function writeReport(report, outDir, prefix, stamp) {
     `To migrate: ${t.toMigrate} (${Object.entries(t.toMigrateByStatus).filter(([k]) => k !== '-').map(([k, v]) => `${k} ${v}`).join(', ')})`,
     `By type: ${Object.entries(t.toMigrateByType).map(([k, v]) => `${k} ${v}`).join(', ')}`,
     `Jewellery types to store: ${t.typesToSet} (of which type-only, no SKU change: ${t.typeOnly})`,
-    `Excluded: ${t.excluded} · Manual SKUs preserved: ${t.preservedManual} · Products already on BD-XXX-000000: ${t.existingGeneratedCodes}`,
+    `DRAFT codes by status: ${Object.entries(t.draftCodesByStatus).map(([k, v]) => `${k} ${v}`).join(', ')}`,
+    `DRAFT codes NOT migrated: ${Object.entries(t.notMigratedDraftByReason).map(([k, v]) => `${k} ${v}`).join(', ') || 'none'}`,
+    `Excluded: ${t.excluded} · On hold: ${t.onHold} · Manual SKUs preserved: ${t.preservedManual} · Products already on BD-XXX-000000: ${t.existingGeneratedCodes}`,
     `To apply exactly this plan: --apply --expect-skus=${t.toMigrate} --expect-types=${t.typesToSet}`,
     '',
-    'Excluded:',
+    'Excluded / on hold:',
     ...report.excluded.map((e) => `  ${e.slug} [${e.status}] ${e.sku} — ${e.reason}`),
     'Preserved:',
     ...report.preserved.map((e) => `  ${e.slug} [${e.status}] ${e.sku} — ${e.reason}`),
@@ -299,7 +326,7 @@ async function main(args) {
   }
   if (args.includes('--apply')) {
     const num = (n) => (arg(n) === undefined ? NaN : Number(arg(n)));
-    const r = await applyMigration({ expectSkus: num('expect-skus'), expectTypes: num('expect-types'), logDir: outDir, stamp });
+    const r = await applyMigration({ expectSkus: num('expect-skus'), expectTypes: num('expect-types'), logDir: outDir, stamp, decisions: loadDecisions(arg('decisions')) });
     console.log(`COMMITTED: ${r.skusMigrated} SKUs migrated, ${r.typesSet} jewellery types stored.\nChange log (for --restore): ${r.changeLog}`);
     // Product pages show the SKU (and carry it in their JSON-LD) — cached SSR
     // HTML would keep the old code until its TTL otherwise.
@@ -307,7 +334,7 @@ async function main(args) {
     console.log(`Page cache cleared (${rowCount} rows).`);
     return;
   }
-  const report = await dryRun();
+  const report = await dryRun({ decisions: loadDecisions(arg('decisions')) });
   const files = writeReport(report, outDir, 'sku-migration-dry-run', stamp);
   console.log(files.summary);
   console.log(`\nDry run — nothing changed.\nReport: ${files.txt}\nMapping CSV: ${files.csv}`);
