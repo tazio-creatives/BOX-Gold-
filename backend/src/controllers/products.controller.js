@@ -593,10 +593,17 @@ export async function adminList(req, res, next) {
   }
 }
 
+// Admin views also get the product's jewellery type and its pre-migration
+// code (legacy_sku) — kept out of toDetailDto so the public API never shows
+// the old DRAFT codes.
+function toAdminDetailDto(row) {
+  return { ...toDetailDto(row), jewelleryType: row.jewellery_type ?? null, legacySku: row.legacy_sku ?? null };
+}
+
 export async function adminGet(req, res, next) {
   try {
     const product = await productsService.adminGetProduct(req.params.id);
-    res.json({ product: toDetailDto(product) });
+    res.json({ product: toAdminDetailDto(product) });
   } catch (err) {
     next(err);
   }
@@ -606,7 +613,7 @@ export async function adminCreate(req, res, next) {
   try {
     const input = createProductSchema.parse(req.body);
     const product = await productsService.adminCreateProduct(input);
-    res.status(201).json({ product: toDetailDto({ ...product, images: [] }) });
+    res.status(201).json({ product: toAdminDetailDto({ ...product, images: [] }) });
   } catch (err) {
     if (err.code === '23505') {
       const message = productConflictMessage(err);
@@ -620,7 +627,7 @@ export async function adminUpdate(req, res, next) {
   try {
     const input = updateProductSchema.parse(req.body);
     const product = await productsService.adminUpdateProduct(req.params.id, input);
-    res.json({ product: toDetailDto({ ...product, images: [] }) });
+    res.json({ product: toAdminDetailDto({ ...product, images: [] }) });
   } catch (err) {
     if (err.code === '23505') {
       const message = productConflictMessage(err);

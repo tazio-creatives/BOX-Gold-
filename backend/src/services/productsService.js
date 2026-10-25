@@ -53,6 +53,7 @@ import { findDiamondTypeById } from '../repositories/diamondTypes.repository.js'
 import { computeVariantPricing, resolvePurityPricingFields } from './pricingService.js';
 import { loadActiveRuleSet } from './pricingRuleResolver.js';
 import { invalidateProductPages, invalidateProductsPagesBatch, invalidateCollectionPages } from './pageCacheInvalidation.js';
+import { resolveSkuForCreate, assertSkuUnchanged } from './productSkuService.js';
 
 // Weight-rule and variant edits must invalidate the SSR page cache after
 // their transaction commits — never before, so a concurrent request can
@@ -563,6 +564,9 @@ export async function adminCreateProduct(input) {
   // saved in this same transaction, not as separate save actions requiring
   // the admin to reopen the product afterward.
   const product = await withTransaction(async () => {
+    // Permanent SKU, allocated inside this transaction (only when the
+    // product row really gets created).
+    fields.sku = await resolveSkuForCreate({ sku: fields.sku, jewelleryType: fields.jewelleryType });
     const created = await createProductRow({ ...fields, slug, status: input.status ?? 'DRAFT' });
     await syncProductVariants(created.id, {
       goldColors,
@@ -631,6 +635,11 @@ export async function adminUpdateProduct(id, input) {
     purityPricingRules,
     ...fields
   } = input;
+  // SKUs are permanent; resending the same value is a no-op.
+  if (Object.hasOwn(fields, 'sku')) {
+    assertSkuUnchanged(existing.sku, fields.sku);
+    delete fields.sku;
+  }
   if (Object.hasOwn(fields, 'slug') && fields.slug) {
     fields.slug = productSlug(fields.slug, fields.name ?? existing.name);
   }

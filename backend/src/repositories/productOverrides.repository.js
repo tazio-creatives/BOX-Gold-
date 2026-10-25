@@ -42,7 +42,7 @@ function buildFilters({ search, categoryId, purityValueId, diamondTypeId, hasMak
 
   if (search) {
     params.push(`%${search}%`);
-    clauses.push(`(p.name ILIKE $${params.length} OR p.sku ILIKE $${params.length})`);
+    clauses.push(`(p.name ILIKE $${params.length} OR p.sku ILIKE $${params.length} OR p.legacy_sku ILIKE $${params.length})`);
   }
   if (categoryId) {
     params.push(categoryId);

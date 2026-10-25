@@ -16,11 +16,13 @@ import { fetchDiamondConfigs } from '../../api/diamondConfigs';
 import { fetchWeightRules } from '../../api/weightRules';
 import { fetchPurityPricingRules } from '../../api/purityPricingRules';
 import { ProductSizeImagePanel } from '../../features/aiStudio/ProductSizeImagePanel';
+import { inferJewelleryTypeFromCategory } from '../../features/aiStudio/generationRules';
 import type {
   GoldColor,
   MetalType,
   PricingPreviewResult,
   ProductInput,
+  ProductJewelleryType,
   ProductStatus,
   Purity,
   PurityPricingRuleInput,
@@ -53,9 +55,25 @@ const GOLD_COLOR_LABELS: Record<GoldColor, string> = Object.fromEntries(
   GOLD_COLORS.map((c) => [c.value, c.label]),
 ) as Record<GoldColor, string>;
 
+// Jewellery type decides the permanent SKU prefix (BD-RNG-…, BD-PND-…).
+const JEWELLERY_TYPE_OPTIONS: { value: ProductJewelleryType; label: string }[] = [
+  { value: 'RING', label: 'Ring' },
+  { value: 'EARRINGS', label: 'Earrings' },
+  { value: 'PENDANT', label: 'Pendant' },
+  { value: 'NECKLACE', label: 'Necklace' },
+  { value: 'BRACELET', label: 'Bracelet' },
+  { value: 'BANGLE', label: 'Bangle' },
+  { value: 'MANGALSUTRA', label: 'Mangalsutra' },
+  { value: 'CHAIN', label: 'Chain' },
+  { value: 'ANKLET', label: 'Anklet' },
+  { value: 'NOSE_PIN', label: 'Nose Pin' },
+  { value: 'BROOCH', label: 'Brooch' },
+  { value: 'OTHER', label: 'Other' },
+];
+
 const EMPTY_FORM: ProductInput = {
   name: '',
-  sku: '',
+  jewelleryType: null,
   categoryId: null,
   collectionId: null,
   shortDescription: '',
@@ -218,7 +236,7 @@ export function ProductFormPage() {
       const p = productData.product;
       setForm({
         name: p.name,
-        sku: p.sku,
+        jewelleryType: p.jewelleryType ?? null,
         categoryId: p.categoryId,
         collectionId: p.collectionId,
         shortDescription: p.shortDescription ?? '',
@@ -334,7 +352,9 @@ export function ProductFormPage() {
     return {
       ...form,
       name: form.name.trim(),
-      sku: form.sku.trim() || `DRAFT-${Date.now()}`,
+      // No SKU in the payload: the server assigns a permanent one on
+      // create (BD-{TYPE}-{NUMBER}) and it never changes afterwards.
+      sku: undefined,
       // A cleared field is `undefined` in form state (keeps the input
       // visually blank while editing) — but JSON.stringify drops undefined
       // keys entirely, and updateProduct only writes columns whose key is
@@ -481,7 +501,7 @@ export function ProductFormPage() {
   // press, cluttering the Products list even when nobody follows through
   // with an actual upload.
   const createForStudioMutation = useMutation({
-    mutationFn: (overrides: { name: string; sku: string }) => createProduct(buildPayload(overrides)),
+    mutationFn: (overrides: { name: string }) => createProduct(buildPayload(overrides)),
     // replace: true — the blank Add Product page this came from is stale the
     // instant the product is created (it now exists for real elsewhere), so
     // the browser Back button shouldn't be able to land the admin back on
@@ -499,11 +519,14 @@ export function ProductFormPage() {
       setImageSourceError('Enter a product name before generating images with AI.');
       return;
     }
+    if (!form.jewelleryType) {
+      setImageSourceError('Select the jewellery type before generating images with AI — it decides the product code.');
+      return;
+    }
     setImageSourceError(null);
     const name = form.name.trim();
-    const sku = form.sku.trim() || `DRAFT-${Date.now()}`;
-    setForm((f) => ({ ...f, name, sku }));
-    createForStudioMutation.mutate({ name, sku });
+    setForm((f) => ({ ...f, name }));
+    createForStudioMutation.mutate({ name });
   }
 
   // Manual Upload had no wired-up action at all in Add mode — the actual
@@ -512,7 +535,7 @@ export function ProductFormPage() {
   // attach images to. Mirrors handleGenerateWithAI's create flow, just
   // landing back on the edit page instead of AI Image Studio.
   const createForManualUploadMutation = useMutation({
-    mutationFn: (overrides: { name: string; sku: string }) => createProduct(buildPayload(overrides)),
+    mutationFn: (overrides: { name: string }) => createProduct(buildPayload(overrides)),
     // Same reasoning as the AI-studio create path above.
     onSuccess: (result) => navigate(`/products/${result.product.id}/edit`, { replace: true }),
     onError: (err) => setImageSourceError(describeError(err, 'Could not create product.')),
@@ -524,11 +547,14 @@ export function ProductFormPage() {
       setImageSourceError('Enter a product name before uploading images.');
       return;
     }
+    if (!form.jewelleryType) {
+      setImageSourceError('Select the jewellery type before uploading images — it decides the product code.');
+      return;
+    }
     setImageSourceError(null);
     const name = form.name.trim();
-    const sku = form.sku.trim() || `DRAFT-${Date.now()}`;
-    setForm((f) => ({ ...f, name, sku }));
-    createForManualUploadMutation.mutate({ name, sku });
+    setForm((f) => ({ ...f, name }));
+    createForManualUploadMutation.mutate({ name });
   }
 
   // `wasEditing` is captured at the moment Save is clicked (passed through
@@ -698,6 +724,11 @@ export function ProductFormPage() {
             requestAnimationFrame(() => errorRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }));
             return;
           }
+          if (!isEditing && !form.jewelleryType) {
+            setError('Select the jewellery type — it decides the product code (SKU).');
+            requestAnimationFrame(() => errorRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }));
+            return;
+          }
           if (isEditing && (imagesData?.images.length ?? 0) === 0) {
             setError('Add at least one product image before saving — use Manual Upload or Generate with AI above.');
             requestAnimationFrame(() => errorRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }));
@@ -714,8 +745,33 @@ export function ProductFormPage() {
               <input value={form.name} onChange={(e) => set('name', e.target.value)} required />
             </label>
             <label className={sharedStyles.field}>
-              SKU (optional — auto-generated if left blank)
-              <input value={form.sku} onChange={(e) => set('sku', e.target.value)} />
+              Product code (SKU)
+              <input
+                value={productData?.product.sku ?? ''}
+                placeholder="Assigned automatically on save"
+                readOnly
+                aria-readonly="true"
+              />
+              {productData?.product.legacySku && (
+                <small className={styles.sectionHint}>Previous code: {productData.product.legacySku}</small>
+              )}
+            </label>
+            <label className={sharedStyles.field}>
+              Jewellery type{!isEditing && ' (required)'}
+              <select
+                value={form.jewelleryType ?? ''}
+                onChange={(e) => set('jewelleryType', (e.target.value || null) as ProductJewelleryType | null)}
+              >
+                <option value="">— Select —</option>
+                {JEWELLERY_TYPE_OPTIONS.map((t) => (
+                  <option key={t.value} value={t.value}>
+                    {t.label}
+                  </option>
+                ))}
+              </select>
+              {isEditing && productData?.product.sku && (
+                <small className={styles.sectionHint}>Changing this does not change the product code.</small>
+              )}
             </label>
             <label className={sharedStyles.field}>
               Status
@@ -731,7 +787,16 @@ export function ProductFormPage() {
               Category
               <select
                 value={form.categoryId ?? ''}
-                onChange={(e) => set('categoryId', e.target.value || null)}
+                onChange={(e) => {
+                  const categoryId = e.target.value || null;
+                  set('categoryId', categoryId);
+                  // Suggest a jewellery type from the category name, only
+                  // while none is chosen yet — the admin can change it.
+                  if (!form.jewelleryType) {
+                    const suggested = inferJewelleryTypeFromCategory(categories.find((c) => c.id === categoryId)?.name ?? null);
+                    if (suggested && suggested !== 'UNKNOWN') set('jewelleryType', suggested as ProductJewelleryType);
+                  }
+                }}
               >
                 <option value="">— None —</option>
                 {categories.map((c) => (

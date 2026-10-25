@@ -19,7 +19,7 @@ import { findCategoryById } from '../repositories/categories.repository.js';
 import { storageProvider } from '../providers/storage/index.js';
 import { processAndStoreImage } from '../services/imageProcessingService.js';
 import { withTransaction } from '../config/db.js';
-import { findProductById, findProductImages } from '../repositories/products.repository.js';
+import { findProductById, findProductImages, updateProduct } from '../repositories/products.repository.js';
 import { keyFromUrl } from '../utils/storageKey.js';
 import {
   findActiveJobByProduct,
@@ -331,6 +331,14 @@ export async function confirmJob(req, res, next) {
       if (!presenter.supported_jewellery_types.includes(input.jewelleryType)) {
         throw new AppError(400, 'Selected presenter does not support this jewellery type');
       }
+    }
+
+    // A product created before it had a jewellery type gets the one the
+    // admin confirms here. Never overwrites an existing type, and never
+    // touches the SKU (permanent once assigned).
+    const product = await findProductById(job.product_id);
+    if (product && !product.jewellery_type) {
+      await updateProduct(job.product_id, { jewelleryType: input.jewelleryType });
     }
 
     const generateRoseGold = effectiveGenerateRoseGold(input.jewelleryType, input.generateRoseGold ?? true);

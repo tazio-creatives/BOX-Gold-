@@ -98,7 +98,9 @@ function buildFilters({
   // so a DRAFT/AI_PROCESSING product is still findable by its own admin).
   if (search) {
     params.push(`%${search}%`);
-    clauses.push(`(p.name ILIKE $${params.length} OR p.sku ILIKE $${params.length})`);
+    // legacy_sku: a product's code before it got its permanent SKU — old
+    // codes stay findable.
+    clauses.push(`(p.name ILIKE $${params.length} OR p.sku ILIKE $${params.length} OR p.legacy_sku ILIKE $${params.length})`);
   }
   if (categoryIds?.length) {
     params.push(categoryIds);
@@ -313,6 +315,7 @@ export async function findProductImages(productId) {
 const INSERT_COLUMNS = [
   'name',
   'sku',
+  'jewellery_type',
   'category_id',
   'collection_id',
   'short_description',

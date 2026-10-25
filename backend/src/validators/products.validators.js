@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { JEWELLERY_TYPES } from '../services/productSkuService.js';
 
 const METAL_TYPES = ['GOLD', 'PLATINUM'];
 const PURITIES = ['9K', '14K', '18K', '22K', '24K'];
@@ -116,7 +117,10 @@ export const adminListProductsQuerySchema = listProductsQuerySchema.extend({
 // baked into one shared schema both are derived from via refinement.
 const productObjectSchema = z.object({
   name: z.string().trim().min(1).max(300),
-  sku: z.string().trim().min(1).max(100),
+  // Optional: assigned automatically by the server on create (see
+  // productSkuService.js); permanent afterwards.
+  sku: z.string().trim().min(1).max(100).optional(),
+  jewelleryType: z.enum(JEWELLERY_TYPES).nullable().optional(),
   categoryId: z.string().uuid().nullable().optional(),
   collectionId: z.string().uuid().nullable().optional(),
   shortDescription: z.string().trim().max(500).nullable().optional(),

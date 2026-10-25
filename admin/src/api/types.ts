@@ -61,7 +61,12 @@ export interface ProductDetail {
   id: string;
   slug: string;
   name: string;
+  // Permanent product code (BD-RNG-001024), assigned by the server.
   sku: string;
+  // Admin-only: what the piece is (decides the SKU prefix) and the code it
+  // had before it got a permanent SKU.
+  jewelleryType?: ProductJewelleryType | null;
+  legacySku?: string | null;
   categoryId: string | null;
   collectionId: string | null;
   shortDescription: string | null;
@@ -143,9 +148,26 @@ export interface ProductAttributeGroup {
   values: { id: string; value: string; label: string; refId: string | null }[];
 }
 
+export type ProductJewelleryType =
+  | 'RING'
+  | 'BRACELET'
+  | 'BANGLE'
+  | 'NECKLACE'
+  | 'EARRINGS'
+  | 'PENDANT'
+  | 'CHAIN'
+  | 'ANKLET'
+  | 'NOSE_PIN'
+  | 'MANGALSUTRA'
+  | 'BROOCH'
+  | 'OTHER';
+
 export interface ProductInput {
   name: string;
-  sku: string;
+  // Never sent by the form: the server assigns it on create and it is
+  // permanent afterwards.
+  sku?: string;
+  jewelleryType?: ProductJewelleryType | null;
   categoryId?: string | null;
   collectionId?: string | null;
   shortDescription?: string | null;
