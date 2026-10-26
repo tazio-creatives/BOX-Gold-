@@ -81,21 +81,7 @@ export function ProductListing({
   // or re-sorted views keep their canonical to the base URL and get no page
   // links, so no endless filter/sort/page URL combinations become crawlable.
   const isPlainListing = activeFilterCount === 0 && sort === 'featured';
-  const pagedCanonical = isPlainListing && page > 1 ? `${canonicalPath}?page=${page}` : canonicalPath;
   const baseTitle = seoTitle || listingTitle(h1);
-
-  useHead({
-    title: isPlainListing && page > 1 ? pagedTitle(baseTitle, page) : baseTitle,
-    description: seoDescription || description || `Shop ${heading} at BOX DIAMONDS — certified, live-priced jewellery.`,
-    canonicalPath: pagedCanonical,
-    jsonLd: [
-      organizationJsonLd(),
-      breadcrumbJsonLd([
-        { name: 'Home', path: '/' },
-        ...breadcrumbs.map((b) => ({ name: b.label, path: b.href ?? canonicalPath })),
-      ]),
-    ],
-  });
 
   const filters = { category: categorySlug, collection: collectionSlug, metal, purity, goldColor, priceMin, priceMax, sort };
 
@@ -120,6 +106,24 @@ export function ProductListing({
   // The page links count from the last page actually on screen, so after
   // scrolling has loaded pages N…M, "Next" is M+1 (never a page already shown).
   const lastLoadedPage = data?.pages[data.pages.length - 1]?.page ?? page;
+  // ?page=N past the last page: the server answers 404 (prefetch.ts), and the
+  // page says so instead of "No products found" under a "Page N" title.
+  const isPastLastPage = page > 1 && !!data && page > totalPages;
+  const isPagedUrl = isPlainListing && page > 1 && !isPastLastPage;
+
+  useHead({
+    title: isPagedUrl ? pagedTitle(baseTitle, page) : baseTitle,
+    description: seoDescription || description || `Shop ${heading} at BOX DIAMONDS — certified, live-priced jewellery.`,
+    canonicalPath: isPagedUrl ? `${canonicalPath}?page=${page}` : canonicalPath,
+    robots: isPastLastPage ? 'noindex, follow' : undefined,
+    jsonLd: [
+      organizationJsonLd(),
+      breadcrumbJsonLd([
+        { name: 'Home', path: '/' },
+        ...breadcrumbs.map((b) => ({ name: b.label, path: b.href ?? canonicalPath })),
+      ]),
+    ],
+  });
 
   // Fires fetchNextPage() as the sentinel div (placed just past the last
   // row) scrolls into view — the actual "load more on scroll" behavior.
@@ -282,7 +286,17 @@ export function ProductListing({
             </div>
           )}
 
-          {data && products.length === 0 && (
+          {isPastLastPage && (
+            <div className={styles.stateBlock}>
+              <p className={styles.emptyHeading}>This page doesn&rsquo;t exist</p>
+              <p className={styles.message}>There are fewer pages of {heading} than that.</p>
+              <Link to={canonicalPath} className={styles.retryButton}>
+                View all {heading}
+              </Link>
+            </div>
+          )}
+
+          {data && products.length === 0 && !isPastLastPage && (
             <div className={styles.stateBlock}>
               <p className={styles.emptyHeading}>No products found</p>
               <p className={styles.message}>Try adjusting your filters or search.</p>
