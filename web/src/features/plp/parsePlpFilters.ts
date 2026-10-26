@@ -26,3 +26,10 @@ export function parsePlpFilters(searchParams: URLSearchParams): ParsedPlpFilters
 
   return { metal, purity, goldColor, priceMin, priceMax, sort };
 }
+
+// ?page=N on a listing (crawlable pagination). Anything missing or invalid
+// is page 1; very large numbers are capped (they 404 as out of range anyway).
+export function parsePlpPage(searchParams: URLSearchParams): number {
+  const page = Number(searchParams.get('page'));
+  return Number.isInteger(page) && page > 1 ? Math.min(page, 1000) : 1;
+}

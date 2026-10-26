@@ -6,7 +6,8 @@ import type { CategoryBanner as CategoryBannerData } from '../../api/types';
 import { PlpProductCard } from '../../components/PlpProductCard';
 import { Breadcrumbs, type Crumb } from '../../components/Breadcrumbs';
 import { CategoryBanner } from './CategoryBanner';
-import { productsQueryKey, fetchProductsPage, getNextProductsPageParam } from './productsQuery';
+import { productsQueryOptions } from './productsQuery';
+import { ListingPageLinks } from './ListingPageLinks';
 import { FilterSidebar, type CategoryFilterGroup } from './FilterSidebar';
 import { SortSelect } from './SortSelect';
 import { SortSheet } from './SortSheet';
@@ -48,6 +49,13 @@ function listingTitle(h1: string): string {
   return plain.length >= 30 || /diamond/i.test(h1) ? plain : `${h1} | Natural Diamond Jewellery | BOX DIAMONDS`;
 }
 
+// "Gents | BOX DIAMONDS" -> "Gents – Page 2 | BOX DIAMONDS": every page of a
+// listing gets its own title.
+function pagedTitle(title: string, page: number): string {
+  const suffix = ' | BOX DIAMONDS';
+  return title.endsWith(suffix) ? `${title.slice(0, -suffix.length)} – Page ${page}${suffix}` : `${title} – Page ${page}`;
+}
+
 export function ProductListing({
   categorySlug,
   collectionSlug,
@@ -61,7 +69,7 @@ export function ProductListing({
   subcategories,
   banner,
 }: ProductListingProps) {
-  const { metal, purity, goldColor, priceMin, priceMax, sort, updateFilters, updateSort, clearFilters } =
+  const { metal, purity, goldColor, priceMin, priceMax, sort, page, updateFilters, updateSort, clearFilters } =
     usePlpFilters();
   const [isFilterDrawerOpen, setIsFilterDrawerOpen] = useState(false);
   const [isSortSheetOpen, setIsSortSheetOpen] = useState(false);
@@ -69,11 +77,17 @@ export function ProductListing({
   const loadMoreRef = useRef<HTMLDivElement>(null);
 
   const activeFilterCount = [metal, purity, goldColor, priceMin, priceMax].filter((v) => v != null).length;
+  // Crawlable pagination (?page=N) belongs to the plain listing only: filtered
+  // or re-sorted views keep their canonical to the base URL and get no page
+  // links, so no endless filter/sort/page URL combinations become crawlable.
+  const isPlainListing = activeFilterCount === 0 && sort === 'featured';
+  const pagedCanonical = isPlainListing && page > 1 ? `${canonicalPath}?page=${page}` : canonicalPath;
+  const baseTitle = seoTitle || listingTitle(h1);
 
   useHead({
-    title: seoTitle || listingTitle(h1),
+    title: isPlainListing && page > 1 ? pagedTitle(baseTitle, page) : baseTitle,
     description: seoDescription || description || `Shop ${heading} at BOX DIAMONDS — certified, live-priced jewellery.`,
-    canonicalPath,
+    canonicalPath: pagedCanonical,
     jsonLd: [
       organizationJsonLd(),
       breadcrumbJsonLd([
@@ -94,15 +108,18 @@ export function ProductListing({
     hasNextPage,
     isFetchingNextPage,
   } = useInfiniteQuery({
-    queryKey: productsQueryKey(filters),
-    queryFn: ({ pageParam }) => fetchProductsPage(filters, pageParam),
-    initialPageParam: 1,
-    getNextPageParam: getNextProductsPageParam,
+    // Starts at ?page=N (the server rendered that page); scrolling then
+    // appends N+1, N+2… — contiguous pages, so nothing repeats or is skipped.
+    ...productsQueryOptions(filters, page),
     placeholderData: keepPreviousData,
   });
 
   const products = data ? data.pages.flatMap((p) => p.products) : [];
   const total = data?.pages[0]?.total ?? 0;
+  const totalPages = data?.pages[0]?.totalPages ?? 0;
+  // The page links count from the last page actually on screen, so after
+  // scrolling has loaded pages N…M, "Next" is M+1 (never a page already shown).
+  const lastLoadedPage = data?.pages[data.pages.length - 1]?.page ?? page;
 
   // Fires fetchNextPage() as the sentinel div (placed just past the last
   // row) scrolls into view — the actual "load more on scroll" behavior.
@@ -303,6 +320,15 @@ export function ProductListing({
                   </div>
                 )}
               </div>
+
+              {isPlainListing && (
+                <ListingPageLinks
+                  basePath={canonicalPath}
+                  firstPage={page}
+                  currentPage={lastLoadedPage}
+                  totalPages={totalPages}
+                />
+              )}
             </>
           )}
         </div>

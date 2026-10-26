@@ -1,18 +1,13 @@
 import { matchPath } from 'react-router-dom';
-import type { QueryClient, QueryKey } from '@tanstack/react-query';
+import type { InfiniteData, QueryClient, QueryKey } from '@tanstack/react-query';
 import { ApiError } from '../api/client';
 import { fetchHomepage } from '../api/homepage';
 import { fetchCategories, fetchFilterOptions } from '../api/categories';
 import { fetchCollectionBySlug } from '../api/collections';
 import { fetchProductBySlug, fetchVariantPricePreview } from '../api/products';
-import { parsePlpFilters } from '../features/plp/parsePlpFilters';
-import {
-  productsQueryKey,
-  fetchProductsPage,
-  getNextProductsPageParam,
-  type ProductsQueryFilters,
-} from '../features/plp/productsQuery';
-import type { Category, ProductDetail } from '../api/types';
+import { parsePlpFilters, parsePlpPage } from '../features/plp/parsePlpFilters';
+import { productsQueryOptions, type ProductsQueryFilters } from '../features/plp/productsQuery';
+import type { Category, ProductDetail, ProductListResponse } from '../api/types';
 import { getDefaultVariantId, pricePreviewQueryKey } from '../hooks/useVariantSelection';
 import { fetchBlogPosts, fetchBlogPost, blogListQueryKey, blogPostQueryKey } from '../api/blog';
 
@@ -71,17 +66,14 @@ export async function prefetchForRoute(
     const notFound = await fetchPrimary(queryClient, ['collection', collectionSlug], () =>
       fetchCollectionBySlug(collectionSlug),
     );
-    if (!notFound) {
-      const filters = { collection: collectionSlug, ...parsePlpFilters(searchParams) };
-      await safePrefetchProducts(queryClient, filters);
-    }
-    return { notFound };
+    if (notFound) return { notFound };
+    const filters = { collection: collectionSlug, ...parsePlpFilters(searchParams) };
+    return { notFound: await safePrefetchProducts(queryClient, filters, parsePlpPage(searchParams)) };
   }
 
   if (pathname === '/new-arrivals' || pathname === '/jewellery') {
     const filters = parsePlpFilters(searchParams);
-    await safePrefetchProducts(queryClient, filters);
-    return { notFound: false };
+    return { notFound: await safePrefetchProducts(queryClient, filters, parsePlpPage(searchParams)) };
   }
 
   // Static landing/content pages that share the one-segment URL shape with
@@ -117,8 +109,7 @@ export async function prefetchForRoute(
     if (!exists) return { notFound: true };
 
     const filters = { category: categorySlug, ...parsePlpFilters(searchParams) };
-    await safePrefetchProducts(queryClient, filters);
-    return { notFound: false };
+    return { notFound: await safePrefetchProducts(queryClient, filters, parsePlpPage(searchParams)) };
   }
 
   return { notFound: false };
@@ -162,19 +153,23 @@ async function safePrefetch<T>(
 // prefetchQuery) with the same key/queryFn/getNextPageParam, or the
 // dehydrated first page comes back as the wrong cache shape and the client
 // silently refetches from scratch on hydration instead of reusing it. Only
-// page 1 is fetched server-side (the `pages: 1` default) — scrolling further
-// is a client-only concern.
-async function safePrefetchProducts(queryClient: QueryClient, filters: ProductsQueryFilters): Promise<void> {
+// the requested page (?page=N, default 1) is fetched server-side — scrolling
+// further is a client-only concern. Returns true (-> HTTP 404) when ?page=N
+// is past the last page of a listing.
+async function safePrefetchProducts(
+  queryClient: QueryClient,
+  filters: ProductsQueryFilters,
+  startPage = 1,
+): Promise<boolean> {
   // Every product listing shows the filter sidebar — its options too.
   await safePrefetch(queryClient, ['filter-options'], fetchFilterOptions);
   try {
-    await queryClient.prefetchInfiniteQuery({
-      queryKey: productsQueryKey(filters),
-      queryFn: ({ pageParam }) => fetchProductsPage(filters, pageParam as number),
-      initialPageParam: 1,
-      getNextPageParam: getNextProductsPageParam,
-    });
+    const options = productsQueryOptions(filters, startPage);
+    await queryClient.prefetchInfiniteQuery(options);
+    const first = queryClient.getQueryData<InfiniteData<ProductListResponse>>(options.queryKey)?.pages[0];
+    return startPage > 1 && !!first && startPage > first.totalPages;
   } catch {
     // intentionally swallowed
+    return false;
   }
 }

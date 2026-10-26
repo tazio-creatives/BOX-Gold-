@@ -9,8 +9,10 @@ import type { ProductListResponse } from '../../api/types';
 // parsePlpFilters.ts's own single-source-of-truth comment).
 export type ProductsQueryFilters = Omit<ListProductsParams, 'page' | 'limit'>;
 
-export function productsQueryKey(filters: ProductsQueryFilters) {
-  return ['products', filters] as const;
+// Page 1 keeps its original key (unchanged cache entries); a listing opened
+// at ?page=N is its own infinite list starting at N.
+export function productsQueryKey(filters: ProductsQueryFilters, startPage = 1) {
+  return startPage === 1 ? (['products', filters] as const) : (['products', filters, { startPage }] as const);
 }
 
 export function fetchProductsPage(filters: ProductsQueryFilters, pageParam: number) {
@@ -19,4 +21,14 @@ export function fetchProductsPage(filters: ProductsQueryFilters, pageParam: numb
 
 export function getNextProductsPageParam(lastPage: ProductListResponse): number | undefined {
   return lastPage.page < lastPage.totalPages ? lastPage.page + 1 : undefined;
+}
+
+// Everything useInfiniteQuery and the SSR prefetchInfiniteQuery must share.
+export function productsQueryOptions(filters: ProductsQueryFilters, startPage = 1) {
+  return {
+    queryKey: productsQueryKey(filters, startPage),
+    queryFn: ({ pageParam }: { pageParam: number }) => fetchProductsPage(filters, pageParam),
+    initialPageParam: startPage,
+    getNextPageParam: getNextProductsPageParam,
+  };
 }
