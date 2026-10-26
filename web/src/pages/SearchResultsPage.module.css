@@ -9,3 +9,17 @@
 .pagination {
   margin-top: 32px;
 }
+
+/* Own class (not the listing's .count, which category pages hide on
+   mobile): the match count shows on every screen size here. */
+.count {
+  margin: 4px 0 0;
+  font-size: 13px;
+  color: #6d7878;
+}
+
+@media (max-width: 767px) {
+  .header h1 {
+    font-size: 22px;
+  }
+}

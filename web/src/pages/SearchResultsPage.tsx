@@ -55,7 +55,7 @@ export function SearchResultsPage() {
         <Breadcrumbs items={[{ label: 'Search' }]} />
         <h1 className={listingStyles.heading}>{q ? <>Search results for “{q}”</> : 'Search'}</h1>
         {q && data && (
-          <p className={listingStyles.count} aria-live="polite">
+          <p className={styles.count} aria-live="polite">
             {total === 1 ? '1 product' : `${total} products`}
             {totalPages > 1 && ` · page ${page} of ${totalPages}`}
           </p>
