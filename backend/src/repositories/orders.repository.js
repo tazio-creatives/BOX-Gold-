@@ -419,15 +419,15 @@ export async function getOrderSummaryStats({ status } = {}) {
 // always a live join (products.category_id -> categories.name) — no
 // snapshot needed since the work order (the one consumer that needs it)
 // only cares about the product's current category, not a historical one.
-// metal_type/net_weight_grams/gross_weight_grams/diamond_weight_grams/gemstone
-// (admin "Product Details" panel, mirrors the storefront PDP's AttributesList)
-// are always a live join too — these aren't per-variant fields in this schema
-// (the PDP itself reads them straight off the product, no live-variant
-// override), so there's nothing checkout-time to snapshot.
+// metal_type/gemstone (admin "Product Details" panel, mirrors the storefront
+// PDP's AttributesList) are always a live join too — not per-variant fields,
+// so there's nothing checkout-time to snapshot. The panel's weights come from
+// the line's own snapshot instead (orderDto.js orderedItemWeights), never the
+// product's current weights.
 export async function findOrderItems(orderId) {
   const { rows } = await query(
     `SELECT oi.*, p.diamond_count, p.diamond_colour, p.diamond_clarity, c.name AS category_name,
-            p.metal_type, p.net_weight_grams, p.gross_weight_grams, p.diamond_weight_grams, p.gemstone,
+            p.metal_type, p.gemstone,
             COALESCE(oi.image_url, thumb.url) AS product_image_url,
             COALESCE(oi.image_large_url, large.url) AS product_image_large_url
      FROM order_items oi

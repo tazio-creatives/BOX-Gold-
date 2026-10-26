@@ -32,6 +32,8 @@ import { CopyIcon, BoxIcon, LocationIcon, HistoryIcon, TruckIcon } from './Order
 import sharedStyles from '../../styles/shared.module.css';
 import styles from './OrderDetailPage.module.css';
 
+const NOT_RECORDED = 'Not recorded';
+
 function formatGrams(value: number | null): string | null {
   return value != null ? `${value.toFixed(3)} g` : null;
 }
@@ -51,14 +53,13 @@ function buildProductDetailRows(item: OrderItem): [string, string][] {
   if (metal) rows.push(['Metal', metal]);
   if (item.purity) rows.push(['Purity', item.purity]);
 
-  const goldWeight = formatGrams(item.goldWeightGrams);
-  if (goldWeight) rows.push(['Gold Weight', goldWeight]);
-  const netWeight = formatGrams(item.netWeightGrams);
-  if (netWeight) rows.push(['Net Weight', netWeight]);
-  const diamondWeightGrams = formatGrams(item.diamondWeightGrams);
-  if (diamondWeightGrams) rows.push(['Natural Diamond Weight', diamondWeightGrams]);
-  const grossWeight = formatGrams(item.grossWeightGrams);
-  if (grossWeight) rows.push(['Gross Weight', grossWeight]);
+  // Weights as ordered (saved on the order line at checkout). An older line
+  // that never saved them says so rather than showing the product's
+  // current, possibly different, weight.
+  rows.push(['Gold Weight', formatGrams(item.goldWeightGrams) ?? NOT_RECORDED]);
+  rows.push(['Net Weight', formatGrams(item.netWeightGrams) ?? NOT_RECORDED]);
+  rows.push(['Natural Diamond Weight', formatGrams(item.diamondWeightGrams) ?? NOT_RECORDED]);
+  rows.push(['Gross Weight', formatGrams(item.grossWeightGrams) ?? NOT_RECORDED]);
   if (item.diamondWeightCarats != null) rows.push(['Natural Diamond Carat', `${item.diamondWeightCarats.toFixed(3)} ct`]);
   if (item.diamondConfigName) rows.push(['Natural Diamond Quality', item.diamondConfigName]);
   if (item.diamondCount != null) rows.push(['Natural Diamond Count', String(item.diamondCount)]);
