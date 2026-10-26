@@ -5,12 +5,15 @@ import { calculateDeliveryEstimate } from '../services/deliveryEstimateService.j
 
 export async function search(req, res, next) {
   try {
-    const { q } = searchQuerySchema.parse(req.query);
-    const { products, categories, collections } = await searchService.search(q);
+    const { q, page, limit } = searchQuerySchema.parse(req.query);
+    const { products, total, categories, collections } = await searchService.search(q, { page, limit });
     const deliveryEstimate = calculateDeliveryEstimate();
 
     res.json({
       products: products.map((row) => toListDto(row, deliveryEstimate)),
+      total,
+      page,
+      limit,
       categories: categories.map((c) => ({ id: c.id, name: c.name, slug: c.slug })),
       collections: collections.map((c) => ({ id: c.id, name: c.name, slug: c.slug })),
     });

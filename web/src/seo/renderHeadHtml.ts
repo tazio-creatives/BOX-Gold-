@@ -21,6 +21,7 @@ export function renderHeadHtml(head: HeadData): string {
   return [
     `<title>${escapeHtml(head.title)}</title>`,
     `<meta name="description" content="${escapeHtml(head.description)}" />`,
+    ...(head.robots ? [`<meta name="robots" content="${escapeHtml(head.robots)}" />`] : []),
     `<link rel="canonical" href="${escapeHtml(canonicalUrl)}" />`,
     `<meta property="og:title" content="${escapeHtml(head.title)}" />`,
     `<meta property="og:description" content="${escapeHtml(head.description)}" />`,

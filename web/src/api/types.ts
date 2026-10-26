@@ -149,6 +149,12 @@ export interface HomepageSection {
 
 export interface SearchResults {
   products: ProductCard[];
+  // Every matching product, not just this page — drives "View all results"
+  // and the results page's count/pagination.
+  total: number;
+  page: number;
+  limit: number;
+  // Only filled for page 1 (the dropdown); empty on later pages.
   categories: CategoryRef[];
   collections: CollectionRef[];
 }

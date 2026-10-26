@@ -10,6 +10,9 @@ export interface HeadData {
   // Absolute URL for og:image / twitter:image (link previews). Falls back to
   // the logo in renderHeadHtml when a page has no image of its own.
   image?: string;
+  // e.g. 'noindex, follow' for internal search results. Omitted = indexable
+  // (no robots meta at all, as before).
+  robots?: string;
 }
 
 export const defaultHead: HeadData = {
@@ -54,6 +57,8 @@ function setCanonicalLink(href: string) {
 function applyHeadToDom(data: HeadData) {
   document.title = data.title;
   setMetaTag('description', data.description);
+  if (data.robots) setMetaTag('robots', data.robots);
+  else document.querySelector('meta[name="robots"]')?.remove();
   setCanonicalLink(`${SITE_URL}${data.canonicalPath}`);
 
   document.querySelectorAll('script[data-jsonld]').forEach((el) => el.remove());
@@ -78,5 +83,5 @@ export function useHead(data: HeadData) {
   useEffect(() => {
     applyHeadToDom(data);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [data.title, data.description, data.canonicalPath, JSON.stringify(data.jsonLd)]);
+  }, [data.title, data.description, data.canonicalPath, data.robots, JSON.stringify(data.jsonLd)]);
 }

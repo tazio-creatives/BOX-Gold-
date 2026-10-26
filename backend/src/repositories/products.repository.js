@@ -230,21 +230,70 @@ export async function countPublishedProducts(categoryIds) {
   return count;
 }
 
-// Trigram-indexed substring match on name/sku, plus an exact metal_type
-// match so "gold" surfaces gold products too (plan §28).
-export async function searchProducts(term, limit = 8) {
+// Same text normalisation on both sides of every comparison: lowercase,
+// anything that isn't a letter or digit becomes one space (so repeated
+// spaces, hyphens in SKUs and punctuation never stop a match), trimmed.
+const SEARCH_NORMALISE = (expr) => `btrim(regexp_replace(lower(${expr}), '[^a-z0-9]+', ' ', 'g'))`;
+
+// Customer search over published, priced products. `normalisedTerm` and
+// `words` come from searchService (already normalised and stemmed, so they
+// hold only [a-z0-9 ] — no LIKE wildcards). A product matches when every
+// word starts a word somewhere in its name, current SKU, category, jewellery
+// type or metal, or when the whole term appears inside its name or SKU.
+// Ranked: 1 exact name, 2 exact SKU, 3 name starts with the term, 4 every
+// word in the name, 5 the rest matched via category/type/metal, 6 other
+// partial matches; newest first within a rank. Legacy (DRAFT) SKUs are
+// admin-only and deliberately not searched here.
+export async function searchProducts(normalisedTerm, words, { limit = 8, offset = 0 } = {}) {
+  const { rows: ranked } = await query(
+    `WITH n AS (
+       SELECT p.id, p.created_at,
+              ' ' || ${SEARCH_NORMALISE('p.name')} || ' ' AS nn,
+              ' ' || ${SEARCH_NORMALISE('p.sku')} || ' ' AS ns,
+              ' ' || ${SEARCH_NORMALISE(
+                `coalesce(cat.name, '') || ' ' || coalesce(cat.slug, '') || ' ' || coalesce(p.jewellery_type, '') || ' ' ||
+                 replace(coalesce(p.jewellery_type, ''), '_', '') || ' ' || coalesce(p.metal_type, '')`,
+              )} || ' ' AS ng
+         FROM products p
+         ${CATEGORY_JOIN}
+        WHERE p.status = 'PUBLISHED' AND p.selling_price > 0
+     ),
+     m AS (
+       SELECT id, created_at,
+              CASE
+                WHEN nn = ' ' || $1 || ' ' THEN 1
+                WHEN ns = ' ' || $1 || ' ' THEN 2
+                WHEN nn LIKE ' ' || $1 || '%' THEN 3
+                WHEN NOT EXISTS (SELECT 1 FROM unnest($2::text[]) w WHERE nn NOT LIKE '% ' || w || '%') THEN 4
+                WHEN NOT EXISTS (SELECT 1 FROM unnest($2::text[]) w WHERE nn || ng NOT LIKE '% ' || w || '%') THEN 5
+                ELSE 6
+              END AS rank
+         FROM n
+        WHERE NOT EXISTS (SELECT 1 FROM unnest($2::text[]) w WHERE nn || ns || ng NOT LIKE '% ' || w || '%')
+           OR nn LIKE '%' || $1 || '%'
+           OR ns LIKE '%' || $1 || '%'
+     )
+     SELECT id, rank, count(*) OVER ()::int AS total
+       FROM m
+      ORDER BY rank, created_at DESC, id
+      LIMIT $3 OFFSET $4`,
+    [normalisedTerm, words, limit, offset],
+  );
+  const total = ranked[0]?.total ?? 0;
+  if (ranked.length === 0) return { rows: [], total };
+
+  // Card data only for this page's products (the stock/image lookups are
+  // the costly part), then back into ranked order.
   const { rows } = await query(
     `SELECT ${LIST_COLUMNS} FROM products p
      ${AVAILABLE_STOCK_JOIN}
      ${PRIMARY_IMAGE_JOIN}
      ${CATEGORY_JOIN}
-     WHERE p.status = 'PUBLISHED'
-       AND (p.name ILIKE '%' || $1 || '%' OR p.sku ILIKE '%' || $1 || '%' OR p.metal_type ILIKE $1)
-     ORDER BY p.created_at DESC
-     LIMIT $2`,
-    [term, limit],
+     WHERE p.id = ANY($1)`,
+    [ranked.map((r) => r.id)],
   );
-  return rows;
+  const byId = new Map(rows.map((r) => [r.id, r]));
+  return { rows: ranked.map((r) => byId.get(r.id)).filter(Boolean), total };
 }
 
 export async function findProductBySlug(slug) {

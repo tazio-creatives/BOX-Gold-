@@ -35,6 +35,9 @@ import { PDPPage } from './pages/PDPPage';
 const CartPage = lazy(() => import('./pages/CartPage').then((m) => ({ default: m.CartPage })));
 const WishlistPage = lazy(() => import('./pages/WishlistPage').then((m) => ({ default: m.WishlistPage })));
 const CheckoutPage = lazy(() => import('./pages/CheckoutPage').then((m) => ({ default: m.CheckoutPage })));
+const SearchResultsPage = lazy(() =>
+  import('./pages/SearchResultsPage').then((m) => ({ default: m.SearchResultsPage })),
+);
 const OrderConfirmationPage = lazy(() =>
   import('./pages/OrderConfirmationPage').then((m) => ({ default: m.OrderConfirmationPage })),
 );
@@ -115,6 +118,7 @@ export function App() {
           <Route path="/careers" element={<Navigate to="/" replace />} />
           <Route path="/press" element={<Navigate to="/" replace />} />
           <Route path="/sustainability" element={<StaticPage name="sustainability" />} />
+          <Route path="/search" element={<SearchResultsPage />} />
           <Route path="/:categorySlug" element={<PLPPage />} />
           <Route path="/:categorySlug/:productSlug" element={<PDPPage />} />
           <Route path="*" element={<PlaceholderPage title="Coming Soon" />} />

@@ -260,6 +260,9 @@ async function createServer() {
 
       if (!routeType) {
         const html = await renderShellHtml(url);
+        // Internal search results: never indexed (robots.txt also disallows
+        // /search; this covers a URL reached some other way).
+        if (pathname === '/search') res.set('X-Robots-Tag', 'noindex, follow');
         res.status(200).set('Content-Type', 'text/html').end(html);
         return;
       }

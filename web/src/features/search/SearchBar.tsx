@@ -1,11 +1,12 @@
 import { useEffect, useState, useRef } from 'react';
-import { pixelSearch } from '../../analytics/metaPixel';
 import { useQuery } from '@tanstack/react-query';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { search } from '../../api/search';
 import { productUrl } from '../../utils/productUrl';
 import { formatPrice } from '../../utils/formatPrice';
 import { useDebouncedValue } from './useDebouncedValue';
+import { trackSearch } from './trackSearch';
+import { searchResultsUrl } from './searchResultsUrl';
 import styles from './SearchBar.module.css';
 
 export function SearchBar() {
@@ -16,9 +17,18 @@ export function SearchBar() {
   // settle so "r", "ri", "rin" aren't each counted as searches.
   const settledTerm = useDebouncedValue(term.trim(), 1200);
   useEffect(() => {
-    if (settledTerm.length >= 3) pixelSearch(settledTerm);
+    if (settledTerm.length >= 3) trackSearch(settledTerm);
   }, [settledTerm]);
   const containerRef = useRef<HTMLDivElement>(null);
+  const navigate = useNavigate();
+
+  // Enter opens the full results page for whatever is typed.
+  function openResults() {
+    const q = term.trim();
+    if (!q) return;
+    setIsOpen(false);
+    navigate(searchResultsUrl(q));
+  }
 
   const { data, isFetching } = useQuery({
     queryKey: ['search', debouncedTerm],
@@ -35,6 +45,13 @@ export function SearchBar() {
 
   return (
     <div className={styles.container} ref={containerRef}>
+      <form
+        role="search"
+        onSubmit={(e) => {
+          e.preventDefault();
+          openResults();
+        }}
+      >
       <input
         type="search"
         className={styles.input}
@@ -44,7 +61,9 @@ export function SearchBar() {
         onFocus={() => setIsOpen(true)}
         onBlur={() => setTimeout(() => setIsOpen(false), 150)}
         aria-label="Search products"
+        enterKeyHint="search"
       />
+      </form>
       <svg
         className={styles.searchIcon}
         width="18"
@@ -96,6 +115,11 @@ export function SearchBar() {
                   <span className={styles.price}>{formatPrice(p.sellingPrice)}</span>
                 </Link>
               ))}
+              {data.total > data.products.length && (
+                <Link to={searchResultsUrl(debouncedTerm)} className={styles.viewAll} rel="nofollow">
+                  View all {data.total} results
+                </Link>
+              )}
             </div>
           )}
         </div>

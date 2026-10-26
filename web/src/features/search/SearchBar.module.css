@@ -95,3 +95,18 @@
     max-width: none;
   }
 }
+
+/* Last row of the Products group: same row rhythm, emphasised. */
+.viewAll {
+  display: block;
+  padding: var(--space-2) var(--space-4);
+  border-top: 1px solid var(--color-border);
+  font-size: var(--text-sm);
+  font-weight: 600;
+  color: var(--color-burgundy);
+  text-decoration: none;
+}
+
+.viewAll:hover {
+  background: var(--color-bg-alt);
+}
