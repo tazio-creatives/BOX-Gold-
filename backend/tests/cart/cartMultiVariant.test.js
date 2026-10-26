@@ -95,6 +95,10 @@ before(async () => {
   await photo(productId, 2, 'ROSE', 'MODEL', false);
 
   const plainId = await product('plain');
+  // A default-variant product is priced from its cached base values (set
+  // when the admin saves it); without one it would price at ₹0, which the
+  // cart now refuses (purchasePriceGuard).
+  await query('UPDATE products SET gold_value = 1000 WHERE id = $1', [plainId]);
   plain = { productId: plainId, defaultVariantId: await variant(plainId, '', []) };
 });
 
