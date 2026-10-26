@@ -17,6 +17,30 @@ export function orderDeliveryEstimateDto(order) {
   };
 }
 
+const METRIC_CARAT_GRAMS = 0.2; // 1 ct = 200 mg, by definition
+const round3 = (n) => Math.round(n * 1000) / 1000;
+
+// An order line's weights as ordered, from what checkout saved on the line —
+// never the product's current values, which can change (or, for products
+// whose weights come from purity/size rules, be empty) after the order.
+// Same rules as the product: Net = Gold, Gross = Gold + Diamond.
+// Diamond grams aren't saved on the line, so they come from the saved
+// carats at the metric carat. Anything that can't be determined from the
+// saved values (lines placed before the weight snapshot existed) is null.
+function orderedItemWeights(item) {
+  const goldWeightGrams = nullableNumber(item.gold_weight_grams_snapshot);
+  const diamondWeightCarats = nullableNumber(item.diamond_weight_carats_snapshot);
+  const diamondWeightGrams = diamondWeightCarats != null ? round3(diamondWeightCarats * METRIC_CARAT_GRAMS) : null;
+  return {
+    goldWeightGrams,
+    netWeightGrams: goldWeightGrams,
+    diamondWeightCarats,
+    diamondWeightGrams,
+    grossWeightGrams:
+      goldWeightGrams != null && diamondWeightGrams != null ? round3(goldWeightGrams + diamondWeightGrams) : null,
+  };
+}
+
 export function toTrackingEventDto(event) {
   return {
     id: event.id,
@@ -90,6 +114,7 @@ export function toOrderDto(order, items = [], statusHistory = [], extra = {}, { 
       // Clarity fall back to the live product join (same drift risk that
       // already existed for every order before this snapshot existed).
       const snapshot = item.variant_attributes_snapshot ?? [];
+      const orderedWeights = orderedItemWeights(item);
       const fromSnapshot = (code) => snapshot.find((s) => s.attributeCode === code)?.label ?? null;
       return {
         id: item.id,
@@ -110,19 +135,20 @@ export function toOrderDto(order, items = [], statusHistory = [], extra = {}, { 
         goldColor: fromSnapshot('gold_color') ?? item.gold_color ?? null,
         purity: fromSnapshot('purity') ?? item.purity ?? null,
         diamondConfigName: fromSnapshot('diamond_quality') ?? item.diamond_config_name ?? null,
-        goldWeightGrams: nullableNumber(item.gold_weight_grams_snapshot),
-        diamondWeightCarats: nullableNumber(item.diamond_weight_carats_snapshot),
+        goldWeightGrams: orderedWeights.goldWeightGrams,
+        diamondWeightCarats: orderedWeights.diamondWeightCarats,
         diamondCount: nullableNumber(item.diamond_count_snapshot ?? item.diamond_count),
         diamondColour: item.diamond_colour_snapshot ?? item.diamond_colour ?? null,
         diamondClarity: item.diamond_clarity_snapshot ?? item.diamond_clarity ?? null,
         customizationNote: item.customization_note ?? null,
         isBackordered: item.is_backordered,
-        // Admin "Product Details" panel only (mirrors the storefront PDP) —
-        // always the live product join, see findOrderItems' comment.
+        // Admin "Product Details" panel: weights as ordered (see
+        // orderedItemWeights); metal type and gemstone are the live product
+        // join, see findOrderItems' comment.
         metalType: item.metal_type ?? null,
-        netWeightGrams: nullableNumber(item.net_weight_grams),
-        grossWeightGrams: nullableNumber(item.gross_weight_grams),
-        diamondWeightGrams: nullableNumber(item.diamond_weight_grams),
+        netWeightGrams: orderedWeights.netWeightGrams,
+        grossWeightGrams: orderedWeights.grossWeightGrams,
+        diamondWeightGrams: orderedWeights.diamondWeightGrams,
         gemstone: item.gemstone ?? null,
       };
     }),

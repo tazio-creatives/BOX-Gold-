@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import type { ProductDetail, GoldColor, VariantPricePreview } from '../api/types';
 import { fetchVariantPricePreview } from '../api/products';
 
@@ -116,17 +117,101 @@ function purityAvailable(
   return isCombinationAvailable(product, ids);
 }
 
+export interface VariantSelection {
+  goldColor: GoldColor | null;
+  purity: string | null;
+  diamondConfigId: string | null;
+  sizeId: string | null;
+}
+
+// The selection a product page opens with. Purity/Diamond Quality/Gold Color
+// default to whichever value the admin themselves set as the product's own
+// base configuration — not automatically the cheapest configured option on
+// that axis. Falls back to the first configured option only when the admin's
+// own value isn't actually among the configured options (data inconsistency,
+// shouldn't normally happen). Size has no equivalent "admin default" (sizes
+// are just a stock catalog), so it defaults to the smallest available size.
+// A color or diamond quality that isn't offered at the default purity is
+// swapped for an available one — the same fallback the hook's effects apply
+// when the shopper changes purity. Pure, so the server render (seo/prefetch)
+// and the browser start from the exact same variant.
+export function getDefaultSelection(product: ProductDetail): VariantSelection {
+  const purity =
+    product.purityOptions.length > 0
+      ? product.purity && product.purityOptions.includes(product.purity)
+        ? product.purity
+        : [...product.purityOptions].sort((a, b) => parseInt(a, 10) - parseInt(b, 10))[0]
+      : null;
+
+  let diamondConfigId: string | null = null;
+  if (product.diamondOptions.length > 0) {
+    const adminDefault = product.diamondConfigId
+      ? product.diamondOptions.find((d) => d.id === product.diamondConfigId)
+      : undefined;
+    diamondConfigId = (adminDefault ?? product.diamondOptions[0]).id;
+  }
+
+  let goldColor: GoldColor | null = null;
+  if (product.goldColorOptions.length > 0) {
+    goldColor =
+      product.goldColor && product.goldColorOptions.includes(product.goldColor)
+        ? product.goldColor
+        : product.goldColorOptions.includes('YELLOW')
+          ? 'YELLOW'
+          : product.goldColorOptions[0];
+  }
+
+  let sizeId: string | null = null;
+  if (product.sizes.length > 0) {
+    sizeId = [...product.sizes].sort((a, b) => {
+      const na = parseInt(a.label, 10);
+      const nb = parseInt(b.label, 10);
+      if (Number.isNaN(na) || Number.isNaN(nb)) return 0;
+      return na - nb;
+    })[0].id;
+  }
+
+  if (goldColor && purity && !colorAvailableAtPurity(product, goldColor, purity)) {
+    goldColor = product.goldColorOptions.find((c) => colorAvailableAtPurity(product, c, purity)) ?? goldColor;
+  }
+  if (diamondConfigId && purity && !diamondAvailableAtPurity(product, diamondConfigId, purity)) {
+    diamondConfigId =
+      product.diamondOptions.find((d) => diamondAvailableAtPurity(product, d.id, purity))?.id ?? diamondConfigId;
+  }
+
+  return { goldColor, purity, diamondConfigId, sizeId };
+}
+
+// The variant a product page opens on (null if the default selection isn't
+// a real, offered combination).
+export function getDefaultVariantId(product: ProductDetail): string | null {
+  return resolveVariantId(product, getDefaultSelection(product));
+}
+
+// One cache entry per exact variant — the server render prefetches the
+// default variant's entry (seo/prefetch.ts) so the first HTML already shows
+// its price and weights, and the browser hydrates from that same entry.
+export function pricePreviewQueryKey(productId: string, variantId: string) {
+  return ['price-preview', productId, variantId] as const;
+}
+
 // Owns gold color / purity / diamond quality / size selection, live
 // price-preview recompute, and admin-default selection for any surface that
 // needs to add a variant product to cart — originally inline in PDPPage.tsx,
 // extracted so the PLP quick-add sheet can share the exact same
 // defaulting/validation behavior instead of re-implementing it.
 export function useVariantSelection(product: ProductDetail | undefined) {
-  const [selectedSizeId, setSelectedSizeId] = useState<string | null>(null);
-  const [selectedGoldColor, setSelectedGoldColor] = useState<GoldColor | null>(null);
-  const [selectedPurity, setSelectedPurity] = useState<string | null>(null);
-  const [selectedDiamondConfigId, setSelectedDiamondConfigId] = useState<string | null>(null);
-  const [pricePreview, setPricePreview] = useState<VariantPricePreview | null>(null);
+  // Start on the default selection when the product is already loaded (the
+  // server render, and its hydration), so the first HTML is already the
+  // default variant's — the effect further down covers a product that
+  // arrives later.
+  const [initialSelection] = useState(() => (product ? getDefaultSelection(product) : null));
+  const [selectedSizeId, setSelectedSizeId] = useState<string | null>(initialSelection?.sizeId ?? null);
+  const [selectedGoldColor, setSelectedGoldColor] = useState<GoldColor | null>(initialSelection?.goldColor ?? null);
+  const [selectedPurity, setSelectedPurity] = useState<string | null>(initialSelection?.purity ?? null);
+  const [selectedDiamondConfigId, setSelectedDiamondConfigId] = useState<string | null>(
+    initialSelection?.diamondConfigId ?? null,
+  );
 
   // A different product's variant choices never carry over — reset them
   // whenever the caller switches to a new product.
@@ -135,7 +220,6 @@ export function useVariantSelection(product: ProductDetail | undefined) {
     setSelectedGoldColor(null);
     setSelectedPurity(null);
     setSelectedDiamondConfigId(null);
-    setPricePreview(null);
   }, [product]);
 
   const selectedVariantId = product
@@ -152,66 +236,23 @@ export function useVariantSelection(product: ProductDetail | undefined) {
   // gets added to cart) always matches what actually gets charged. While
   // the selection is still incomplete, displayPrice below falls back to the
   // product's own (already "cheapest available variant") base price.
-  useEffect(() => {
-    setPricePreview(null);
-    if (!product || !selectedVariantId) return;
-    let cancelled = false;
-    fetchVariantPricePreview(product.id, { variantId: selectedVariantId })
-      .then((result) => {
-        if (!cancelled) setPricePreview(result);
-      })
-      .catch(() => {
-        if (!cancelled) setPricePreview(null);
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [product, selectedVariantId]);
+  const { data: pricePreviewData } = useQuery({
+    queryKey: pricePreviewQueryKey(product?.id ?? '', selectedVariantId ?? ''),
+    queryFn: () => fetchVariantPricePreview(product!.id, { variantId: selectedVariantId! }),
+    enabled: !!product && !!selectedVariantId,
+  });
+  const pricePreview: VariantPricePreview | null = pricePreviewData ?? null;
 
-  // Purity/Diamond Quality/Gold Color default to whichever value the admin
-  // themselves set as the product's own base configuration — not
-  // automatically the cheapest configured option on that axis. Falls back
-  // to the first configured option only when the admin's own value isn't
-  // actually among the configured options (data inconsistency, shouldn't
-  // normally happen). Size has no equivalent "admin default" (sizes are
-  // just a stock catalog), so it keeps defaulting to the smallest available
-  // size. Keyed on the product id (not on the selections themselves) so
-  // this only runs once per product load and never clobbers a shopper's own
-  // later choice.
+  // Applies the default selection (getDefaultSelection) once per product
+  // load — keyed on the product id (not on the selections themselves) so it
+  // never clobbers a shopper's own later choice.
   useEffect(() => {
     if (!product) return;
-    if (product.purityOptions.length > 0) {
-      const defaultPurity =
-        product.purity && product.purityOptions.includes(product.purity)
-          ? product.purity
-          : [...product.purityOptions].sort((a, b) => parseInt(a, 10) - parseInt(b, 10))[0];
-      setSelectedPurity(defaultPurity);
-    }
-    if (product.diamondOptions.length > 0) {
-      const adminDefault = product.diamondConfigId
-        ? product.diamondOptions.find((d) => d.id === product.diamondConfigId)
-        : undefined;
-      const defaultDiamond = adminDefault ?? product.diamondOptions[0];
-      setSelectedDiamondConfigId(defaultDiamond.id);
-    }
-    if (product.goldColorOptions.length > 0) {
-      const defaultColor =
-        product.goldColor && product.goldColorOptions.includes(product.goldColor)
-          ? product.goldColor
-          : product.goldColorOptions.includes('YELLOW')
-            ? 'YELLOW'
-            : product.goldColorOptions[0];
-      setSelectedGoldColor(defaultColor);
-    }
-    if (product.sizes.length > 0) {
-      const smallestSize = [...product.sizes].sort((a, b) => {
-        const na = parseInt(a.label, 10);
-        const nb = parseInt(b.label, 10);
-        if (Number.isNaN(na) || Number.isNaN(nb)) return 0;
-        return na - nb;
-      })[0];
-      setSelectedSizeId(smallestSize.id);
-    }
+    const selection = getDefaultSelection(product);
+    setSelectedPurity(selection.purity);
+    setSelectedDiamondConfigId(selection.diamondConfigId);
+    setSelectedGoldColor(selection.goldColor);
+    setSelectedSizeId(selection.sizeId);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [product?.id]);
 
