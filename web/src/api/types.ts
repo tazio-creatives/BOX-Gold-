@@ -405,6 +405,9 @@ export interface CartItem {
   quantity: number;
   lineTotal: number;
   isBackordered: boolean;
+  // False when the line can't be bought (price missing/invalid) — checkout
+  // refuses it server-side.
+  isPurchasable?: boolean;
 }
 
 

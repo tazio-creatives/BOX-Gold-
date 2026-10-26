@@ -5,6 +5,7 @@ import { computeVariantPricing } from './pricingService.js';
 import { loadActiveRuleSet } from './pricingRuleResolver.js';
 import { calculateDeliveryEstimate } from './deliveryEstimateService.js';
 import { resolveImageForColour } from './productImageResolver.js';
+import { assertPurchasablePrice, isPurchasablePrice } from './purchasePriceGuard.js';
 import { findResolvableImagesForProducts } from '../repositories/productImages.repository.js';
 import {
   findCartByOwner,
@@ -81,6 +82,9 @@ function toItemDto(item, product, variant, pricing, image) {
     // exceeds availableStock is fulfilled as Make to Order (checkoutService)
     // rather than rejected.
     isBackordered: item.quantity > availableStock,
+    // False for a line that can't be bought (₹0 final price) — the cart
+    // says so and checkout refuses it (checkoutService).
+    isPurchasable: isPurchasablePrice(sellingPrice),
   };
 }
 
@@ -147,6 +151,16 @@ export async function addItem(owner, { productId, variantId, quantity }) {
     : variants.find((v) => v.combination_key === '');
   if (!variant) throw new AppError(400, 'Selected combination is not available for this product');
   if (!variant.is_available) throw new AppError(409, 'Selected combination is no longer available');
+  // Priced exactly as the cart line will be (getCart) — a ₹0 line is refused
+  // before any cart row is created.
+  const pricing = await computeVariantPricing(
+    product,
+    variant.combination_key === '' ? null : variant,
+    null,
+    null,
+    await loadActiveRuleSet(),
+  );
+  assertPurchasablePrice(pricing.sellingPrice);
 
   // Out-of-stock no longer blocks adding to cart — it becomes Make to
   // Order, enforced/flagged for display in toItemDto and at checkout

@@ -14,6 +14,7 @@ import { DetailsCard } from './DetailsCard';
 import { PriceBreakupTable } from './PriceBreakupTable';
 import { AttributesList } from './AttributesList';
 import styles from './ProductInfo.module.css';
+import { UNPURCHASABLE_MESSAGE, isPurchasablePrice } from '../../utils/purchasable';
 
 function StarRow({ ratingAvg }: { ratingAvg: number }) {
   const filled = Math.round(ratingAvg);
@@ -191,6 +192,10 @@ export function ProductInfo({
             : null;
     target?.scrollIntoView({ behavior: 'smooth', block: 'center' });
   }
+
+  // A product whose price is missing or invalid (not above ₹0) can't be
+  // bought — the server refuses it too; this just says so up front.
+  const isPurchasable = isPurchasablePrice(displayPrice);
 
   function handleAddToCart() {
     if (variantRequired) {
@@ -402,17 +407,22 @@ export function ProductInfo({
         <button
           type="button"
           className={styles.addToBag}
-          disabled={isAddingToCart}
+          disabled={isAddingToCart || !isPurchasable}
           onClick={handleAddToCart}
         >
           <BagIcon />
           {justAdded ? 'Added ✓' : 'Add to Cart'}
         </button>
-        <button type="button" className={styles.buyNow} onClick={handleBuyNow}>
+        <button type="button" className={styles.buyNow} disabled={!isPurchasable} onClick={handleBuyNow}>
           <BoltIcon />
           Buy Now
         </button>
       </div>
+      {!isPurchasable && (
+        <p className={styles.unavailable} role="alert">
+          {UNPURCHASABLE_MESSAGE}
+        </p>
+      )}
 
       <ProductAssuranceGrid hasDiamonds={hasDiamonds} isGold={isGold} />
 
@@ -470,13 +480,13 @@ export function ProductInfo({
               <button
                 type="button"
                 className={styles.mobileBarAddToBag}
-                disabled={isAddingToCart}
+                disabled={isAddingToCart || !isPurchasable}
                 onClick={handleAddToCart}
               >
                 <BagIcon />
                 {justAdded ? 'Added ✓' : 'Add to Cart'}
               </button>
-              <button type="button" className={styles.mobileBarBuyNow} onClick={handleBuyNow}>
+              <button type="button" className={styles.mobileBarBuyNow} disabled={!isPurchasable} onClick={handleBuyNow}>
                 <BoltIcon />
                 Buy Now
               </button>

@@ -19,6 +19,7 @@ import { calculateDeliveryEstimate } from './deliveryEstimateService.js';
 import { checkDeliveryPincode } from './deliveryCheckService.js';
 import { resolveImageForColour } from './productImageResolver.js';
 import { findResolvableImagesForProducts } from '../repositories/productImages.repository.js';
+import { assertPurchasablePrice } from './purchasePriceGuard.js';
 
 function round2(n) {
   return Math.round(n * 100) / 100;
@@ -126,6 +127,9 @@ export async function createOrder({ userId, contact, addressId, items, couponCod
         null,
         ruleSet,
       );
+      // Authoritative: a ₹0 line can't be ordered, alone or alongside paid
+      // ones (cart, Buy Now and direct API requests all end here).
+      assertPurchasablePrice(pricing.sellingPrice, product.name);
       let diamondConfigName = null;
       if (pricing.diamondConfigId) {
         const config = await findDiamondConfigById(pricing.diamondConfigId);

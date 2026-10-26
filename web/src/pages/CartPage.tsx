@@ -17,6 +17,7 @@ import { RelatedProducts } from '../features/pdp/RelatedProducts';
 import { OrderSummary } from '../features/checkout/OrderSummary';
 import styles from './CartPage.module.css';
 import placeholderStyles from './PlaceholderPage.module.css';
+import { UNPURCHASABLE_MESSAGE } from '../utils/purchasable';
 
 // Size is shown as its own dedicated line on the cart card (matches the
 // approved reference design) — everything else (metal, diamond config)
@@ -106,6 +107,9 @@ export function CartPage() {
   }, []);
 
   const { data, isLoading } = useQuery({ queryKey: ['cart'], queryFn: fetchCart });
+  // A line that can't be bought (price missing/invalid) blocks checkout until
+  // it's removed — the server refuses it at checkout either way.
+  const hasUnpurchasableItem = data?.items.some((i) => i.isPurchasable === false) ?? false;
 
   // Same two sections the PDP shows at its own bottom ("You May Also Like" /
   // "Most Loved") — the cart has no single product/category to scope by, so
@@ -322,6 +326,12 @@ export function CartPage() {
                         {strikePrice > 0 && <span className={styles.priceOld}>{formatPrice(strikePrice)}</span>}
                       </p>
 
+                      {item.isPurchasable === false && (
+                        <p className={styles.unavailable} role="alert">
+                          {UNPURCHASABLE_MESSAGE} Please remove it to continue.
+                        </p>
+                      )}
+
                       <p className={item.isBackordered ? styles.deliveryBadgeBackorder : styles.deliveryBadge}>
                         <TruckIcon />
                         {deliveryLabel(item)}
@@ -359,11 +369,12 @@ export function CartPage() {
               setCouponError(null);
               setStatusMessage('Coupon removed.');
             }}
-            errorMessage={null}
+            errorMessage={hasUnpurchasableItem ? UNPURCHASABLE_MESSAGE : null}
             primaryAction={{
               label: 'Proceed to Checkout',
               icon: <BagIcon />,
               onClick: () => navigate('/checkout'),
+              disabled: hasUnpurchasableItem,
             }}
             secondaryAction={{
               label: 'Continue Shopping',
@@ -401,7 +412,12 @@ export function CartPage() {
           <p className={styles.stickyBarLabel}>Total ({itemCountLabel})</p>
           <p className={styles.stickyBarValue}>{formatPrice(total)}</p>
         </div>
-        <button type="button" className={styles.stickyBarButton} onClick={() => navigate('/checkout')}>
+        <button
+          type="button"
+          className={styles.stickyBarButton}
+          disabled={hasUnpurchasableItem}
+          onClick={() => navigate('/checkout')}
+        >
           Proceed to Checkout
         </button>
       </div>

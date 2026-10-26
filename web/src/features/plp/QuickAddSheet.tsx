@@ -10,6 +10,7 @@ import { ColorSelector } from '../pdp/ColorSelector';
 import { PillSelector } from '../pdp/PillSelector';
 import { SizeSelector } from '../pdp/SizeSelector';
 import styles from './QuickAddSheet.module.css';
+import { UNPURCHASABLE_MESSAGE, isPurchasablePrice } from '../../utils/purchasable';
 
 interface QuickAddSheetProps {
   product: ProductDetail;
@@ -142,10 +143,15 @@ export function QuickAddSheet({ product, onClose, onAdded }: QuickAddSheetProps)
           {variantRequired && (
             <p className={styles.hint}>Select all options to continue</p>
           )}
+          {!variantRequired && !isPurchasablePrice(displayPrice) && (
+            <p className={styles.hint} role="alert">
+              {UNPURCHASABLE_MESSAGE}
+            </p>
+          )}
           <button
             type="button"
             className={styles.confirmButton}
-            disabled={variantRequired || addMutation.isPending}
+            disabled={variantRequired || addMutation.isPending || !isPurchasablePrice(displayPrice)}
             aria-busy={addMutation.isPending}
             onClick={() => addMutation.mutate()}
           >

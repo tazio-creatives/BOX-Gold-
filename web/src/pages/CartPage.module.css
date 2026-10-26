@@ -559,3 +559,9 @@
     padding: var(--space-12) var(--space-4) var(--space-4);
   }
 }
+
+.unavailable {
+  margin: 4px 0 0;
+  font-size: 12px;
+  color: var(--color-burgundy);
+}
