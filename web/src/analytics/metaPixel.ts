@@ -19,6 +19,13 @@ function fbq(...args: unknown[]) {
   window.fbq(...args);
 }
 
+// The ids sent below are product SKUs (or ids) — in the Meta catalogue feed
+// (backend/src/services/metaCatalogFeed.js) each one is an item_group_id,
+// grouping that product's purity × colour items. "product_group" tells Meta
+// to match them against item_group_id, so catalogue ads and Instagram
+// Shopping can attribute views, carts and purchases to catalogue products.
+const CONTENT_TYPE = 'product_group';
+
 export interface PixelItem {
   id: string;
   quantity: number;
@@ -34,7 +41,7 @@ export function pixelViewContent(item: { id: string; name: string; category?: st
     content_ids: [item.id],
     content_name: item.name,
     content_category: item.category ?? undefined,
-    content_type: 'product',
+    content_type: CONTENT_TYPE,
     value: item.price,
     currency: 'INR',
   });
@@ -48,7 +55,7 @@ export function pixelAddToCart(item: PixelItem & { name: string }) {
   fbq('track', 'AddToCart', {
     content_ids: [item.id],
     content_name: item.name,
-    content_type: 'product',
+    content_type: CONTENT_TYPE,
     contents: [{ id: item.id, quantity: item.quantity, item_price: item.price }],
     value: Math.round(item.price * item.quantity * 100) / 100,
     currency: 'INR',
@@ -58,7 +65,7 @@ export function pixelAddToCart(item: PixelItem & { name: string }) {
 export function pixelInitiateCheckout(items: PixelItem[], value: number) {
   fbq('track', 'InitiateCheckout', {
     content_ids: items.map((i) => i.id),
-    content_type: 'product',
+    content_type: CONTENT_TYPE,
     contents: items.map((i) => ({ id: i.id, quantity: i.quantity, item_price: i.price })),
     num_items: items.reduce((n, i) => n + i.quantity, 0),
     value,
@@ -74,7 +81,7 @@ export function pixelPurchase(orderId: string, items: PixelItem[], value: number
     'Purchase',
     {
       content_ids: items.map((i) => i.id),
-      content_type: 'product',
+      content_type: CONTENT_TYPE,
       contents: items.map((i) => ({ id: i.id, quantity: i.quantity, item_price: i.price })),
       num_items: items.reduce((n, i) => n + i.quantity, 0),
       value,
