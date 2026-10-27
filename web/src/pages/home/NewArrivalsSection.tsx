@@ -4,18 +4,6 @@ import type { HomepageItem } from '../../api/types';
 import { ProductCard } from '../../components/ProductCard';
 import styles from './NewArrivalsSection.module.css';
 
-function ArrowIcon({ direction }: { direction: 'left' | 'right' }) {
-  return (
-    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
-      <path
-        d={direction === 'left' ? 'M15 18l-6-6 6-6' : 'M9 18l6-6-6-6'}
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      />
-    </svg>
-  );
-}
-
 // Decorative line-art watermark for the feature banner — no real jewellery
 // photograph asset exists in this repo (only favicon/logo/auth-hero.jpg are
 // available), so the banner uses a designed warm-gradient ground plus this
@@ -40,19 +28,31 @@ function BannerArt() {
 // uses — so the existing ProductCard component is reused here directly
 // instead of hand-rolled card markup or price math.
 const MOBILE_BREAKPOINT = '(max-width: 767px)';
+// Same pace as the homepage's other product carousel (ProductCarousel.tsx).
+const AUTO_ADVANCE_MS = 4500;
+// After a swipe/tap/click, wait this long before auto-scrolling again.
+const RESUME_AFTER_TOUCH_MS = 4000;
 
+// The products follow the banner item's linked collection or category when
+// one is set (homepage.repository.js), so "View All" goes to that listing.
+// The banner carries the section's only title/subtitle — no second heading
+// over the products.
 export function NewArrivalsSection({ items }: { items: HomepageItem[] }) {
   const item = items[0];
   const products = (item?.products ?? []).slice(0, 10);
+  const viewAllUrl = item?.collection
+    ? `/collections/${item.collection.slug}`
+    : item?.category
+      ? `/${item.category.slug}`
+      : '/new-arrivals?sort=newest';
   const bannerImage = item?.imageUrl ?? null;
   const bannerImageMobile = item?.imageUrlMobile ?? null;
   const bannerTitle = item?.heading || 'New Arrivals';
   const bannerSubtitle = item?.subheading || 'From festive sparkle to everyday essentials';
   const trackRef = useRef<HTMLDivElement>(null);
+  const productAreaRef = useRef<HTMLDivElement>(null);
   const [activeIndex, setActiveIndex] = useState(0);
   const [pageCount, setPageCount] = useState(1);
-  const [canScrollPrev, setCanScrollPrev] = useState(false);
-  const [canScrollNext, setCanScrollNext] = useState(false);
 
   useEffect(() => {
     const el = trackRef.current;
@@ -62,9 +62,6 @@ export function NewArrivalsSection({ items }: { items: HomepageItem[] }) {
       const node = trackRef.current;
       if (!node) return;
       const page = node.clientWidth || 1;
-      const maxScroll = node.scrollWidth - node.clientWidth;
-      setCanScrollPrev(node.scrollLeft > 4);
-      setCanScrollNext(node.scrollLeft < maxScroll - 4);
       setPageCount(Math.max(1, Math.round(node.scrollWidth / page)));
       setActiveIndex(Math.round(node.scrollLeft / page));
     }
@@ -78,11 +75,68 @@ export function NewArrivalsSection({ items }: { items: HomepageItem[] }) {
     };
   }, [products.length]);
 
-  function scrollByPage(direction: 1 | -1) {
-    const el = trackRef.current;
-    if (!el) return;
-    el.scrollBy({ left: direction * el.clientWidth, behavior: 'smooth' });
-  }
+  // Auto-scroll: one card every AUTO_ADVANCE_MS, back to the first card
+  // after the last. Never fights the shopper — paused while the pointer is
+  // over the products or a card has keyboard focus, and for a few seconds
+  // after any swipe/tap/dot click; off entirely for reduced motion.
+  useEffect(() => {
+    const track = trackRef.current;
+    const area = productAreaRef.current;
+    if (!track || !area) return undefined;
+    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return undefined;
+
+    let hovered = false;
+    let focused = false;
+    let touchPaused = false;
+    let resumeTimer: ReturnType<typeof setTimeout> | undefined;
+    const onEnter = () => {
+      hovered = true;
+    };
+    const onLeave = () => {
+      hovered = false;
+    };
+    const onFocusIn = () => {
+      focused = true;
+    };
+    const onFocusOut = (e: FocusEvent) => {
+      focused = area.contains(e.relatedTarget as Node | null);
+    };
+    const onTouch = () => {
+      touchPaused = true;
+      clearTimeout(resumeTimer);
+      resumeTimer = setTimeout(() => {
+        touchPaused = false;
+      }, RESUME_AFTER_TOUCH_MS);
+    };
+
+    area.addEventListener('mouseenter', onEnter);
+    area.addEventListener('mouseleave', onLeave);
+    area.addEventListener('focusin', onFocusIn);
+    area.addEventListener('focusout', onFocusOut);
+    area.addEventListener('touchstart', onTouch, { passive: true });
+    area.addEventListener('pointerdown', onTouch);
+
+    const interval = setInterval(() => {
+      if (hovered || focused || touchPaused || document.hidden) return;
+      const maxScroll = track.scrollWidth - track.clientWidth;
+      if (maxScroll <= 4) return; // everything already fits — nothing to scroll
+      const slideWidth = track.firstElementChild?.getBoundingClientRect().width ?? 0;
+      const gap = parseFloat(getComputedStyle(track).columnGap) || 0;
+      const atEnd = track.scrollLeft >= maxScroll - 4;
+      track.scrollTo({ left: atEnd ? 0 : track.scrollLeft + slideWidth + gap, behavior: 'smooth' });
+    }, AUTO_ADVANCE_MS);
+
+    return () => {
+      clearInterval(interval);
+      clearTimeout(resumeTimer);
+      area.removeEventListener('mouseenter', onEnter);
+      area.removeEventListener('mouseleave', onLeave);
+      area.removeEventListener('focusin', onFocusIn);
+      area.removeEventListener('focusout', onFocusOut);
+      area.removeEventListener('touchstart', onTouch);
+      area.removeEventListener('pointerdown', onTouch);
+    };
+  }, [products.length]);
 
   function scrollToPage(index: number) {
     const el = trackRef.current;
@@ -116,47 +170,21 @@ export function NewArrivalsSection({ items }: { items: HomepageItem[] }) {
         </div>
       </div>
 
-      <div className={styles.productArea}>
+      <div className={styles.productArea} ref={productAreaRef}>
         <div className={styles.productHeader}>
-          <div>
-            <h2 className={styles.heading}>Latest Introductions</h2>
-            <p className={styles.description}>Discover our newest diamond designs.</p>
-          </div>
-          <Link to="/new-arrivals?sort=newest" className={styles.viewAllLink}>
+          <Link to={viewAllUrl} className={styles.viewAllLink}>
             View All →
           </Link>
         </div>
 
         <div className={styles.carouselWrap}>
-          {canScrollPrev && (
-            <button
-              type="button"
-              className={`${styles.navButton} ${styles.navPrev}`}
-              aria-label="Previous products"
-              onClick={() => scrollByPage(-1)}
-            >
-              <ArrowIcon direction="left" />
-            </button>
-          )}
-
           <div className={styles.productTrack} ref={trackRef}>
             {products.map((product, i) => (
               <div className={styles.slide} key={product.id}>
-                <ProductCard product={product} index={i} />
+                <ProductCard product={product} index={i} imagePadding={false} showNewBadge={false} />
               </div>
             ))}
           </div>
-
-          {canScrollNext && (
-            <button
-              type="button"
-              className={`${styles.navButton} ${styles.navNext}`}
-              aria-label="Next products"
-              onClick={() => scrollByPage(1)}
-            >
-              <ArrowIcon direction="right" />
-            </button>
-          )}
         </div>
 
         {pageCount > 1 && (

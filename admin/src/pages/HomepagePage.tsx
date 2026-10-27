@@ -62,7 +62,7 @@ const SECTION_TYPES: HomepageSectionType[] = [
 const SECTION_TYPE_LABELS: Record<HomepageSectionType, string> = {
   HERO: 'Hero Banner (full-width sliding banner at the top)',
   BENTO_CATEGORIES: 'Shop by Category (category tiles + products of the chosen category)',
-  NEW_ARRIVALS: 'New Arrivals (one banner + 10 newest products)',
+  NEW_ARRIVALS: 'New Arrivals (one banner + 10 products: a chosen collection/category, or the newest)',
   COLLECTION_CARDS: 'Curated Collections (2–3 large image tiles)',
   SHOP_BY_MATERIAL: 'Shop by Material (grid of small image tiles)',
   FEATURED_PRODUCT: 'Featured Products (product slider, 4 per view)',
@@ -365,10 +365,12 @@ export function HomepagePage() {
                   <p className={sharedStyles.empty}>
                     Add exactly one item for the feature banner — only the first item renders. Heading is the
                     banner title, Subheading the line below it (leave both blank to use the default "New Arrivals /
-                    From festive sparkle to everyday essentials" copy). Upload the banner photo as "Banner image —
-                    desktop" (and optionally a portrait crop as "mobile"). Link to Category/Collection/Product and
-                    CTA fields aren't used here. The products shown below the banner are always the 10 most recently
-                    published products and update automatically.
+                    From festive sparkle to everyday essentials" copy) — the section&apos;s only title. Upload the
+                    banner photo as "Banner image — desktop" (and optionally a portrait crop as "mobile"). Products:
+                    pick a collection with "Link to Collection" (or a category with "Link to Category") on that item
+                    to show its first 10 products, in the same order as its listing page, and "View All" opens it;
+                    with neither, the 10 most recently published products show. The section heading above, Link to
+                    Product and CTA fields aren&apos;t used here.
                   </p>
                 )}
                 {section.type === 'CATEGORY_PRODUCTS' && (

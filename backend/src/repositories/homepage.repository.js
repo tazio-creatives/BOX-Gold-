@@ -2,6 +2,36 @@ import { query } from '../config/db.js';
 import { getCategoryAndDescendantIds } from './categories.repository.js';
 import { listProducts } from './products.repository.js';
 
+// The first `limit` products of the collection (or else category, with its
+// subcategories) a homepage item links to, in the same order as that
+// listing's default view: the admin's saved "First 50" order, then newest
+// (the homepage's own collection order, as COLLECTION_SHOWCASE uses; the
+// category page's order for a category). ₹0 products never. null when the
+// item links to neither, or only to an inactive one.
+async function linkedListingProducts(item, limit) {
+  if (item.collection_id && item.collection_is_active) {
+    const { items } = await listProducts(
+      { collectionId: item.collection_id, status: 'PUBLISHED', excludeZeroPrice: true },
+      {
+        sort: 'featured',
+        page: 1,
+        limit,
+        placement: { type: 'homepage_collection', id: item.collection_id },
+      },
+    );
+    return items;
+  }
+  if (item.category_id && item.category_is_active) {
+    const categoryIds = await getCategoryAndDescendantIds(item.category_id);
+    const { items } = await listProducts(
+      { categoryIds, status: 'PUBLISHED', excludeZeroPrice: true },
+      { sort: 'featured', page: 1, limit, placement: { type: 'category', id: item.category_id } },
+    );
+    return items;
+  }
+  return null;
+}
+
 export async function getEnabledSectionsWithItems() {
   const { rows: sections } = await query(
     `SELECT id, type, heading, subheading, cta_label, cta_url, sort_order FROM homepage_sections
@@ -90,18 +120,17 @@ export async function getEnabledSectionsWithItems() {
   // NEW_ARRIVALS keeps the "one item, many products" shape used by
   // COLLECTION_SHOWCASE below — the item carries the admin-editable banner
   // (image/heading/subheading, via the ordinary "+ Add Item" form; only the
-  // first item renders), while its `products` array is always auto-derived
-  // (most recently published products, newest first) so the storefront's
-  // product-card component and pricing DTO can be reused as-is instead of
-  // hand-rolled offer math. If no admin item exists yet, a blank synthetic
-  // one stands in so the section still renders (frontend falls back to
-  // default banner copy/art for a null image_url/heading/subheading).
+  // first item renders), while its `products` array is auto-derived so the
+  // storefront's product-card component and pricing DTO can be reused as-is
+  // instead of hand-rolled offer math: the products of the collection or
+  // category that item links to (collection wins if both are set), or —
+  // with no active link — the most recently published products, newest
+  // first. If no admin item exists yet, a blank synthetic one stands in so
+  // the section still renders (frontend falls back to default banner
+  // copy/art for a null image_url/heading/subheading).
   const newArrivalsSections = sections.filter((s) => s.type === 'NEW_ARRIVALS');
   if (newArrivalsSections.length > 0) {
-    const { items: recentProducts } = await listProducts(
-      { status: 'PUBLISHED' },
-      { sort: 'newest', page: 1, limit: 10 },
-    );
+    let recentProducts = null; // loaded only if some section has no active link
     for (const section of newArrivalsSections) {
       const sectionItems = itemsBySection.get(section.id) ?? [];
       const bannerItem = sectionItems[0] ?? {
@@ -124,7 +153,14 @@ export async function getEnabledSectionsWithItems() {
         product_slug: null,
         product_selling_price: null,
       };
-      bannerItem.products = recentProducts;
+      let products = await linkedListingProducts(bannerItem, 10);
+      if (!products) {
+        recentProducts ??= (
+          await listProducts({ status: 'PUBLISHED' }, { sort: 'newest', page: 1, limit: 10 })
+        ).items;
+        products = recentProducts;
+      }
+      bannerItem.products = products;
       itemsBySection.set(section.id, [bannerItem]);
     }
   }
