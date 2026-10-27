@@ -233,6 +233,11 @@ export const env = {
   smtpPass: process.env.SMTP_PASS,
   smtpFromEmail: process.env.SMTP_FROM_EMAIL ?? process.env.SMTP_USER,
   smtpFromName: process.env.SMTP_FROM_NAME ?? 'BOX Diamonds',
+
+  // Meta (Facebook/Instagram) catalogue feed. With a key set,
+  // /feeds/meta-catalog.xml?report=<key> returns a JSON health report
+  // (skipped products and why) instead of the XML; unset = report off.
+  metaFeedReportKey: process.env.META_FEED_REPORT_KEY || undefined,
 };
 
 export const isProduction = env.nodeEnv === 'production';

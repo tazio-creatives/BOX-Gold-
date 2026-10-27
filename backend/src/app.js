@@ -27,6 +27,7 @@ import { collectionsRouter } from './routes/collections.routes.js';
 import { searchRouter } from './routes/search.routes.js';
 import { filterOptionsRouter } from './routes/filterOptions.routes.js';
 import { homepageRouter } from './routes/homepage.routes.js';
+import { feedsRouter } from './routes/feeds.routes.js';
 import { adminProductsRouter } from './routes/admin/products.routes.js';
 import { adminAttributesRouter } from './routes/admin/attributes.routes.js';
 import { adminImageEnhancementRouter } from './routes/admin/imageEnhancement.routes.js';
@@ -113,6 +114,7 @@ export function createApp() {
   publicCatalogRouter.use('/filter-options', filterOptionsRouter);
   publicCatalogRouter.use('/homepage', homepageRouter);
   publicCatalogRouter.use('/blog', blogRouter);
+  publicCatalogRouter.use('/feeds', feedsRouter);
   app.use('/api/v1', publicCatalogRouter);
 
   // Admin and customer sessions are two entirely separate express-session

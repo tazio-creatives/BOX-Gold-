@@ -235,6 +235,28 @@ async function createServer() {
     }
   });
 
+  // Meta (Facebook/Instagram) catalogue feed — built by the backend
+  // (backend/src/routes/feeds.routes.js), served from the storefront's own
+  // domain, which is the URL given to Meta Commerce Manager. The query
+  // string is passed through (?report=<key> returns the health report).
+  app.get('/feeds/meta-catalog.xml', async (req, res) => {
+    try {
+      const query = req.originalUrl.slice(req.path.length);
+      const upstream = await fetch(`${API_BASE_URL}/feeds/meta-catalog.xml${query}`);
+      res.status(upstream.status);
+      for (const header of ['content-type', 'cache-control']) {
+        const value = upstream.headers.get(header);
+        if (value) res.set(header, value);
+      }
+      // A data feed, not a page — keep it out of search results.
+      res.set('X-Robots-Tag', 'noindex');
+      res.send(Buffer.from(await upstream.arrayBuffer()));
+    } catch (err) {
+      console.error('meta catalogue feed failed:', err);
+      res.status(502).end();
+    }
+  });
+
   app.get('/robots.txt', async (req, res) => {
     // Express 4 does not catch rejected promises thrown by an async route
     // handler — an uncaught rejection here previously took down the entire

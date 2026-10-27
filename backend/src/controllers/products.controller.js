@@ -277,7 +277,9 @@ export function toListDto(row, deliveryEstimate = calculateDeliveryEstimate()) {
   };
 }
 
-function toDetailDto(row, deliveryEstimate = calculateDeliveryEstimate()) {
+// Exported for the Meta catalogue feed (metaCatalogService.js), which reads
+// products in exactly the shape the PDP receives.
+export function toDetailDto(row, deliveryEstimate = calculateDeliveryEstimate()) {
   const offer = rowOffer(row);
   const priceInfo = strikePriceInfo(Number(row.mrp), offer.sellingPrice, offer.sellingPriceOriginal);
   const gstAmount =
