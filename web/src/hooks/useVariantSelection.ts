@@ -182,10 +182,52 @@ export function getDefaultSelection(product: ProductDetail): VariantSelection {
   return { goldColor, purity, diamondConfigId, sizeId };
 }
 
+// A purity / gold colour asked for by the page URL — the Meta (Instagram)
+// catalogue feed links each item to its exact variant as
+// ?purity=18K&colour=rose (backend/src/services/metaCatalogFeed.js).
+export interface VariantPreference {
+  purity: string | null;
+  goldColor: GoldColor | null;
+}
+
+export function variantPreferenceFromSearchParams(params: URLSearchParams): VariantPreference {
+  const purity = params.get('purity')?.trim().toUpperCase() || null;
+  const colour = params.get('colour')?.trim().toUpperCase();
+  const goldColor = colour === 'YELLOW' || colour === 'ROSE' || colour === 'WHITE' ? colour : null;
+  return { purity, goldColor };
+}
+
+// The selection a product page opens on: the default selection, with the
+// URL's purity/colour applied when this product really offers them (anything
+// else in the URL is ignored), then the same colour and diamond-quality
+// fallbacks the hook applies when a shopper picks that purity. The feed
+// prices exactly this selection (metaCatalogService.js's selectionFor), so
+// the page lands on the feed's price. No preference = getDefaultSelection.
+export function getInitialSelection(product: ProductDetail, preference?: VariantPreference | null): VariantSelection {
+  const selection = getDefaultSelection(product);
+  if (!preference?.purity && !preference?.goldColor) return selection;
+
+  const purity = product.purityOptions.find((p) => p === preference.purity) ?? selection.purity;
+  let goldColor =
+    preference.goldColor && product.goldColorOptions.includes(preference.goldColor)
+      ? preference.goldColor
+      : selection.goldColor;
+
+  if (goldColor && purity && !colorAvailableAtPurity(product, goldColor, purity)) {
+    goldColor = product.goldColorOptions.find((c) => colorAvailableAtPurity(product, c, purity)) ?? goldColor;
+  }
+  let diamondConfigId = selection.diamondConfigId;
+  if (diamondConfigId && purity && !diamondAvailableAtPurity(product, diamondConfigId, purity)) {
+    diamondConfigId =
+      product.diamondOptions.find((d) => diamondAvailableAtPurity(product, d.id, purity))?.id ?? diamondConfigId;
+  }
+  return { ...selection, purity, goldColor, diamondConfigId };
+}
+
 // The variant a product page opens on (null if the default selection isn't
 // a real, offered combination).
-export function getDefaultVariantId(product: ProductDetail): string | null {
-  return resolveVariantId(product, getDefaultSelection(product));
+export function getDefaultVariantId(product: ProductDetail, preference?: VariantPreference | null): string | null {
+  return resolveVariantId(product, getInitialSelection(product, preference));
 }
 
 // One cache entry per exact variant — the server render prefetches the
@@ -200,12 +242,14 @@ export function pricePreviewQueryKey(productId: string, variantId: string) {
 // needs to add a variant product to cart — originally inline in PDPPage.tsx,
 // extracted so the PLP quick-add sheet can share the exact same
 // defaulting/validation behavior instead of re-implementing it.
-export function useVariantSelection(product: ProductDetail | undefined) {
+// `preference`: a purity/colour from the page URL (see getInitialSelection);
+// only the initial selection uses it — the shopper's own picks always win.
+export function useVariantSelection(product: ProductDetail | undefined, preference?: VariantPreference | null) {
   // Start on the default selection when the product is already loaded (the
   // server render, and its hydration), so the first HTML is already the
   // default variant's — the effect further down covers a product that
   // arrives later.
-  const [initialSelection] = useState(() => (product ? getDefaultSelection(product) : null));
+  const [initialSelection] = useState(() => (product ? getInitialSelection(product, preference) : null));
   const [selectedSizeId, setSelectedSizeId] = useState<string | null>(initialSelection?.sizeId ?? null);
   const [selectedGoldColor, setSelectedGoldColor] = useState<GoldColor | null>(initialSelection?.goldColor ?? null);
   const [selectedPurity, setSelectedPurity] = useState<string | null>(initialSelection?.purity ?? null);
@@ -248,7 +292,7 @@ export function useVariantSelection(product: ProductDetail | undefined) {
   // never clobbers a shopper's own later choice.
   useEffect(() => {
     if (!product) return;
-    const selection = getDefaultSelection(product);
+    const selection = getInitialSelection(product, preference);
     setSelectedPurity(selection.purity);
     setSelectedDiamondConfigId(selection.diamondConfigId);
     setSelectedGoldColor(selection.goldColor);

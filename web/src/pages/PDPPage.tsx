@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { trackAddToCart } from '../analytics/ecommerce';
 import { pixelViewContent } from '../analytics/metaPixel';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import { useQuery, useQueryClient, useMutation } from '@tanstack/react-query';
 import { fetchProductBySlug, fetchRelatedProducts, fetchMostLovedProducts } from '../api/products';
 import { fetchCategories } from '../api/categories';
@@ -9,7 +9,7 @@ import { addCartItem } from '../api/cart';
 import type { Cart, ProductImage } from '../api/types';
 import { getAncestorChain } from '../utils/categoryTree';
 import type { SizeGuideType } from '../features/pdp/SizeGuide';
-import { useVariantSelection } from '../hooks/useVariantSelection';
+import { useVariantSelection, variantPreferenceFromSearchParams } from '../hooks/useVariantSelection';
 import { Breadcrumbs } from '../components/Breadcrumbs';
 import { useHead, defaultHead } from '../seo/head';
 import { breadcrumbJsonLd, organizationJsonLd, productJsonLd } from '../seo/jsonLd';
@@ -56,6 +56,10 @@ function reorderForProductSize(images: ProductImage[]): ProductImage[] {
 
 export function PDPPage() {
   const { productSlug } = useParams<{ categorySlug: string; productSlug: string }>();
+  const [searchParams] = useSearchParams();
+  // ?purity=18K&colour=rose — catalogue (Instagram) links open on that variant.
+  const variantPreference = variantPreferenceFromSearchParams(searchParams);
+  const hasVariantPreference = !!(variantPreference.purity || variantPreference.goldColor);
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const [justAdded, setJustAdded] = useState(false);
@@ -115,7 +119,7 @@ export function PDPPage() {
     displayOfferLabel,
     displayOfferBadges,
     displayBreakup,
-  } = useVariantSelection(productData?.product);
+  } = useVariantSelection(productData?.product, variantPreference);
 
   const addToCartMutation = useMutation({
     mutationFn: ({ productId, variantId }: { productId: string; variantId?: string | null }) =>
@@ -191,7 +195,9 @@ export function PDPPage() {
               { name: 'Home', path: '/' },
               ...breadcrumbs.map((b) => ({ name: b.label, path: b.href ?? canonicalPath })),
             ]),
-            productJsonLd(product, canonicalPath),
+            // Plain product URLs keep the product's own price here; a
+            // catalogue link states the price of the variant it opened on.
+            productJsonLd(product, canonicalPath, hasVariantPreference ? displayPrice : product.sellingPrice),
           ],
         }
       : defaultHead,

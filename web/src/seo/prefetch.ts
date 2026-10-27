@@ -8,7 +8,11 @@ import { fetchProductBySlug, fetchVariantPricePreview } from '../api/products';
 import { parsePlpFilters, parsePlpPage } from '../features/plp/parsePlpFilters';
 import { productsQueryOptions, type ProductsQueryFilters } from '../features/plp/productsQuery';
 import type { Category, ProductDetail, ProductListResponse } from '../api/types';
-import { getDefaultVariantId, pricePreviewQueryKey } from '../hooks/useVariantSelection';
+import {
+  getDefaultVariantId,
+  pricePreviewQueryKey,
+  variantPreferenceFromSearchParams,
+} from '../hooks/useVariantSelection';
 import { fetchBlogPosts, fetchBlogPost, blogListQueryKey, blogPostQueryKey } from '../api/blog';
 
 // Prefetches the exact same TanStack Query key + data each of the 4 SSR
@@ -87,11 +91,12 @@ export async function prefetchForRoute(
       fetchProductBySlug(productSlug),
     );
     await safePrefetch(queryClient, ['categories'], fetchCategories);
-    // The default variant's price and weights from the same price-preview
-    // endpoint the page uses after every selection — so the first HTML
-    // already shows them instead of the product-level fallback fields.
+    // The opening variant's price and weights (the default one, or the
+    // ?purity=&colour= one a catalogue link asks for) from the same
+    // price-preview endpoint the page uses after every selection — so the
+    // first HTML already shows them instead of the product-level fallback.
     const product = queryClient.getQueryData<{ product: ProductDetail }>(['product', productSlug])?.product;
-    const variantId = product ? getDefaultVariantId(product) : null;
+    const variantId = product ? getDefaultVariantId(product, variantPreferenceFromSearchParams(searchParams)) : null;
     if (product && variantId) {
       await safePrefetch(queryClient, pricePreviewQueryKey(product.id, variantId), () =>
         fetchVariantPricePreview(product.id, { variantId }),

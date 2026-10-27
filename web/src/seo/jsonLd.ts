@@ -126,7 +126,14 @@ function returnPolicy(nonReturnable: boolean) {
       };
 }
 
-export function productJsonLd(product: ProductDetail, canonicalPath: string) {
+// `price`: the price the page actually shows, when that's a specific variant
+// rather than the product's own base price (a catalogue link opening on
+// ?purity=&colour= — Meta checks its feed price against this offer).
+export function productJsonLd(
+  product: ProductDetail,
+  canonicalPath: string,
+  price = product.sellingPrice,
+) {
   return {
     '@context': 'https://schema.org',
     '@type': 'Product',
@@ -140,7 +147,7 @@ export function productJsonLd(product: ProductDetail, canonicalPath: string) {
     offers: {
       '@type': 'Offer',
       priceCurrency: 'INR',
-      price: product.sellingPrice,
+      price,
       // Zero-stock pieces are still sold as Make to Order (cart/checkout
       // accept them), so they're orderable — Google's "in stock" means
       // "accepting orders and can fulfil them". The making time is covered by
