@@ -108,72 +108,10 @@
   text-decoration: underline;
 }
 
-.carouselWrap {
-  position: relative;
-}
-
-.productTrack {
-  display: flex;
-  gap: 16px;
-  overflow-x: auto;
-  scroll-behavior: smooth;
-  scroll-snap-type: x proximity;
-  scrollbar-width: none;
-  padding-bottom: 2px;
-}
-
-.productTrack::-webkit-scrollbar {
-  display: none;
-}
-
+/* Card width in the shared ProductRail (track, dots and auto-scroll live
+   in ProductRail.module.css). */
 .slide {
   flex: 0 0 clamp(240px, 29%, 330px);
-  min-width: 0;
-  scroll-snap-align: start;
-}
-
-/* .productTrack's default flex stretch already sizes .slide to the row's
-   tallest card, but ProductCard's own <a> is height:auto — without this it
-   would stay content-height inside the taller slide, leaving cards with a
-   shorter offer banner (or none) visibly shorter than their neighbours. */
-.slide > a {
-  height: 100%;
-}
-
-/* ProductCard's square image box (its first child) — a portrait photo would
-   otherwise grow it taller than square (its content-based minimum height),
-   pushing that card's name and price below its neighbours'. Hidden overflow
-   keeps every box exactly square; the photo fills and crops (object-fit:
-   cover). */
-.slide > a > div:first-child {
-  overflow: hidden;
-}
-
-.dots {
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  gap: 8px;
-  margin-top: 18px;
-}
-
-.dot {
-  width: 8px;
-  height: 8px;
-  padding: 0;
-  border: 0;
-  border-radius: 50%;
-  background: #ded4c9;
-  cursor: pointer;
-}
-
-.dot:focus-visible {
-  outline: 2px solid var(--color-burgundy);
-  outline-offset: 2px;
-}
-
-.dotActive {
-  background: var(--color-burgundy);
 }
 
 /* ---- Tablet (768–1099px) ---- */
@@ -226,16 +164,7 @@
     font-size: 14px;
   }
 
-  .productTrack {
-    gap: 10px;
-    scroll-snap-type: x mandatory;
-  }
-
   .slide {
     flex: 0 0 min(60vw, 240px);
-  }
-
-  .dots {
-    margin-top: 14px;
   }
 }

@@ -1,0 +1,46 @@
+/* Same width, spacing and title style as the homepage's other titled
+   sections (ImageMosaic.module.css). */
+.section {
+  max-width: var(--container-max);
+  margin: 0 auto;
+  padding: var(--space-6) var(--space-4);
+}
+
+.heading {
+  margin: 0;
+  font-family: var(--font-heading);
+  font-size: var(--section-heading-size);
+  font-weight: var(--section-heading-weight);
+  color: var(--section-heading-color);
+  text-align: center;
+}
+
+.rail {
+  margin-top: var(--space-5);
+}
+
+/* Exactly 4 cards per view on desktop (3 gaps of 16px in ProductRail's
+   track), 3 on tablet; phones show one and a peek of the next to swipe. */
+.slide {
+  flex: 0 0 calc((100% - 3 * 16px) / 4);
+}
+
+@media (max-width: 1099px) and (min-width: 768px) {
+  .slide {
+    flex: 0 0 calc((100% - 2 * 16px) / 3);
+  }
+}
+
+@media (max-width: 767px) {
+  .section {
+    padding: var(--space-5) var(--space-3);
+  }
+
+  .rail {
+    margin-top: var(--space-4);
+  }
+
+  .slide {
+    flex: 0 0 min(60vw, 240px);
+  }
+}

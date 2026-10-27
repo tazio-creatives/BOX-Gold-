@@ -81,9 +81,15 @@ function buildFilters({
   excludeId,
   search,
   excludeZeroPrice,
+  isFeatured,
 }) {
   const clauses = [];
   const params = [];
+
+  // Products an admin starred "Featured" (homepage Featured Products section).
+  if (isFeatured) {
+    clauses.push('p.is_featured = true');
+  }
 
   if (status) {
     params.push(status);
@@ -149,6 +155,9 @@ const SORT_COLUMNS = {
   newest: 'p.created_at DESC',
   price_asc: 'p.selling_price ASC',
   price_desc: 'p.selling_price DESC',
+  // Internal only (not a public sort option): the homepage Featured Products
+  // order — the most recently edited (e.g. just starred) product first.
+  recently_updated: 'p.updated_at DESC',
 };
 
 // "bestseller" combines the two signals the admin actually asked for:

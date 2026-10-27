@@ -13,9 +13,9 @@ import { CollectionShowcase } from './CollectionShowcase';
 import { CollectionProductShowcase } from './CollectionProductShowcase';
 import { DuoBanner } from './DuoBanner';
 import { HeroCarousel } from './HeroCarousel';
+import { FeaturedProductsSection } from './FeaturedProductsSection';
 import { NewArrivalsSection } from './NewArrivalsSection';
 import { NewsletterForm } from './NewsletterForm';
-import { ProductCarousel } from './ProductCarousel';
 import { PriceTierCard } from './PriceTierCard';
 import { TrustStripSection } from './TrustStripSection';
 import styles from './HomepageSection.module.css';
@@ -75,9 +75,7 @@ export function HomepageSection({ section, alternate, isFirstHero = false }: Pro
       );
 
     case 'FEATURED_PRODUCT':
-      return (
-        <ProductCarousel items={section.items} heading={section.heading ?? 'Featured Products'} cardsPerViewDesktop={4} />
-      );
+      return <FeaturedProductsSection items={section.items} heading={section.heading || 'Featured Products'} />;
 
     case 'CAMPAIGN_BANNERS':
       return <CampaignBanners items={section.items} heading={section.heading} />;

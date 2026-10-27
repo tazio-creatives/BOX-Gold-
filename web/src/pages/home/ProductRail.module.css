@@ -1,0 +1,74 @@
+.track {
+  display: flex;
+  gap: 16px;
+  overflow-x: auto;
+  scroll-behavior: smooth;
+  scroll-snap-type: x proximity;
+  scrollbar-width: none;
+  padding-bottom: 2px;
+}
+
+.track::-webkit-scrollbar {
+  display: none;
+}
+
+/* Width comes from the caller's slideClassName. */
+.slide {
+  min-width: 0;
+  scroll-snap-align: start;
+}
+
+/* .track's default flex stretch already sizes .slide to the row's tallest
+   card, but ProductCard's own <a> is height:auto — without this it would
+   stay content-height inside the taller slide, leaving cards with a shorter
+   offer banner (or none) visibly shorter than their neighbours. */
+.slide > a {
+  height: 100%;
+}
+
+/* ProductCard's square image box (its first child) — a portrait photo would
+   otherwise grow it taller than square (its content-based minimum height),
+   pushing that card's name and price below its neighbours'. Hidden overflow
+   keeps every box exactly square; the photo fills and crops (object-fit:
+   cover). */
+.slide > a > div:first-child {
+  overflow: hidden;
+}
+
+.dots {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 8px;
+  margin-top: 18px;
+}
+
+.dot {
+  width: 8px;
+  height: 8px;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: #ded4c9;
+  cursor: pointer;
+}
+
+.dot:focus-visible {
+  outline: 2px solid var(--color-burgundy);
+  outline-offset: 2px;
+}
+
+.dotActive {
+  background: var(--color-burgundy);
+}
+
+@media (max-width: 767px) {
+  .track {
+    gap: 10px;
+    scroll-snap-type: x mandatory;
+  }
+
+  .dots {
+    margin-top: 14px;
+  }
+}

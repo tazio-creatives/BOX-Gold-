@@ -168,60 +168,38 @@ export async function getEnabledSectionsWithItems() {
   // FEATURED_PRODUCT is likewise auto-derived — whichever product(s) an
   // admin has flagged is_featured on the product itself (Products list),
   // most recently updated first — rather than manually attached via
-  // homepage_items. Same reasoning as BENTO_CATEGORIES/NEW_ARRIVALS above.
+  // homepage_items. Same "one item, many products" shape as NEW_ARRIVALS:
+  // full listing rows, so the storefront renders the standard ProductCard.
   const featuredProductSections = sections.filter((s) => s.type === 'FEATURED_PRODUCT');
   if (featuredProductSections.length > 0) {
-    const { rows: featuredProducts } = await query(
-      `SELECT p.id, p.name, p.slug, p.selling_price, p.metal_type, p.purity,
-              p.mrp, p.gold_value, p.diamond_value, p.making_charge, p.gst_percent,
-              p.making_charge_discount_percent, p.diamond_discount_percent,
-              p.effective_making_charge_discount_percent, p.effective_diamond_discount_percent,
-              cat.slug AS category_slug, p_image.url AS product_image_url
-       FROM products p
-       LEFT JOIN categories cat ON cat.id = p.category_id
-       LEFT JOIN LATERAL (
-         SELECT url FROM product_images
-         WHERE product_id = p.id AND is_primary = true AND variant = 'small'
-         LIMIT 1
-       ) p_image ON true
-       WHERE p.status = 'PUBLISHED' AND p.is_featured = true
-       ORDER BY p.updated_at DESC
-       LIMIT 8`,
+    const { items: featuredProducts } = await listProducts(
+      { isFeatured: true, status: 'PUBLISHED', excludeZeroPrice: true },
+      { sort: 'recently_updated', page: 1, limit: 8 },
     );
-    const autoItems = featuredProducts.map((p) => ({
-      id: p.id,
-      image_url: null,
-      image_url_mobile: null,
-      heading: p.name,
-      subheading: null,
-      cta_label: null,
-      cta_url: p.category_slug ? `/${p.category_slug}/${p.slug}` : `/${p.slug}`,
-      category_id: null,
-      category_name: null,
-      category_slug: null,
-      category_image_url: null,
-      collection_id: null,
-      collection_name: null,
-      collection_slug: null,
-      product_id: p.id,
-      product_name: p.name,
-      product_slug: p.slug,
-      product_selling_price: p.selling_price,
-      product_metal_type: p.metal_type,
-      product_purity: p.purity,
-      product_image_url: p.product_image_url,
-      product_mrp: p.mrp,
-      product_gold_value: p.gold_value,
-      product_diamond_value: p.diamond_value,
-      product_making_charge: p.making_charge,
-      product_gst_percent: p.gst_percent,
-      product_making_charge_discount_percent: p.making_charge_discount_percent,
-      product_diamond_discount_percent: p.diamond_discount_percent,
-      product_effective_making_charge_discount_percent: p.effective_making_charge_discount_percent,
-      product_effective_diamond_discount_percent: p.effective_diamond_discount_percent,
-    }));
     for (const section of featuredProductSections) {
-      itemsBySection.set(section.id, autoItems);
+      itemsBySection.set(section.id, [
+        {
+          id: `featured-${section.id}`,
+          image_url: null,
+          image_url_mobile: null,
+          heading: null,
+          subheading: null,
+          cta_label: null,
+          cta_url: null,
+          category_id: null,
+          category_name: null,
+          category_slug: null,
+          category_image_url: null,
+          collection_id: null,
+          collection_name: null,
+          collection_slug: null,
+          product_id: null,
+          product_name: null,
+          product_slug: null,
+          product_selling_price: null,
+          products: featuredProducts,
+        },
+      ]);
     }
   }
 
